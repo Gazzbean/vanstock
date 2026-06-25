@@ -1,15 +1,11 @@
 // ============================================================
-// middleware.ts   (NEW FILE — goes in the ROOT of your project,
-// same level as package.json — NOT inside the app folder)
+// middleware.ts   (FIX — replaces your existing file)
 //
-// WHY THIS IS NEEDED:
-// Login sessions expire after a while and need refreshing.
-// This file runs automatically before every page loads and
-// keeps your session cookie valid, so you don't get randomly
-// logged out while using the app.
+// Same fix as lib/supabase.ts — adding an explicit type to the
+// setAll cookiesToSet parameter so the strict Vercel build passes.
 // ============================================================
 
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -23,7 +19,9 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(
+          cookiesToSet: { name: string; value: string; options: CookieOptions }[]
+        ) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           response = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -34,7 +32,6 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Touching getUser() here is what triggers the session refresh
   await supabase.auth.getUser()
 
   return response
