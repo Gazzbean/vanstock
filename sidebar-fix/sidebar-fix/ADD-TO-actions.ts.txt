@@ -1,0 +1,27 @@
+// ============================================================
+// ADD THIS FUNCTION to your existing lib/actions.ts file
+// Paste it anywhere inside the file (e.g. just below getCurrentProfile,
+// or at the very end before the final closing — doesn't matter where,
+// as long as it's a top-level function in the file).
+//
+// WHAT IT DOES:
+// Returns a simplified version of the logged-in user's info —
+// just their name, role, and van number — safe to show in the
+// sidebar UI. Returns null if nobody is logged in (so the sidebar
+// can show a fallback instead of crashing).
+// ============================================================
+
+export async function getCurrentUserDisplay() {
+  try {
+    const profile = await getCurrentProfile()
+    return {
+      full_name: profile.full_name,
+      role: profile.role,
+      van_number: (profile.van as any)?.van_number ?? null,
+    }
+  } catch {
+    // Not logged in, or profile not found — return null so the
+    // sidebar can show a safe fallback instead of throwing an error
+    return null
+  }
+}
