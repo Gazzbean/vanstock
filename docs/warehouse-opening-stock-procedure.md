@@ -12,7 +12,7 @@
 ## Opening physical count
 1. Select the physical Main Warehouse and an agreed stocktake cut-off date/time (Australia/Perth).
 2. Count each product physically on the warehouse shelves, excluding stock already issued to vans.
-3. Record product code, description, unit of measure, physical count, bin/shelf, count date, counted by and checked by.
+3. Record product code, description, unit of measure, physical count, bin/shelf, count date, counted by and checked by. For refrigerant, aggregate the measured remaining kilograms by refrigerant type at each location; do not require cylinder-by-cylinder records.
 4. Record unidentified products separately. Resolve duplicates, packaging units and product identities before posting.
 5. Review exceptions and obtain manager/administrator approval; keep the signed source count.
 
