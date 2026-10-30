@@ -65,9 +65,9 @@ export default async function DashboardPage() {
 
         <div className="grid grid-cols-4 gap-3 mb-5">
           <div className="metric-card">
-            <div className="metric-label">Total items on van</div>
+            <div className="metric-label">Stock product types</div>
             <div className="metric-value">{stats?.totalItems ?? 0}</div>
-            <div className="metric-sub">across {stockItems.length} product types</div>
+            <div className="metric-sub">with a positive balance</div>
           </div>
           <div className="metric-card">
             <div className="metric-label">Low stock alerts</div>
@@ -80,9 +80,9 @@ export default async function DashboardPage() {
             <div className="metric-sub">logged movements</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Items issued today</div>
+            <div className="metric-label">Customer issues today</div>
             <div className="metric-value">{stats?.issuedToday ?? 0}</div>
-            <div className="metric-sub">to customers</div>
+            <div className="metric-sub">recorded transactions</div>
           </div>
         </div>
 
@@ -109,7 +109,7 @@ export default async function DashboardPage() {
                   return (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="table-cell font-medium">{s.product?.name}</td>
-                      <td className="table-cell">{s.quantity}</td>
+                      <td className="table-cell">{s.quantity} {s.product?.stock_unit ?? 'ea'}</td>
                       <td className="table-cell">
                         <span className={`badge ${st.cls}`}>{st.label}</span>
                       </td>
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
                   <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                   <div>
                     <div className="text-sm text-gray-800">
-                      {typeLabels[log.type] ?? log.type} — {log.quantity}× {log.product_name}
+                      {typeLabels[log.type] ?? log.type} — {log.quantity} {stockItems.find(s => s.product_id === log.product_id)?.product?.stock_unit ?? 'ea'} {log.product_name}
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5">
                       {new Date(log.created_at).toLocaleTimeString('en-AU', {
