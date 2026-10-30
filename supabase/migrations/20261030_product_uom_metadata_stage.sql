@@ -11,4 +11,6 @@ alter table public.products
 commit;
 -- Follow-up CHECK constraints and product mapping must be reviewed prior to commissioning.
 -- Existing stock and log quantities are integers: fractional issues are NOT supported.
--- Cylinder, roll, and partial-pack balances need further modelling.
+-- Agreed refrigerant design: one kg balance per refrigerant product and location.
+-- Individual cylinder tracking is deliberately out of scope.
+-- Other packaging behaviours remain subject to separate review.
