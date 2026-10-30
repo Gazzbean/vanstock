@@ -76,6 +76,7 @@ export interface TransferPayload {
   quantity: number
   reference: string
   notes?: string
+  destination_van_id?: string
 }
 
 // What we need to adjust stock directly
