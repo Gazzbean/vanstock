@@ -15,7 +15,7 @@ Status: SOURCE REVIEW ONLY. No database tests have run. Do not apply to producti
 1. Apply warehouse permissions, product unit metadata, and warehouse inventory migrations in dependency order.
 2. Compare existing stock and activity-log quantities before and after conversion; check exact preservation.
 3. Verify all SQL function signatures, RLS, company isolation, and role grants.
-4. Reject 1.5 ea; accept 2.500 kg and 1.250 m; reject zero, negatives and invalid precision.
+4. Reject 1.5 ea; accept 2.500 kg and 1.250 m; reject zero, negatives and invalid precision. In particular, send 1.2345 kg directly to each RPC and confirm it is rejected **without rounding** to 1.235 kg; check that a very large quantity also fails without changing balances.
 5. Transfer 2.500 kg warehouse to van, checking equal debit and credit and complete audit logging.
 6. Return 1.250 kg van to warehouse with equal debit and credit.
 7. Reject insufficient source stock with no balance or log change.
