@@ -12,15 +12,23 @@ export default function AddProductModal() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [category, setCategory] = useState('Gas cylinder')
-  const [minStock, setMinStock] = useState(2)
+  const [stockUnit, setStockUnit] = useState<'ea' | 'kg' | 'm' | 'pack' | 'container'>('ea')
+  const [minStock, setMinStock] = useState('2')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function handleSubmit() {
     if (!name.trim()) { setError('Enter a product name'); return }
+    const amount = Number(minStock)
+    const decimal = stockUnit === 'kg' || stockUnit === 'm'
+    const validPrecision = decimal ? /^\d+(?:\.\d{1,3})?$/.test(minStock) : /^\d+$/.test(minStock)
+    if (!validPrecision || !Number.isFinite(amount) || amount < 0) {
+      setError('Enter a valid minimum quantity for ' + stockUnit)
+      return
+    }
     setError('')
     startTransition(async () => {
-      const result = await addProduct(name, category, minStock, 0)
+      const result = await addProduct(name, category, amount, 0, stockUnit)
       if (result?.error) {
         setError(result.error)
       } else {
@@ -62,9 +70,22 @@ export default function AddProductModal() {
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Min stock level</label>
-                  <input className="form-input" type="number" min={0} value={minStock} onChange={(e) => setMinStock(parseInt(e.target.value) || 0)} />
+                  <label className="form-label">Stock unit</label>
+                  <select className="form-input" value={stockUnit}
+                    onChange={e => { setStockUnit(e.target.value as typeof stockUnit); setMinStock('0') }}>
+                    <option value="ea">Each (ea)</option>
+                    <option value="kg">Kilograms (kg)</option>
+                    <option value="m">Metres (m)</option>
+                    <option value="pack">Pack</option>
+                    <option value="container">Container</option>
+                  </select>
                 </div>
+              </div>
+              <div>
+                <label className="form-label">Minimum stock ({stockUnit})</label>
+                <input className="form-input" type="number" min="0"
+                  step={stockUnit === 'kg' || stockUnit === 'm' ? '0.001' : '1'}
+                  value={minStock} onChange={e => setMinStock(e.target.value)} />
               </div>
               <p className="text-xs text-gray-500">Opening stock balances are entered separately through the approved stocktake procedure.</p>
             </div>
