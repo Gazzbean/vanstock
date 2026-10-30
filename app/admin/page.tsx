@@ -144,7 +144,7 @@ export default async function AdminPage() {
         </div>
         {user.role === 'admin' && warehousePermissions && (
           <div className="mt-4">
-            <WarehousePermissionsPanel users={profiles.map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} />
+            <WarehousePermissionsPanel users={profiles.filter((p: any) => p.role === 'technician').map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} />
           </div>
         )}
       </div>
