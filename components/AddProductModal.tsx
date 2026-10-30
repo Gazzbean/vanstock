@@ -13,7 +13,6 @@ export default function AddProductModal() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState('Gas cylinder')
   const [minStock, setMinStock] = useState(2)
-  const [startingQty, setStartingQty] = useState(0)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -21,13 +20,12 @@ export default function AddProductModal() {
     if (!name.trim()) { setError('Enter a product name'); return }
     setError('')
     startTransition(async () => {
-      const result = await addProduct(name, category, minStock, startingQty)
+      const result = await addProduct(name, category, minStock, 0)
       if (result?.error) {
         setError(result.error)
       } else {
         setOpen(false)
         setName('')
-        setStartingQty(0)
       }
     })
   }
@@ -68,10 +66,7 @@ export default function AddProductModal() {
                   <input className="form-input" type="number" min={0} value={minStock} onChange={(e) => setMinStock(parseInt(e.target.value) || 0)} />
                 </div>
               </div>
-              <div>
-                <label className="form-label">Starting qty on this van</label>
-                <input className="form-input" type="number" min={0} value={startingQty} onChange={(e) => setStartingQty(parseInt(e.target.value) || 0)} />
-              </div>
+              <p className="text-xs text-gray-500">Opening stock balances are entered separately through the approved stocktake procedure.</p>
             </div>
 
             <div className="flex gap-2 justify-end mt-4">
