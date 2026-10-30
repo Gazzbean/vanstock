@@ -10,7 +10,7 @@ create or replace function public.apply_van_stock_action(
   p_reference text,
   p_notes text default ''
 )
-returns numeric(12,3)
+returns numeric(12,2)
 language plpgsql
 security definer
 set search_path = ''
@@ -23,9 +23,9 @@ declare
   v_product_name text;
   v_unit text;
   v_archived timestamptz;
-  v_previous numeric(12,3);
-  v_next numeric(12,3);
-  v_logged_quantity numeric(12,3);
+  v_previous numeric(12,2);
+  v_next numeric(12,2);
+  v_logged_quantity numeric(12,2);
   v_log_type text;
 begin
   if v_user_id is null then raise exception 'Not authenticated'; end if;
@@ -44,9 +44,9 @@ begin
     or (p_quantity = 0 and p_operation <> 'adjust-set') then
     raise exception 'Invalid stock quantity';
   end if;
-  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,3) columns.
-  if p_quantity <> trunc(p_quantity, 3) then
-    raise exception 'Maximum three decimal places permitted';
+  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,2) columns.
+  if p_quantity <> trunc(p_quantity, 2) then
+    raise exception 'Maximum two decimal places permitted';
   end if;
   if p_quantity >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
   if p_reference is null or length(trim(p_reference)) = 0 then
