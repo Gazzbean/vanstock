@@ -26,7 +26,7 @@ export default function WarehouseOpeningStockForm({
   const product = products.find(p => p.id === productId)
   const isDecimal = product?.unit === 'kg' || product?.unit === 'm'
   const hasBalance = balances.some(b => b.warehouse_id === warehouseId && b.product_id === productId)
-  const precise = isDecimal ? /^\d+(?:\.\d{1,3})?$/.test(quantity) : /^\d+$/.test(quantity)
+  const precise = isDecimal ? /^\d+(?:\.\d{1,2})?$/.test(quantity) : /^\d+$/.test(quantity)
   const amount = Number(quantity)
   const valid = !!warehouseId && !!productId && !hasBalance && precise &&
     Number.isFinite(amount) && amount >= 0 && !!reference.trim()
@@ -88,7 +88,7 @@ export default function WarehouseOpeningStockForm({
             Count {product ? '(' + product.unit + ')' : ''}
           </label>
           <input id="opening-count" className="form-input" type="number" min="0"
-            step={isDecimal ? '0.001' : '1'} value={quantity}
+            step={isDecimal ? '0.01' : '1'} value={quantity}
             onChange={e => setQuantity(e.target.value)} />
         </div>
         <div>
