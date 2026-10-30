@@ -25,7 +25,7 @@ const destLabels: Record<string, string> = {
 export default function TransferForm({ products, stockItems }: Props) {
   const [type, setType] = useState<TransferType>('issue')
   const [productId, setProductId] = useState(products[0]?.id ?? '')
-  const [qty, setQty] = useState(1)
+  const [qty, setQty] = useState('1')
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
@@ -34,6 +34,12 @@ export default function TransferForm({ products, stockItems }: Props) {
 
   // Current stock for selected product
   const currentStock = stockItems.find((s) => s.product_id === productId)?.quantity ?? 0
+
+  const selected = products.find(p => p.id === productId)
+  const unit = selected?.stock_unit ?? 'ea'
+  const decimal = unit === 'kg' || unit === 'm'
+  const quantity = Number(qty)
+  const precisionOK = decimal ? /^\d+(?:\.\d{1,3})?$/.test(qty) : /^\d+$/.test(qty)
 
   function handleSubmit() {
     setError('')
@@ -44,15 +50,20 @@ export default function TransferForm({ products, stockItems }: Props) {
       return
     }
 
+    if (!precisionOK || !Number.isFinite(quantity) || quantity <= 0) {
+      setError('Enter a valid quantity in ' + unit)
+      return
+    }
+
     startTransition(async () => {
-      const result = await recordTransfer({ type, product_id: productId, quantity: qty, reference, notes })
+      const result = await recordTransfer({ type, product_id: productId, quantity, reference, notes })
       if (result?.error) {
         setError(result.error)
       } else {
         setSuccess('Transfer recorded successfully.')
         setReference('')
         setNotes('')
-        setQty(1)
+        setQty('1')
       }
     })
   }
@@ -70,8 +81,7 @@ export default function TransferForm({ products, stockItems }: Props) {
           <select className="form-input" value={type} onChange={(e) => setType(e.target.value as TransferType)}>
             <option value="issue">Issue to customer</option>
             <option value="return">Return from customer</option>
-            <option value="van-to-van">Van-to-van transfer</option>
-            <option value="depot">Return to depot</option>
+            {/* Dedicated two-sided van/depot movements are not operational yet. */}
           </select>
         </div>
 
@@ -82,7 +92,7 @@ export default function TransferForm({ products, stockItems }: Props) {
               const onVan = stockItems.find((s) => s.product_id === p.id)?.quantity ?? 0
               return (
                 <option key={p.id} value={p.id}>
-                  {p.name} (on van: {onVan})
+                  {p.name} (on van: {onVan} {p.stock_unit ?? 'ea'})
                 </option>
               )
             })}
@@ -90,18 +100,19 @@ export default function TransferForm({ products, stockItems }: Props) {
         </div>
 
         <div>
-          <label className="form-label">Quantity</label>
+          <label className="form-label">Quantity ({unit})</label>
           <input
             className="form-input"
             type="number"
-            min={1}
+            min={decimal ? 0.001 : 1}
+            step={decimal ? 0.001 : 1}
             max={type !== 'return' ? currentStock : undefined}
             value={qty}
-            onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+            onChange={(e) => setQty(e.target.value)}
           />
           {type !== 'return' && (
             <p className="text-xs text-gray-400 mt-1">
-              {currentStock} available on van
+              {currentStock} {unit} available on van
             </p>
           )}
         </div>
