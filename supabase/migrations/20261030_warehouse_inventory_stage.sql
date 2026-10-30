@@ -2,10 +2,20 @@
 -- DO NOT RUN until permission migration has been reviewed/applied and production testing is planned.
 -- Existing van stock in public.stock is preserved as-is.
 -- Stock balances: public.warehouse_stock for warehouses; public.stock for vans.
--- This transitional model requires all movements through the controlled RPC functions.
+-- Apply product UOM metadata migration BEFORE this staged migration.
+-- This transitional model requires all movements through controlled RPC functions.
 -- Before production, refactor the legacy adjustStock/recordTransfer write paths to the same atomic model.
 
 begin;
+
+-- Exact decimal balances preserve current integer values (e.g. 8 becomes 8.000).
+-- Transaction logs must store the same precision as inventory.
+alter table public.stock
+  alter column quantity type numeric(12,3) using quantity::numeric(12,3);
+alter table public.activity_log
+  alter column quantity type numeric(12,3) using quantity::numeric(12,3);
+alter table public.products
+  alter column min_stock type numeric(12,3) using min_stock::numeric(12,3);
 
 create table if not exists public.warehouses (
   id uuid primary key default gen_random_uuid(),
@@ -18,7 +28,7 @@ create table if not exists public.warehouses (
 create table if not exists public.warehouse_stock (
   warehouse_id uuid not null references public.warehouses(id) on delete cascade,
   product_id uuid not null references public.products(id),
-  quantity integer not null default 0 check (quantity >= 0),
+  quantity numeric(12,3) not null default 0 check (quantity >= 0),
   updated_at timestamptz not null default now(),
   primary key (warehouse_id, product_id)
 );
@@ -38,7 +48,7 @@ create or replace function public.move_warehouse_van_stock(
   p_warehouse_id uuid,
   p_van_id uuid,
   p_product_id uuid,
-  p_quantity integer,
+  p_quantity numeric(12,3),
   p_direction text,
   p_reference text default '',
   p_notes text default ''
@@ -58,7 +68,8 @@ declare
   v_product_label text;
   v_perm_issue boolean;
   v_perm_receive boolean;
-  v_previous integer;
+  v_previous numeric(12,3);
+  v_unit text;
 begin
   if v_user_id is null then raise exception 'Login required'; end if;
   if p_quantity is null or p_quantity <= 0 then raise exception 'Quantity must be positive'; end if;
@@ -82,9 +93,15 @@ begin
   where id = p_van_id and company_id = v_company_id;
   if v_van_label is null then raise exception 'Van not found for company'; end if;
 
-  select name into v_product_label from public.products
+  select name, stock_unit into v_product_label, v_unit from public.products
   where id = p_product_id and company_id = v_company_id;
   if v_product_label is null then raise exception 'Product not found for company'; end if;
+  if v_unit not in ('ea','kg','m','pack','container') or v_unit is null then
+    raise exception 'Unsupported product stock unit';
+  end if;
+  if v_unit in ('ea','pack','container') and p_quantity <> trunc(p_quantity) then
+    raise exception 'This product must be moved in whole units';
+  end if;
 
   if v_role = 'technician' then
     if v_assigned_van is distinct from p_van_id then
@@ -154,10 +171,12 @@ begin
 end;
 $function$;
 
-revoke all on function public.move_warehouse_van_stock(uuid,uuid,uuid,integer,text,text,text) from public, anon;
+revoke all on function public.move_warehouse_van_stock(uuid,uuid,uuid,numeric,text,text,text) from public, anon;
 grant execute on function public.move_warehouse_van_stock(uuid,uuid,uuid,integer,text,text,text) to authenticated;
 
 commit;
 
 -- No starting inventory is added by this migration.
 -- Initial counts must be approved and entered using a separately audited stocktake workflow.
+-- All legacy stock write operations and ledger reports must be migrated and tested
+-- before this transaction function is enabled for use.
