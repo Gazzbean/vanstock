@@ -3,7 +3,7 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData } from '@/lib/actions'
+import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import RemoveProductButton from '@/components/RemoveProductButton'
@@ -27,10 +27,12 @@ export default async function AdminPage() {
   }
 
   const [products, { vans, profiles }, warehousePermissions] = await Promise.all([
-    getProducts(),
+    getAdminProducts(),
     getAdminData(),
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
   ])
+
+  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED === 'true'
 
   return (
     <div>
@@ -60,14 +62,14 @@ export default async function AdminPage() {
               <tbody>
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="table-cell font-medium">{p.name}</td>
+                    <td className="table-cell font-medium">{p.name}{p.archived_at && <span className="text-xs text-gray-500 ml-2">(Archived)</span>}</td>
                     <td className="table-cell">
                       <span className="badge badge-gray">{p.category}</span>
                     </td>
                     <td className="table-cell text-gray-500">{p.stock_unit ?? "ea"}</td>
                     <td className="table-cell text-gray-400">{p.min_stock}</td>
                     <td className="table-cell">
-                      <RemoveProductButton productId={p.id} />
+                      <RemoveProductButton productId={p.id} archived={!!p.archived_at} enabled={archiveEnabled} />
                     </td>
                   </tr>
                 ))}
