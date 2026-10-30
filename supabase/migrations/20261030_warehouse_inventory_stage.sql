@@ -48,7 +48,7 @@ create or replace function public.move_warehouse_van_stock(
   p_warehouse_id uuid,
   p_van_id uuid,
   p_product_id uuid,
-  p_quantity numeric(12,3),
+  p_quantity numeric,
   p_direction text,
   p_reference text default '',
   p_notes text default ''
@@ -74,6 +74,7 @@ declare
 begin
   if v_user_id is null then raise exception 'Login required'; end if;
   if p_quantity is null or p_quantity <= 0 then raise exception 'Quantity must be positive'; end if;
+  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,3) columns.
   if p_quantity <> trunc(p_quantity, 3) then
     raise exception 'Maximum three decimal places permitted';
   end if;
