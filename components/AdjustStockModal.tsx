@@ -36,7 +36,7 @@ export default function AdjustStockModal({
   const unit = selected?.stock_unit ?? 'ea'
   const decimal = unit === 'kg' || unit === 'm'
   const quantity = Number(qty)
-  const precisionOK = decimal ? /^\d+(?:\.\d{1,3})?$/.test(qty) : /^\d+$/.test(qty)
+  const precisionOK = decimal ? /^\d+(?:\.\d{1,2})?$/.test(qty) : /^\d+$/.test(qty)
 
   function handleSubmit() {
     setError('')
@@ -109,8 +109,8 @@ export default function AdjustStockModal({
                   <input
                     className="form-input"
                     type="number"
-                    min={action === 'set' ? 0 : decimal ? 0.001 : 1}
-                    step={decimal ? 0.001 : 1}
+                    min={action === 'set' ? 0 : decimal ? 0.01 : 1}
+                    step={decimal ? 0.01 : 1}
                     value={qty}
                     onChange={(e) => setQty(e.target.value)}
                   />
