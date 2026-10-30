@@ -24,7 +24,7 @@ This is an **intermediate design**, not the ultimate unified location ledger. Al
 
 ## Database changes prepared
 - `warehouses` scoped to a company, including one default Main Warehouse.
-- `warehouse_stock` with nonnegative integer quantities and unique warehouse/product key.
+- `warehouse_stock` with nonnegative exact decimal quantities (NUMERIC(12,3)) and unique warehouse/product key.
 - Transactional `move_warehouse_van_stock` with stock and log writes in one DB call.
 - Checks company boundaries, product identity, role, per-user warehouse permission and assigned van.
 - Public/anonymous table privileges revoked; authenticated can call only the controlled RPC.
@@ -34,8 +34,8 @@ This is an **intermediate design**, not the ultimate unified location ledger. Al
 1. Review migration with Supabase Postgres SQL Editor in a staging/test project and take verified backups.
 2. Confirm permissions migration, audited manager/admin assignment, and role policy are active.
 3. Build manager warehouse-stock dashboard, approved opening-stock intake, and transfer form.
-4. Replace old non-atomic stock-write functions and audit-log model before production.
-5. Implement agreed simplified units: refrigerants tracked by separate product and total kg per location (no individual cylinder tracking), metres as decimal where required, each as integer; current INTEGER schema supports discrete units only.
+4. Replace old non-atomic stock-write functions and audit-log model before production. The current dashboard incorrectly adds unlike units, and must be adapted before activating decimal stock.
+5. Apply the product UOM metadata migration **before** the warehouse-inventory stage. The latter changes existing stock and activity-log quantities from INTEGER to NUMERIC(12,3) without changing their values. Validate against current production schema in test first. Refrigerants remain one total kilogram balance per product and location, never per cylinder.
 6. Test insufficient stock, zero/negative quantities, cross-company IDs, unprivileged users, assigned vans and simultaneous transfers.
 7. Verify there are no gaps/duplicates in transaction logs, no double counting in dashboard totals, and accurate warehouse/van balances.
 
