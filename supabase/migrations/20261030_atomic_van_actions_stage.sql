@@ -22,6 +22,7 @@ declare
   v_role text;
   v_product_name text;
   v_unit text;
+  v_archived timestamptz;
   v_previous numeric(12,3);
   v_next numeric(12,3);
   v_logged_quantity numeric(12,3);
@@ -50,13 +51,14 @@ begin
     raise exception 'Reference or notes too long';
   end if;
 
-  select name, stock_unit into v_product_name, v_unit
+  select name, stock_unit, archived_at into v_product_name, v_unit, v_archived
   from public.products
-  where id = p_product_id and company_id = v_company_id;
+  where id = p_product_id and company_id = v_company_id for update;
   if v_product_name is null or v_unit not in ('ea','kg','m','pack','container')
      or v_unit is null then
     raise exception 'Product does not belong to company or has invalid unit';
   end if;
+  if v_archived is not null then raise exception 'Archived product cannot be changed'; end if;
   if v_unit in ('ea','pack','container') and p_quantity <> trunc(p_quantity) then
     raise exception 'Whole-number quantity required for this product';
   end if;
