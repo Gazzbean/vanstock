@@ -3,7 +3,7 @@
 Status: SOURCE REVIEW ONLY. No database tests have run. Do not apply to production.
 
 ## Findings
-- Original stock.quantity, activity_log.quantity and products.min_stock are INTEGER; the draft migration changes these to NUMERIC(12,3).
+- Original stock.quantity, activity_log.quantity and products.min_stock are INTEGER; the draft migration changes these to NUMERIC(12,2).
 - Corrected a draft SQL GRANT that incorrectly referred to the old INTEGER RPC signature.
 - Legacy adjustStock and recordTransfer use separate read/write/log steps, exposing race conditions and missing-log risks.
 - adjustStock clips over-removal to zero rather than rejecting insufficient stock.
@@ -15,9 +15,9 @@ Status: SOURCE REVIEW ONLY. No database tests have run. Do not apply to producti
 1. Apply warehouse permissions, product unit metadata, and warehouse inventory migrations in dependency order.
 2. Compare existing stock and activity-log quantities before and after conversion; check exact preservation.
 3. Verify all SQL function signatures, RLS, company isolation, and role grants.
-4. Reject 1.5 ea; accept 2.500 kg and 1.250 m; reject zero, negatives and invalid precision. In particular, send 1.2345 kg directly to each RPC and confirm it is rejected **without rounding** to 1.235 kg; check that a very large quantity also fails without changing balances.
-5. Transfer 2.500 kg warehouse to van, checking equal debit and credit and complete audit logging.
-6. Return 1.250 kg van to warehouse with equal debit and credit.
+4. Reject 1.5 ea; accept 2.50 kg and 1.25 m; reject zero, negatives and invalid precision. In particular, send 1.235 kg directly to each RPC and confirm it is rejected rather than rounded to 1.24 kg; check that a very large quantity also fails without changing balances.
+5. Transfer 2.50 kg warehouse to van, checking equal debit and credit and complete audit logging.
+6. Return 1.25 kg van to warehouse with equal debit and credit.
 7. Reject insufficient source stock with no balance or log change.
 8. Force transaction failure after debit and verify complete rollback.
 9. Reject cross-company resources and unauthorised technician requests.
