@@ -35,7 +35,7 @@ This is an **intermediate design**, not the ultimate unified location ledger. Al
 2. Confirm permissions migration, audited manager/admin assignment, and role policy are active.
 3. Build manager warehouse-stock dashboard, approved opening-stock intake, and transfer form.
 4. Replace old non-atomic stock-write functions and audit-log model before production.
-5. Confirm correct product units (ea/kg/m/pack/container); current INTEGER schema supports discrete units only.
+5. Implement agreed simplified units: refrigerants tracked by separate product and total kg per location (no individual cylinder tracking), metres as decimal where required, each as integer; current INTEGER schema supports discrete units only.
 6. Test insufficient stock, zero/negative quantities, cross-company IDs, unprivileged users, assigned vans and simultaneous transfers.
 7. Verify there are no gaps/duplicates in transaction logs, no double counting in dashboard totals, and accurate warehouse/van balances.
 
