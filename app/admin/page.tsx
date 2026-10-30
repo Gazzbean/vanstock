@@ -3,10 +3,11 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getProducts, getAdminData, getCurrentUserDisplay } from '@/lib/actions'
+import { getProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import RemoveProductButton from '@/components/RemoveProductButton'
+import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 
 export default async function AdminPage() {
   const user = await getCurrentUserDisplay()
@@ -25,9 +26,10 @@ export default async function AdminPage() {
     )
   }
 
-  const [products, { vans, profiles }] = await Promise.all([
+  const [products, { vans, profiles }, warehousePermissions] = await Promise.all([
     getProducts(),
     getAdminData(),
+    user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
   ])
 
   return (
@@ -140,6 +142,11 @@ export default async function AdminPage() {
           </div>
 
         </div>
+        {user.role === 'admin' && warehousePermissions && (
+          <div className="mt-4">
+            <WarehousePermissionsPanel users={profiles.map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} />
+          </div>
+        )}
       </div>
     </div>
   )
