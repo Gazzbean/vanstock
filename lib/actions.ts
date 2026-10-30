@@ -412,3 +412,54 @@ export async function saveWarehousePermissions(
   revalidatePath('/admin')
   return { success: true }
 }
+
+
+// ── READ-ONLY WAREHOUSE OVERVIEW ────────────────────────────
+// This page is available only after the staged warehouse migration.
+// Never return cross-company warehouse records.
+export async function getWarehouseOverview() {
+  const profile = await getCurrentProfile()
+  const allowedRoles = ['admin', 'manager']
+  if (!allowedRoles.includes(profile.role)) {
+    throw new Error('Warehouse management access required')
+  }
+
+  const db = createServerClient()
+  const { data: warehouses, error: warehouseError } = await db
+    .from('warehouses')
+    .select('id, name, company_id')
+    .eq('company_id', profile.company_id)
+    .order('name')
+
+  if (warehouseError) {
+    // Before applying the database migration, display a safe setup state.
+    if (warehouseError.code === '42P01' || warehouseError.code === 'PGRST205') {
+      return { setupRequired: true as const, warehouses: [], items: [] }
+    }
+    throw new Error('Could not read warehouse locations: ' + warehouseError.message)
+  }
+
+  const warehouseIds = (warehouses ?? []).map((w) => w.id)
+  if (warehouseIds.length === 0) {
+    return { setupRequired: false as const, warehouses: [], items: [] }
+  }
+
+  const { data: balances, error: balanceError } = await db
+    .from('warehouse_stock')
+    .select('warehouse_id, product_id, quantity, product:products(name, category)')
+    .in('warehouse_id', warehouseIds)
+    .order('product_id')
+
+  if (balanceError) throw new Error('Could not read warehouse balances: ' + balanceError.message)
+  return {
+    setupRequired: false as const,
+    warehouses: warehouses ?? [],
+    items: (balances ?? []).map((item) => ({
+      warehouse_id: item.warehouse_id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      product_name: (item.product as any)?.name ?? 'Unknown product',
+      category: (item.product as any)?.category ?? 'Other',
+    })),
+  }
+}
