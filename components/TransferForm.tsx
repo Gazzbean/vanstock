@@ -13,21 +13,23 @@ import type { Product, StockItem, TransferType } from '@/types'
 interface Props {
   products: Product[]
   stockItems: StockItem[]
+  destinationVans: { id: string; van_number: string }[]
 }
 
 const destLabels: Record<string, string> = {
   issue:        'Customer / site reference',
   return:       'Customer / site reference',
-  'van-to-van': 'Destination van (e.g. Van #07)',
+  'van-to-van': 'Reference / job (optional)',
   depot:        'Depot name',
 }
 
-export default function TransferForm({ products, stockItems }: Props) {
+export default function TransferForm({ products, stockItems, destinationVans }: Props) {
   const [type, setType] = useState<TransferType>('issue')
   const [productId, setProductId] = useState(products[0]?.id ?? '')
   const [qty, setQty] = useState(1)
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
+  const [destinationVanId, setDestinationVanId] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -39,13 +41,17 @@ export default function TransferForm({ products, stockItems }: Props) {
     setError('')
     setSuccess('')
 
-    if (!reference.trim()) {
+    if (type === 'van-to-van' && !destinationVanId) {
+      setError('Select the receiving van')
+      return
+    }
+    if (type !== 'van-to-van' && !reference.trim()) {
       setError('Please enter a reference (customer name, site, etc.)')
       return
     }
 
     startTransition(async () => {
-      const result = await recordTransfer({ type, product_id: productId, quantity: qty, reference, notes })
+      const result = await recordTransfer({ type, product_id: productId, quantity: qty, reference, notes, destination_van_id: type === 'van-to-van' ? destinationVanId : undefined })
       if (result?.error) {
         setError(result.error)
       } else {
@@ -53,6 +59,7 @@ export default function TransferForm({ products, stockItems }: Props) {
         setReference('')
         setNotes('')
         setQty(1)
+        setDestinationVanId('')
       }
     })
   }
@@ -74,6 +81,26 @@ export default function TransferForm({ products, stockItems }: Props) {
             <option value="depot">Return to depot</option>
           </select>
         </div>
+
+        {type === 'van-to-van' && (
+          <div>
+            <label className="form-label" htmlFor="destination-van">Receiving van</label>
+            <select
+              id="destination-van"
+              className="form-input"
+              value={destinationVanId}
+              onChange={(e) => setDestinationVanId(e.target.value)}
+            >
+              <option value="">Select receiving van</option>
+              {destinationVans.map((van) => (
+                <option key={van.id} value={van.id}>{van.van_number}</option>
+              ))}
+            </select>
+            {destinationVans.length === 0 && (
+              <p className="text-xs text-red-600 mt-1">No other vans are available.</p>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="form-label">Item</label>
@@ -129,7 +156,7 @@ export default function TransferForm({ products, stockItems }: Props) {
         <button
           className="btn btn-primary w-full justify-center"
           onClick={handleSubmit}
-          disabled={isPending}
+          disabled={isPending || (type === 'van-to-van' && destinationVans.length === 0)}
         >
           {isPending ? 'Recording…' : '✓ Confirm transfer'}
         </button>
