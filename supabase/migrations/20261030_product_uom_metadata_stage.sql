@@ -1,16 +1,18 @@
--- VanStock: additive product unit metadata; STAGING ONLY.
--- Do not apply without review and backup. Does not modify existing balances.
+-- VanStock: simple product unit of measure. STAGING ONLY.
+-- Existing products default to each (ea); verify each product against its physical stock.
+-- No existing quantity balances are modified by this migration.
 begin;
+
 alter table public.products
-  add column if not exists stock_unit text not null default 'ea',
-  add column if not exists stock_tracking_type text not null default 'ea',
-  add column if not exists issue_increment numeric(12,3) not null default 1,
-  add column if not exists min_issue_quantity numeric(12,3) not null default 1,
-  add column if not exists package_capacity numeric(12,3),
-  add column if not exists package_unit text;
+  add column if not exists stock_unit text not null default 'ea';
+
+alter table public.products
+  add constraint products_stock_unit_valid
+  check (stock_unit in ('ea', 'kg', 'm', 'pack', 'container'));
+
 commit;
--- Follow-up CHECK constraints and product mapping must be reviewed prior to commissioning.
--- Existing stock and log quantities are integers: fractional issues are NOT supported.
--- Agreed refrigerant design: one kg balance per refrigerant product and location.
--- Individual cylinder tracking is deliberately out of scope.
--- Other packaging behaviours remain subject to separate review.
+
+-- Refrigerants: one stock balance in kg per refrigerant type and location.
+-- No cylinder identifiers, package capacity or separate cylinder counts.
+-- Fractional transactions remain unavailable until the warehouse/van
+-- NUMERIC migration and transactional stock actions are installed and tested.
