@@ -249,31 +249,42 @@ export async function addProduct(
   name: string,
   category: string,
   minStock: number,
-  startingQty: number
+  startingQty: number,
+  stockUnit: 'ea' | 'kg' | 'm' | 'pack' | 'container' = 'ea',
 ) {
   const profile = await getCurrentProfile()
 
   if (!['manager', 'admin'].includes(profile.role)) {
     return { error: 'Only managers can add products' }
   }
-
-  // Initial stock is entered later via audited warehouse/van stocktake.
-  // Do not silently create unlogged van quantities when a catalogue item is added.
+  if (!name?.trim() || name.trim().length > 200 || !category?.trim()) {
+    return { error: 'Enter a valid product name and category' }
+  }
+  if (!['ea', 'kg', 'm', 'pack', 'container'].includes(stockUnit)) {
+    return { error: 'Select a valid stock unit' }
+  }
+  if (!Number.isFinite(minStock) || minStock < 0 ||
+      Math.round(minStock * 1000) !== minStock * 1000 ||
+      (['ea', 'pack', 'container'].includes(stockUnit) && !Number.isSafeInteger(minStock))) {
+    return { error: 'Minimum stock quantity must match the selected unit' }
+  }
+  // Initial stock must be counted and audited separately, not fabricated here.
   if (startingQty !== 0) {
-    return { error: 'Add the product with zero opening quantity; opening stock is entered through a stocktake.' }
+    return { error: 'Opening stock must be entered through the stocktake procedure.' }
   }
   const db = createServerClient()
-
-  const { data: product, error } = await db
-    .from('products')
-    .insert({ company_id: profile.company_id, name, category, min_stock: minStock })
-    .select()
-    .single()
-
+  const { error } = await db.from('products').insert({
+    company_id: profile.company_id,
+    name: name.trim(),
+    category: category.trim(),
+    min_stock: minStock,
+    stock_unit: stockUnit,
+  })
   if (error) return { error: error.message }
 
   revalidatePath('/admin')
   revalidatePath('/stock')
+  revalidatePath('/warehouse')
   return { success: true }
 }
 
