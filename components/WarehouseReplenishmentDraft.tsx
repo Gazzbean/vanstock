@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 // Planning screen only: no database writes and no Server Actions.
 type VanOption = { id: string; van_number: string }
-type ProductOption = { id: string; name: string }
+type ProductOption = { id: string; name: string; unit: string }
 type WarehouseOption = { id: string; name: string }
 type WarehouseBalance = { warehouse_id: string; product_id: string; quantity: number }
 
@@ -28,8 +28,14 @@ export default function WarehouseReplenishmentDraft({
   const product = products.find(p => p.id === productId)
   const available = balances.find(b => b.warehouse_id === warehouseId && b.product_id === productId)?.quantity ?? 0
   const requested = Number(quantity)
-  const valid = enabled && warehouse && van && product &&
-    Number.isSafeInteger(requested) && requested > 0 && requested <= available
+  // This is a read-only planning preview. It does NOT authorize fractional database writes.
+  const supportsDecimals = product?.unit === 'kg' || product?.unit === 'm'
+  const step = supportsDecimals ? '0.001' : '1'
+  const precisionValid = supportsDecimals
+    ? /^\\d+(?:\\.\\d{1,3})?$/.test(quantity)
+    : /^\\d+$/.test(quantity)
+  const valid = Boolean(enabled && warehouse && van && product && precisionValid &&
+    requested > 0 && requested <= available && Number.isFinite(requested))
 
   return (
     <section className="card mt-4">
@@ -62,11 +68,11 @@ export default function WarehouseReplenishmentDraft({
             <option value="">Select product</option>
             {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {productId && <p className="text-xs text-gray-500 mt-1">Recorded warehouse balance: {available}</p>}
+          {productId && <p className="text-xs text-gray-500 mt-1">Recorded warehouse balance: {available} {product?.unit ?? 'ea'}</p>}
         </div>
         <div>
-          <label className="form-label" htmlFor="warehouse-quantity">Quantity (whole units)</label>
-          <input id="warehouse-quantity" className="form-input" type="number" min="1" step="1"
+          <label className="form-label" htmlFor="warehouse-quantity">Quantity {product ? `(${product.unit})` : ''}</label>
+          <input id="warehouse-quantity" className="form-input" type="number" min={step} step={step}
             value={quantity} onChange={e => setQuantity(e.target.value)} />
         </div>
         <div className="md:col-span-2">
@@ -77,7 +83,7 @@ export default function WarehouseReplenishmentDraft({
       </div>
       <div className="mt-4 p-3 rounded bg-gray-50 text-sm">
         {valid
-          ? `Preview: ${requested} × ${product?.name} from ${warehouse?.name} to ${van?.van_number}.`
+          ? `Preview: ${requested} ${product?.unit} of ${product?.name} from ${warehouse?.name} to ${van?.van_number}.`
           : 'Select a warehouse, van and product with sufficient recorded stock to preview a transfer.'}
         {reference.trim() && <div className="text-xs text-gray-500 mt-1">Reference: {reference}</div>}
       </div>
