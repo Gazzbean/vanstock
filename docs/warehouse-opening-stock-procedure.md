@@ -16,6 +16,15 @@
 4. Record unidentified products separately. Resolve duplicates, packaging units and product identities before posting.
 5. Review exceptions and obtain manager/administrator approval; keep the signed source count.
 
+## Staged posting implementation
+- A new draft database function, `post_warehouse_opening_stock`, accepts an approved warehouse, product, counted quantity and stocktake reference.
+- Only authenticated Administrator/Manager accounts can post, scoped to their company.
+- Quantity, product unit and location are checked. Decimal kg and metres are permitted, while each/pack/container must be whole numbers.
+- A unique `(warehouse_id, product_id)` opening-entry record prevents double posting, including for zero counts.
+- The opening balance, entry record and activity log are written in one database transaction; errors roll back all three.
+- An existing warehouse balance cannot be overwritten by an opening-stock posting.
+- This is prepared SQL only; it has not been deployed or tested in a Supabase environment.
+
 ## Posting design
 - Opening balances will be entered only through a future admin/manager stocktake workflow with explicit approval.
 - Each post must validate company/warehouse/product, nonnegative quantity and a unique stocktake batch to prevent double posting.
