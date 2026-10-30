@@ -4,7 +4,7 @@
 // The form is a Client Component; the page shell is a Server Component.
 // ============================================================
 
-import { getMyStock, getProducts, getActivityLog } from '@/lib/actions'
+import { getMyStock, getProducts, getActivityLog, getTransferVans } from '@/lib/actions'
 import TransferForm from '@/components/TransferForm'
 
 const typeLabels: Record<string, string> = {
@@ -16,10 +16,11 @@ const typeLabels: Record<string, string> = {
 }
 
 export default async function TransferPage() {
-  const [stockItems, products, todayLogs] = await Promise.all([
+  const [stockItems, products, todayLogs, destinationVans] = await Promise.all([
     getMyStock(),
     getProducts(),
     getActivityLog(),
+    getTransferVans(),
   ])
 
   // Filter to just today
@@ -42,7 +43,7 @@ export default async function TransferPage() {
 
         <div className="grid grid-cols-2 gap-4">
           {/* Transfer form — Client Component */}
-          <TransferForm products={products} stockItems={stockItems} />
+          <TransferForm products={products} stockItems={stockItems} destinationVans={destinationVans} />
 
           {/* Today's transfers */}
           <div className="card">
