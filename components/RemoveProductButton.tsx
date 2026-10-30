@@ -1,32 +1,13 @@
-// ============================================================
-// components/RemoveProductButton.tsx
-// A simple delete button for removing a product.
-// Needs 'use client' because it calls a Server Action on click.
-// ============================================================
-
-'use client'
-
-import { useTransition } from 'react'
-import { removeProduct } from '@/lib/actions'
-
+// Product deletion is intentionally suspended until archival is implemented.
+// Existing database foreign keys could cascade-delete stock balances.
 export default function RemoveProductButton({ productId }: { productId: string }) {
-  const [isPending, startTransition] = useTransition()
-
-  function handleClick() {
-    if (!confirm('Remove this product? Stock entries will also be deleted.')) return
-    startTransition(async () => {
-      await removeProduct(productId)
-    })
-  }
-
   return (
-    <button
-      onClick={handleClick}
-      disabled={isPending}
-      className="btn btn-sm btn-danger"
-      aria-label="Remove product"
+    <span
+      className="text-xs text-gray-400"
+      title="Product deletion is disabled until safe archival is available"
+      aria-label="Product deletion unavailable"
     >
-      {isPending ? '…' : '🗑'}
-    </button>
+      Archive pending
+    </span>
   )
 }
