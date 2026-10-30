@@ -1,33 +1,48 @@
-# VanStock – Units of measure and packaging requirements
+# VanStock – Simple stock units and refrigerant tracking (agreed)
 
-**Status:** Design and additive metadata only; not operational.
+**Status:** Design agreed; not installed or operational. Live inventory remains unchanged.
 
-## Source: Simplicity Air Rev6 SOP, Appendix page 6
+## Decision: refrigerant is one stock balance per type, per location
 
-| Type | Examples | Required usage behaviour |
+Each refrigerant is a **separate product** (R134a, R404A, R410A, etc.). Each van and warehouse stores the **total kilograms remaining for that product**, for example:
+
+| Location | Product | Remaining |
+| --- | --- | ---: |
+| Van #3 | R134a | 8.5 kg |
+| Van #3 | R404A | 6.0 kg |
+
+- Using 2.5 kg of R134a reduces Van #3 R134a from 8.5 kg to 6.0 kg.
+- A warehouse-to-van issue of 12 kg R134a subtracts 12 kg from the warehouse R134a balance and adds 12 kg to the selected van's R134a balance in one transaction.
+- Different refrigerant types **never** share a combined balance.
+- **Do not create individual cylinder records**, serial-number tracking, full/part-cylinder status, or automatic cylinder count deductions in this version.
+- If multiple cylinders of the same refrigerant type are held, the app tracks **only their combined mass remaining**. The technician can locate the physical cylinder separately.
+- Refrigerant cylinder numbers/weights needed for legal refrigerant handling, purchasing, or other external compliance records are **not replaced** by this simplified VanStock balance.
+- Do not assume all cylinders have identical capacity. Record actual refrigerant kg transferred or consumed.
+
+## Other stock – minimum necessary complexity
+
+| Unit | Example | Version-one proposal |
 | --- | --- | --- |
-| ea | Controllers, sensors, valves, cylinders | Whole-number quantities |
-| kg | Refrigerant R404A (10kg), R134A (12kg) | Decimal kg consumed, running cylinder balance, decrement cylinder count when emptied |
-| m | Copper coil, pipe insulation, cable | Decimal metres consumed, running roll balance, decrement roll count when emptied |
-| pack | Cable ties (minimum 10), screws (minimum 10), crimp connectors (minimum 5) | Still-have-stock / pack-finished; pack count changes on finish |
-| container | Bottles, tubes, flux tins, solder sticks | Still-have-stock / finished; container count changes on finish |
+| ea | Sensor, valve, regulator | Whole-number count |
+| kg | R134a, R404A | Decimal kg per product and location |
+| m | Copper tubing, insulation | Decimal metres per product and location |
+| pack | Cable ties, connectors | Whole packs **unless** individual-piece issuing is explicitly required for that item |
+| container | Flux, chemicals | Whole containers; treat as one until replaced/finished |
 
-## Development rules
+Pack/container usage remains subject to approval because the original Rev6 SOP handles partially used packs differently. Do not silently replace agreed Rev6 behaviour in the production application.
 
-- Product classification must be verified against the Master Parts list. Do NOT infer units from product names.
-- Physical package quantity and remaining content are separate data; a van may hold multiple partial/full cylinders or rolls.
-- Preserve billed usage (e.g. 2.5kg) separately from physical pack count so ServiceM8 can bill correctly.
-- Opening warehouse balances must be physically checked and never inferred from van quantities.
-- Quantities and units must be captured in each future audit transaction. Changing a product unit must not rewrite historical transactions.
-- Values should use precise decimal numeric fields, not floating-point arithmetic, for kg/m where appropriate.
-- Enforce minimum-issue increments per product for packs; do not conflate number of pieces used with count of packs finished.
+## Source vs agreed simplification
 
-## Current blockers
+The Rev6 SOP proposed cylinder-count reduction when emptied and detailed partially used pack/roll rules. **The user has now specifically approved a simpler refrigerant implementation:** stock by refrigerant type and total remaining kg; no cylinder-by-cylinder tracking. This is an intentional change to the earlier specification, not a claim that Rev6 already specified it.
 
-- Stock, warehouse stock, log and RPC quantity fields are INTEGER. Decimal inventory transactions cannot yet run.
-- Legacy Add Product and Transfer forms assume whole numbers.
-- No per-cylinder, per-roll or partially-used-pack tracking exists.
-- Total inventory count across mixed units is not a meaningful metric.
-- Supabase schema, transaction functions and ServiceM8 billing mapping require coordinated design and testing.
+## Technical requirements before release
 
-**No change to live data or behaviour has been made.** Implement and test a migration plan in a separate Supabase project before operational rollout.
+1. Preserve existing van quantities and historical records. Never automatically interpret existing count values as kilograms.
+2. Store each product's stock unit and use exact decimal quantities for kg and m (e.g. numeric with three decimal places, subject to confirmation).
+3. Convert existing integer-only warehouse/van balance tables, logs, stock actions and transfer RPCs in a coordinated **tested** migration before enabling fractional quantities.
+4. Keep a separate stock balance for each (location, product) pair. No cylinder entity or package-content ledger is required for refrigerants.
+5. Validate nonnegative balances and stock transfer quantities; enforce atomic debits/credits and log who/when/quantity/reason.
+6. Avoid a single summed stock number across unlike units (e.g. 8 kg + 3 ea).
+7. Verify each existing product's correct unit before migrating production data.
+
+**No Supabase migrations have been applied and no live deployment has occurred.**
