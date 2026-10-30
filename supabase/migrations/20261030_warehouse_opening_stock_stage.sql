@@ -38,6 +38,7 @@ declare
   v_product_name text;
   v_warehouse_name text;
   v_existing numeric(12,3);
+  v_archived timestamptz;
 begin
   if v_actor is null then raise exception 'Authentication required'; end if;
 
@@ -56,12 +57,15 @@ begin
     raise exception 'Approved stocktake reference required (up to 500 characters)';
   end if;
 
+  -- Lock product BEFORE warehouse, consistent with movement RPCs.
+  select name, stock_unit, archived_at into v_product_name, v_unit, v_archived
+  from public.products
+  where id = p_product_id and company_id = v_company for update;
+  if v_archived is not null then raise exception 'Archived product cannot receive stock'; end if;
+
   select name into v_warehouse_name from public.warehouses
   where id = p_warehouse_id and company_id = v_company for update;
   if v_warehouse_name is null then raise exception 'Warehouse does not belong to company'; end if;
-
-  select name, stock_unit into v_product_name, v_unit from public.products
-  where id = p_product_id and company_id = v_company;
   if v_product_name is null then raise exception 'Product does not belong to company'; end if;
   if v_unit not in ('ea','kg','m','pack','container') or v_unit is null then
     raise exception 'Product unit must be verified first';
