@@ -9,7 +9,7 @@ create table if not exists public.warehouse_opening_entries (
   warehouse_id uuid not null references public.warehouses(id),
   company_id uuid not null references public.companies(id),
   product_id uuid not null references public.products(id),
-  opening_quantity numeric(12,3) not null check (opening_quantity >= 0),
+  opening_quantity numeric(12,2) not null check (opening_quantity >= 0),
   stocktake_reference text not null,
   approved_by uuid not null references public.profiles(id),
   posted_at timestamptz not null default now(),
@@ -37,7 +37,7 @@ declare
   v_unit text;
   v_product_name text;
   v_warehouse_name text;
-  v_existing numeric(12,3);
+  v_existing numeric(12,2);
   v_archived timestamptz;
 begin
   if v_actor is null then raise exception 'Authentication required'; end if;
@@ -51,9 +51,9 @@ begin
   if p_count is null or p_count < 0 then
     raise exception 'Opening count must be zero or greater';
   end if;
-  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,3) columns.
-  if p_count <> trunc(p_count, 3) then
-    raise exception 'Maximum three decimal places permitted';
+  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,2) columns.
+  if p_count <> trunc(p_count, 2) then
+    raise exception 'Maximum two decimal places permitted';
   end if;
   if p_count >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
   if p_stocktake_reference is null
