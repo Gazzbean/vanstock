@@ -29,6 +29,7 @@ create index if not exists idx_warehouse_permission_audit_company
 
 alter table public.user_warehouse_permissions enable row level security;
 alter table public.warehouse_permission_audit enable row level security;
+revoke all on table public.user_warehouse_permissions, public.warehouse_permission_audit from anon, authenticated;
 -- Intentionally no client-side RLS policies: only role-checked server reads,
 -- and the authenticated RPC below for changes. Service-role bypasses RLS.
 
@@ -47,6 +48,7 @@ declare
   v_actor uuid := auth.uid();
   v_company uuid;
   v_target_company uuid;
+  v_target_role text;
   v_previous jsonb;
   v_new jsonb;
 begin
@@ -56,9 +58,13 @@ begin
   where id = v_actor and role = 'admin';
   if v_company is null then raise exception 'Administrator permission required'; end if;
 
-  select company_id into v_target_company from public.profiles where id = p_user_id;
+  select company_id, role into v_target_company, v_target_role
+  from public.profiles where id = p_user_id;
   if v_target_company is distinct from v_company then
     raise exception 'User does not belong to your company';
+  end if;
+  if v_target_role <> 'technician' then
+    raise exception 'Individual warehouse permissions are only configurable for technicians';
   end if;
 
   if p_can_view is null or p_can_request is null or p_can_issue is null or
