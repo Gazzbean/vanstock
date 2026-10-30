@@ -264,7 +264,7 @@ export async function addProduct(
     return { error: 'Select a valid stock unit' }
   }
   if (!Number.isFinite(minStock) || minStock < 0 ||
-      Math.round(minStock * 1000) !== minStock * 1000 ||
+      Math.round(minStock * 100) !== minStock * 100 ||
       (['ea', 'pack', 'container'].includes(stockUnit) && !Number.isSafeInteger(minStock))) {
     return { error: 'Minimum stock quantity must match the selected unit' }
   }
