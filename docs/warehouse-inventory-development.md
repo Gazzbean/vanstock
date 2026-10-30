@@ -40,3 +40,22 @@ This is an **intermediate design**, not the ultimate unified location ledger. Al
 7. Verify there are no gaps/duplicates in transaction logs, no double counting in dashboard totals, and accurate warehouse/van balances.
 
 **Do not merge to main or apply migrations before coordinated integration testing.**
+
+## Warehouse user interface integration (latest development)
+
+- The warehouse screen now includes the opening-stocktake form and warehouse-to-van replenishment form.
+- Each form displays product units (kg/m can use decimals, ea/pack/container use whole units).
+- Both forms call session-authenticated server actions which invoke the role-checked PostgreSQL RPCs.
+- All stock-changing actions are **disabled by default**, controlled by server-only `WAREHOUSE_WRITES_ENABLED=true`. Do not set this in production until all acceptance tests have passed.
+- Starting balances are explicit, once-only warehouse stocktake transactions, with signed-off count references; no stocks are fabricated from existing van balances.
+- This is source-code integration only. Database migrations and live end-to-end transaction tests have not been executed.
+
+## Deployment checklist
+
+1. Reconcile SQL migrations, foreign keys, RLS and permissions in disposable Supabase project.
+2. Verify exact migration order and all existing stock quantities; do not rerun legacy seed schema.
+3. Set test-only `WAREHOUSE_WRITES_ENABLED=true`; keep production unset.
+4. Test positive and insufficient stock, decimal precision, duplicate opening posting, cross-company access, concurrency and rollback.
+5. Verify stock and activity ledger accounting after each operation.
+6. Check whether technicians need limited warehouse viewing/request screens before adding them.
+7. Agree deployment and migration sequencing; repeat verified backup before any production database change.
