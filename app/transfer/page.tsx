@@ -59,7 +59,7 @@ export default async function TransferPage() {
                     <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                     <div>
                       <div className="text-sm text-gray-800">
-                        {typeLabels[log.type] ?? log.type} — {log.quantity}× {log.product_name}
+                        {typeLabels[log.type] ?? log.type} — {log.quantity} {products.find(p => p.id === log.product_id)?.stock_unit ?? 'ea'} {log.product_name}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
                         {new Date(log.created_at).toLocaleTimeString('en-AU', {
