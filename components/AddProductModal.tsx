@@ -21,7 +21,7 @@ export default function AddProductModal() {
     if (!name.trim()) { setError('Enter a product name'); return }
     const amount = Number(minStock)
     const decimal = stockUnit === 'kg' || stockUnit === 'm'
-    const validPrecision = decimal ? /^\d+(?:\.\d{1,3})?$/.test(minStock) : /^\d+$/.test(minStock)
+    const validPrecision = decimal ? /^\d+(?:\.\d{1,2})?$/.test(minStock) : /^\d+$/.test(minStock)
     if (!validPrecision || !Number.isFinite(amount) || amount < 0) {
       setError('Enter a valid minimum quantity for ' + stockUnit)
       return
@@ -87,7 +87,7 @@ export default function AddProductModal() {
               <div>
                 <label className="form-label">Minimum stock ({stockUnit})</label>
                 <input className="form-input" type="number" min="0"
-                  step={stockUnit === 'kg' || stockUnit === 'm' ? '0.001' : '1'}
+                  step={stockUnit === 'kg' || stockUnit === 'm' ? '0.01' : '1'}
                   value={minStock} onChange={e => setMinStock(e.target.value)} />
               </div>
               <p className="text-xs text-gray-500">Opening stock balances are entered separately through the approved stocktake procedure.</p>
