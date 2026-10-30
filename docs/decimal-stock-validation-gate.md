@@ -25,5 +25,8 @@ Status: SOURCE REVIEW ONLY. No database tests have run. Do not apply to producti
 11. Check dashboard, stock pages, transfer forms and activity logs for correct units and no mixed-unit totals.
 12. Confirm end-to-end behaviour with test users; a successful Vercel build alone is insufficient.
 
+## Product retirement risk
+The existing original schema defines stock.product_id with ON DELETE CASCADE. A previous manager product-delete action could silently remove associated van stock. Product deletion has been suspended in the development branch, and must remain blocked until a non-destructive archive/deactivation workflow is built, with explicit handling of stock already held. The production app has not yet received this safeguard.
+
 ## Release gate
 Never enable stock-changing warehouse operations until the legacy stock actions have been replaced by safe transactional operations and these checks have passed.
