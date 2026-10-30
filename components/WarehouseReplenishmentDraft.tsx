@@ -32,8 +32,8 @@ export default function WarehouseReplenishmentDraft({
   const supportsDecimals = product?.unit === 'kg' || product?.unit === 'm'
   const step = supportsDecimals ? '0.001' : '1'
   const precisionValid = supportsDecimals
-    ? /^\\d+(?:\\.\\d{1,3})?$/.test(quantity)
-    : /^\\d+$/.test(quantity)
+    ? /^\d+(?:\.\d{1,3})?$/.test(quantity)
+    : /^\d+$/.test(quantity)
   const valid = Boolean(enabled && warehouse && van && product && precisionValid &&
     requested > 0 && requested <= available && Number.isFinite(requested))
 
