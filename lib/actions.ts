@@ -222,6 +222,11 @@ export async function addProduct(
     return { error: 'Only managers can add products' }
   }
 
+  // Initial stock is entered later via audited warehouse/van stocktake.
+  // Do not silently create unlogged van quantities when a catalogue item is added.
+  if (startingQty !== 0) {
+    return { error: 'Add the product with zero opening quantity; opening stock is entered through a stocktake.' }
+  }
   const db = createServerClient()
 
   const { data: product, error } = await db
@@ -231,14 +236,6 @@ export async function addProduct(
     .single()
 
   if (error) return { error: error.message }
-
-  if (startingQty > 0 && profile.van_id) {
-    await db.from('stock').upsert({
-      van_id: profile.van_id,
-      product_id: product.id,
-      quantity: startingQty,
-    })
-  }
 
   revalidatePath('/admin')
   revalidatePath('/stock')
