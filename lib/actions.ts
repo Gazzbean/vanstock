@@ -242,25 +242,14 @@ export async function addProduct(
   return { success: true }
 }
 
+// Destructive product deletion is suspended until an audited archive/retire
+// operation is implemented. Existing stock references products ON DELETE CASCADE.
 export async function removeProduct(productId: string) {
   const profile = await getCurrentProfile()
-
   if (!['manager', 'admin'].includes(profile.role)) {
-    return { error: 'Only managers can remove products' }
+    return { error: 'Manager access required' }
   }
-
-  const db = createServerClient()
-
-  const { error } = await db
-    .from('products')
-    .delete()
-    .eq('id', productId)
-    .eq('company_id', profile.company_id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath('/admin')
-  return { success: true }
+  return { error: 'Product deletion is disabled to protect van stock and inventory history. A product archive option will be added.' }
 }
 
 // ── ADMIN ──────────────────────────────────────────────────
