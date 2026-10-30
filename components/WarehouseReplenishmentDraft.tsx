@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { transferWarehouseToVan } from '@/lib/actions'
 
-// Planning screen only: no database writes and no Server Actions.
+// Server action is disabled unless WAREHOUSE_WRITES_ENABLED=true in tested deployment.
 type VanOption = { id: string; van_number: string }
 type ProductOption = { id: string; name: string; unit: string }
 type WarehouseOption = { id: string; name: string }
@@ -22,6 +23,9 @@ export default function WarehouseReplenishmentDraft({
   const [productId, setProductId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [reference, setReference] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [pending, startTransition] = useTransition()
 
   const warehouse = warehouses.find(w => w.id === warehouseId)
   const van = vans.find(v => v.id === vanId)
@@ -37,11 +41,35 @@ export default function WarehouseReplenishmentDraft({
   const valid = Boolean(enabled && warehouse && van && product && precisionValid &&
     requested > 0 && requested <= available && Number.isFinite(requested))
 
+  function submit() {
+    setError('')
+    setSuccess('')
+    if (!valid || !reference.trim()) {
+      setError('Complete a valid transfer and reference.')
+      return
+    }
+    if (!enabled) return
+    startTransition(async () => {
+      try {
+        const result = await transferWarehouseToVan(
+          warehouseId, vanId, productId, requested, reference.trim(),
+        )
+        if (result.error) setError(result.error)
+        else {
+          setSuccess('Transfer completed. Refresh to view updated balances.')
+          setQuantity('1')
+        }
+      } catch {
+        setError('Transfer could not be confirmed. Check balances before retrying.')
+      }
+    })
+  }
+
   return (
     <section className="card mt-4">
       <h2 className="text-sm font-medium mb-2">Warehouse → Van replenishment (planning preview)</h2>
       <p className="text-xs text-gray-500 mb-4">
-        Review the proposed stock movement. Confirmation is disabled until the warehouse database,
+        Review the stock movement. Posting stays disabled until the database,
         opening balances and transactional controls have been commissioned.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -78,7 +106,7 @@ export default function WarehouseReplenishmentDraft({
         <div className="md:col-span-2">
           <label className="form-label" htmlFor="warehouse-reference">Reference / replenishment request</label>
           <input id="warehouse-reference" className="form-input" value={reference}
-            onChange={e => setReference(e.target.value)} placeholder="Optional planning reference" />
+            onChange={e => setReference(e.target.value)} placeholder="Job or replenishment reference (required)" />
         </div>
       </div>
       <div className="mt-4 p-3 rounded bg-gray-50 text-sm">
@@ -87,9 +115,11 @@ export default function WarehouseReplenishmentDraft({
           : 'Select a warehouse, van and product with sufficient recorded stock to preview a transfer.'}
         {reference.trim() && <div className="text-xs text-gray-500 mt-1">Reference: {reference}</div>}
       </div>
-      <button type="button" className="btn btn-primary mt-3 opacity-60 cursor-not-allowed"
-        disabled title="Warehouse stock movements have not yet been commissioned">
-        Confirm replenishment — not yet enabled
+      {error && <p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
+      {success && <p role="status" className="text-sm text-green-700 mt-3">{success}</p>}
+      <button type="button" className="btn btn-primary mt-3"
+        disabled={!enabled || pending || !valid || !reference.trim()} onClick={submit}>
+        {pending ? 'Transferring…' : enabled ? 'Confirm replenishment' : 'Replenishment — not yet enabled'}
       </button>
     </section>
   )
