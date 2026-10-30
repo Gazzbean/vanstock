@@ -44,6 +44,10 @@ begin
     or (p_quantity = 0 and p_operation <> 'adjust-set') then
     raise exception 'Invalid stock quantity';
   end if;
+  if p_quantity <> trunc(p_quantity, 3) then
+    raise exception 'Maximum three decimal places permitted';
+  end if;
+  if p_quantity >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
   if p_reference is null or length(trim(p_reference)) = 0 then
     raise exception 'A reference or reason is required';
   end if;
