@@ -27,15 +27,26 @@ export default function AdjustStockModal({
   const [open, setOpen] = useState(false)
   const [productId, setProductId] = useState(preselectedProductId ?? products[0]?.id ?? '')
   const [action, setAction] = useState<'add' | 'remove' | 'set'>('add')
-  const [qty, setQty] = useState(1)
+  const [qty, setQty] = useState('1')
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  const selected = products.find(p => p.id === productId)
+  const unit = selected?.stock_unit ?? 'ea'
+  const decimal = unit === 'kg' || unit === 'm'
+  const quantity = Number(qty)
+  const precisionOK = decimal ? /^\d+(?:\.\d{1,3})?$/.test(qty) : /^\d+$/.test(qty)
+
   function handleSubmit() {
     setError('')
+    if (!reason.trim()) { setError('Enter a reason for the adjustment'); return }
+    if (!precisionOK || !Number.isFinite(quantity) || quantity < 0 || (quantity === 0 && action !== 'set')) {
+      setError('Enter a valid quantity in ' + unit)
+      return
+    }
     startTransition(async () => {
-      const result = await adjustStock({ product_id: productId, action, quantity: qty, reason })
+      const result = await adjustStock({ product_id: productId, action, quantity, reason })
       if (result?.error) {
         setError(result.error)
       } else {
@@ -94,13 +105,14 @@ export default function AdjustStockModal({
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Quantity</label>
+                  <label className="form-label">Quantity ({unit})</label>
                   <input
                     className="form-input"
                     type="number"
-                    min={1}
+                    min={action === 'set' ? 0 : decimal ? 0.001 : 1}
+                    step={decimal ? 0.001 : 1}
                     value={qty}
-                    onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setQty(e.target.value)}
                   />
                 </div>
               </div>
