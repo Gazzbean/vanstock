@@ -204,10 +204,45 @@ export async function getProducts() {
     .from('products')
     .select('*')
     .eq('company_id', profile.company_id)
+    .is('archived_at', null)
     .order('name')
 
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+// The full catalogue is used by managers; operational selectors show only
+// active products. Archived records remain visible in administration.
+export async function getAdminProducts() {
+  const profile = await getCurrentProfile()
+  if (!['manager', 'admin'].includes(profile.role)) throw new Error('Manager access required')
+  const db = createServerClient()
+  const { data, error } = await db.from('products')
+    .select('*').eq('company_id', profile.company_id).order('name')
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+export async function setProductArchived(productId: string, archive: boolean) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+    return { error: 'Catalogue archiving is not enabled yet.' }
+  }
+  const profile = await getCurrentProfile()
+  if (!['manager', 'admin'].includes(profile.role)) {
+    return { error: 'Manager access required' }
+  }
+  if (!productId || typeof archive !== 'boolean') return { error: 'Invalid product or action' }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('set_product_archived', {
+    p_product_id: productId,
+    p_archive: archive,
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/admin')
+  revalidatePath('/warehouse')
+  revalidatePath('/transfer')
+  revalidatePath('/stock')
+  return { success: true }
 }
 
 export async function addProduct(
