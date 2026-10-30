@@ -406,3 +406,67 @@ export async function getWarehouseOverview() {
     })),
   }
 }
+
+
+// ── WAREHOUSE WRITE ACTIONS: RELEASE GATED ─────────────────────
+// Both actions are DISABLED by default; set WAREHOUSE_WRITES_ENABLED=true
+// only in an isolated verified test deployment with migrations applied.
+export async function postWarehouseOpeningStock(
+  warehouseId: string, productId: string, quantity: number, stocktakeReference: string,
+) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+    return { error: 'Opening stock posting is not yet enabled.' }
+  }
+  const profile = await getCurrentProfile()
+  if (!['admin', 'manager'].includes(profile.role)) {
+    return { error: 'Administrator or Manager access required.' }
+  }
+  if (!warehouseId || !productId || !stocktakeReference?.trim() ||
+      !Number.isFinite(quantity) || quantity < 0) {
+    return { error: 'Complete the warehouse, product, quantity and stocktake reference.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('post_warehouse_opening_stock', {
+    p_warehouse_id: warehouseId,
+    p_product_id: productId,
+    p_count: quantity,
+    p_stocktake_reference: stocktakeReference.trim(),
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/warehouse')
+  revalidatePath('/logs')
+  return { success: true }
+}
+
+export async function transferWarehouseToVan(
+  warehouseId: string, vanId: string, productId: string, quantity: number,
+  reference: string,
+) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+    return { error: 'Warehouse replenishment is not yet enabled.' }
+  }
+  const profile = await getCurrentProfile()
+  if (!['admin', 'manager'].includes(profile.role)) {
+    return { error: 'Warehouse issue permission required.' }
+  }
+  if (!warehouseId || !vanId || !productId || !reference?.trim() ||
+      !Number.isFinite(quantity) || quantity <= 0) {
+    return { error: 'Complete the warehouse, receiving van, product, quantity and reference.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('move_warehouse_van_stock', {
+    p_warehouse_id: warehouseId,
+    p_van_id: vanId,
+    p_product_id: productId,
+    p_quantity: quantity,
+    p_direction: 'warehouse-to-van',
+    p_reference: reference.trim(),
+    p_notes: '',
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/warehouse')
+  revalidatePath('/stock')
+  revalidatePath('/dashboard')
+  revalidatePath('/logs')
+  return { success: true }
+}
