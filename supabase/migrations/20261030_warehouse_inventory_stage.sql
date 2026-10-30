@@ -70,6 +70,7 @@ declare
   v_perm_receive boolean;
   v_previous numeric(12,3);
   v_unit text;
+  v_archived timestamptz;
 begin
   if v_user_id is null then raise exception 'Login required'; end if;
   if p_quantity is null or p_quantity <= 0 then raise exception 'Quantity must be positive'; end if;
@@ -84,6 +85,14 @@ begin
     raise exception 'Account is not authorised';
   end if;
 
+  -- Lock product FIRST to prevent an archive racing a stock movement.
+  select name, stock_unit, archived_at
+    into v_product_label, v_unit, v_archived
+  from public.products
+  where id = p_product_id and company_id = v_company_id for update;
+  if v_product_label is null then raise exception 'Product not found for company'; end if;
+  if v_archived is not null then raise exception 'Archived product cannot be moved'; end if;
+
   -- Explicit location and product tenancy verification.
   select name into v_warehouse_label from public.warehouses
   where id = p_warehouse_id and company_id = v_company_id;
@@ -93,9 +102,6 @@ begin
   where id = p_van_id and company_id = v_company_id;
   if v_van_label is null then raise exception 'Van not found for company'; end if;
 
-  select name, stock_unit into v_product_label, v_unit from public.products
-  where id = p_product_id and company_id = v_company_id;
-  if v_product_label is null then raise exception 'Product not found for company'; end if;
   if v_unit not in ('ea','kg','m','pack','container') or v_unit is null then
     raise exception 'Unsupported product stock unit';
   end if;
