@@ -10,7 +10,7 @@ create or replace function public.apply_van_stock_action(
   p_reference text,
   p_notes text default ''
 )
-returns numeric(12,2)
+returns numeric
 language plpgsql
 security definer
 set search_path = ''
