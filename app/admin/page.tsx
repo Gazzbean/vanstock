@@ -52,6 +52,7 @@ export default async function AdminPage() {
                 <tr>
                   <th className="table-header">Name</th>
                   <th className="table-header">Category</th>
+                  <th className="table-header">Unit</th>
                   <th className="table-header">Min</th>
                   <th className="table-header w-12"></th>
                 </tr>
@@ -63,6 +64,7 @@ export default async function AdminPage() {
                     <td className="table-cell">
                       <span className="badge badge-gray">{p.category}</span>
                     </td>
+                    <td className="table-cell text-gray-500">{p.stock_unit ?? "ea"}</td>
                     <td className="table-cell text-gray-400">{p.min_stock}</td>
                     <td className="table-cell">
                       <RemoveProductButton productId={p.id} />
@@ -71,7 +73,7 @@ export default async function AdminPage() {
                 ))}
                 {products.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="table-cell text-center text-gray-400 py-4">
+                    <td colSpan={5} className="table-cell text-center text-gray-400 py-4">
                       No products yet. Add one above.
                     </td>
                   </tr>
