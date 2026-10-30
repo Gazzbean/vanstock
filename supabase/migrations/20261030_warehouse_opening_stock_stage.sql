@@ -22,7 +22,7 @@ revoke all on public.warehouse_opening_entries from anon, authenticated;
 create or replace function public.post_warehouse_opening_stock(
   p_warehouse_id uuid,
   p_product_id uuid,
-  p_count numeric(12,3),
+  p_count numeric,
   p_stocktake_reference text
 )
 returns void
@@ -51,6 +51,7 @@ begin
   if p_count is null or p_count < 0 then
     raise exception 'Opening count must be zero or greater';
   end if;
+  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,3) columns.
   if p_count <> trunc(p_count, 3) then
     raise exception 'Maximum three decimal places permitted';
   end if;
