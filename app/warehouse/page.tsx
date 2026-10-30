@@ -1,6 +1,7 @@
 // Read-only warehouse overview. Stock movements remain disabled until rollout approval.
 import { redirect } from 'next/navigation'
-import { getCurrentUserDisplay, getWarehouseOverview } from '@/lib/actions'
+import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
+import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts } from '@/lib/actions'
 
 export default async function WarehousePage() {
   const user = await getCurrentUserDisplay()
@@ -14,7 +15,9 @@ export default async function WarehousePage() {
     )
   }
 
-  const overview = await getWarehouseOverview()
+  const [overview, adminData, products] = await Promise.all([
+    getWarehouseOverview(), getAdminData(), getProducts(),
+  ])
   const totals = overview.warehouses.map((warehouse) => {
     const rows = overview.items.filter((item) => item.warehouse_id === warehouse.id)
     return {
@@ -92,6 +95,13 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
+        <WarehouseReplenishmentDraft
+          enabled={!overview.setupRequired}
+          warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
+          vans={adminData.vans.map(v => ({ id: v.id, van_number: v.van_number }))}
+          products={products.map(p => ({ id: p.id, name: p.name }))}
+          balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
+        />
       </div>
     </div>
   )
