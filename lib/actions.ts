@@ -164,9 +164,53 @@ export async function adjustStock(payload: AdjustPayload) {
 
 // ── TRANSFERS ──────────────────────────────────────────────
 
+// Destination options are always scoped to the logged-in user's company.
+export async function getTransferVans() {
+  const profile = await getCurrentProfile()
+  if (!profile.van_id) return []
+
+  const db = createServerClient()
+  const { data, error } = await db
+    .from('vans')
+    .select('id, van_number')
+    .eq('company_id', profile.company_id)
+    .neq('id', profile.van_id)
+    .order('van_number')
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+
+
 export async function recordTransfer(payload: TransferPayload) {
   const profile = await getCurrentProfile()
   if (!profile.van_id) throw new Error('No van assigned')
+
+  // Van-to-van transfers must be executed by the database in one transaction.
+  // The session client supplies the logged-in user's identity to the RPC.
+  if (payload.type === 'van-to-van') {
+    if (!Number.isSafeInteger(payload.quantity) || payload.quantity <= 0) {
+      return { error: 'Enter a valid positive whole-number quantity' }
+    }
+    if (!payload.destination_van_id || payload.destination_van_id === profile.van_id) {
+      return { error: 'Select a different destination van' }
+    }
+    const sessionClient = await createSessionClient()
+    const { error } = await sessionClient.rpc('transfer_between_vans', {
+      p_product_id: payload.product_id,
+      p_destination_van_id: payload.destination_van_id,
+      p_quantity: payload.quantity,
+      p_reference: payload.reference?.trim() || '',
+      p_notes: payload.notes?.trim() || '',
+    })
+    if (error) return { error: error.message }
+
+    revalidatePath('/transfer')
+    revalidatePath('/dashboard')
+    revalidatePath('/stock')
+    revalidatePath('/logs')
+    return { success: true }
+  }
 
   const db = createServerClient()
 
