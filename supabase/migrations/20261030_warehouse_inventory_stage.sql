@@ -172,7 +172,7 @@ end;
 $function$;
 
 revoke all on function public.move_warehouse_van_stock(uuid,uuid,uuid,numeric,text,text,text) from public, anon;
-grant execute on function public.move_warehouse_van_stock(uuid,uuid,uuid,integer,text,text,text) to authenticated;
+grant execute on function public.move_warehouse_van_stock(uuid,uuid,uuid,numeric,text,text,text) to authenticated;
 
 commit;
 
