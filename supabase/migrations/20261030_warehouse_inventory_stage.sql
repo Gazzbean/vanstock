@@ -8,7 +8,7 @@
 
 begin;
 
--- Exact decimal balances preserve current integer values (e.g. 8 becomes 8.000).
+-- Exact decimal balances preserve current integer values (e.g. 8 becomes 8.00).
 -- Transaction logs must store the same precision as inventory.
 alter table public.stock
   alter column quantity type numeric(12,2) using quantity::numeric(12,2);
