@@ -11,11 +11,11 @@ begin;
 -- Exact decimal balances preserve current integer values (e.g. 8 becomes 8.000).
 -- Transaction logs must store the same precision as inventory.
 alter table public.stock
-  alter column quantity type numeric(12,3) using quantity::numeric(12,3);
+  alter column quantity type numeric(12,2) using quantity::numeric(12,2);
 alter table public.activity_log
-  alter column quantity type numeric(12,3) using quantity::numeric(12,3);
+  alter column quantity type numeric(12,2) using quantity::numeric(12,2);
 alter table public.products
-  alter column min_stock type numeric(12,3) using min_stock::numeric(12,3);
+  alter column min_stock type numeric(12,2) using min_stock::numeric(12,2);
 
 create table if not exists public.warehouses (
   id uuid primary key default gen_random_uuid(),
@@ -28,7 +28,7 @@ create table if not exists public.warehouses (
 create table if not exists public.warehouse_stock (
   warehouse_id uuid not null references public.warehouses(id) on delete cascade,
   product_id uuid not null references public.products(id),
-  quantity numeric(12,3) not null default 0 check (quantity >= 0),
+  quantity numeric(12,2) not null default 0 check (quantity >= 0),
   updated_at timestamptz not null default now(),
   primary key (warehouse_id, product_id)
 );
@@ -68,15 +68,15 @@ declare
   v_product_label text;
   v_perm_issue boolean;
   v_perm_receive boolean;
-  v_previous numeric(12,3);
+  v_previous numeric(12,2);
   v_unit text;
   v_archived timestamptz;
 begin
   if v_user_id is null then raise exception 'Login required'; end if;
   if p_quantity is null or p_quantity <= 0 then raise exception 'Quantity must be positive'; end if;
-  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,3) columns.
-  if p_quantity <> trunc(p_quantity, 3) then
-    raise exception 'Maximum three decimal places permitted';
+  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,2) columns.
+  if p_quantity <> trunc(p_quantity, 2) then
+    raise exception 'Maximum two decimal places permitted';
   end if;
   if p_quantity >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
   if p_direction not in ('warehouse-to-van', 'van-to-warehouse') or p_direction is null then
