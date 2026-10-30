@@ -6,7 +6,7 @@ begin;
 create or replace function public.apply_van_stock_action(
   p_product_id uuid,
   p_operation text,
-  p_quantity numeric(12,3),
+  p_quantity numeric,
   p_reference text,
   p_notes text default ''
 )
@@ -44,6 +44,7 @@ begin
     or (p_quantity = 0 and p_operation <> 'adjust-set') then
     raise exception 'Invalid stock quantity';
   end if;
+  -- Function argument is unscaled NUMERIC: validate BEFORE writing to NUMERIC(12,3) columns.
   if p_quantity <> trunc(p_quantity, 3) then
     raise exception 'Maximum three decimal places permitted';
   end if;
