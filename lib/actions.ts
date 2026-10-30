@@ -71,7 +71,7 @@ export async function getDashboardStats() {
     .select('quantity, product:products(name, min_stock)')
     .eq('van_id', profile.van_id)
 
-  const totalItems = stockItems?.reduce((sum, s) => sum + s.quantity, 0) ?? 0
+  const totalItems = stockItems?.filter(s => s.quantity > 0).length ?? 0
   const lowStockCount = stockItems?.filter(
     (s) => s.quantity < (s.product as any)?.min_stock
   ).length ?? 0
@@ -86,9 +86,7 @@ export async function getDashboardStats() {
     .gte('created_at', today.toISOString())
 
   const transfersToday = todayLogs?.length ?? 0
-  const issuedToday = todayLogs
-    ?.filter(l => l.type === 'issue')
-    .reduce((sum, l) => sum + l.quantity, 0) ?? 0
+  const issuedToday = todayLogs?.filter(l => l.type === 'issue').length ?? 0
 
   return { totalItems, lowStockCount, transfersToday, issuedToday }
 }
