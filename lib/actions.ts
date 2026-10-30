@@ -111,54 +111,28 @@ export async function getMyStock() {
 
 export async function adjustStock(payload: AdjustPayload) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) throw new Error('No van assigned')
+  if (!profile.van_id) return { error: 'No van assigned' }
+  if (!['add', 'remove', 'set'].includes(payload.action)) return { error: 'Invalid adjustment' }
+  if (!Number.isFinite(payload.quantity) || payload.quantity < 0 ||
+      (payload.quantity === 0 && payload.action !== 'set')) {
+    return { error: 'Enter a valid quantity' }
+  }
+  if (!payload.reason?.trim()) return { error: 'A reason is required' }
 
-  const db = createServerClient()
-
-  const { data: current } = await db
-    .from('stock')
-    .select('quantity')
-    .eq('van_id', profile.van_id)
-    .eq('product_id', payload.product_id)
-    .single()
-
-  const prev = current?.quantity ?? 0
-  let newQty: number
-
-  if (payload.action === 'add') newQty = prev + payload.quantity
-  else if (payload.action === 'remove') newQty = Math.max(0, prev - payload.quantity)
-  else newQty = payload.quantity
-
-  const { error } = await db
-    .from('stock')
-    .upsert({
-      van_id: profile.van_id,
-      product_id: payload.product_id,
-      quantity: newQty,
-      updated_at: new Date().toISOString(),
-    })
-
-  if (error) return { error: error.message }
-
-  const { data: product } = await db
-    .from('products')
-    .select('name')
-    .eq('id', payload.product_id)
-    .single()
-
-  await db.from('activity_log').insert({
-    company_id: profile.company_id,
-    van_id: profile.van_id,
-    user_id: profile.id,
-    product_id: payload.product_id,
-    product_name: product?.name ?? 'Unknown',
-    type: 'adjust',
-    quantity: Math.abs(newQty - prev) || payload.quantity,
-    reference: payload.reason,
+  // Session-scoped RPC uses auth.uid() and a database transaction. Never use
+  // the service-role client for end-user stock changes.
+  const session = await createSessionClient()
+  const { error } = await session.rpc('apply_van_stock_action', {
+    p_product_id: payload.product_id,
+    p_operation: 'adjust-' + payload.action,
+    p_quantity: payload.quantity,
+    p_reference: payload.reason.trim(),
+    p_notes: '',
   })
-
+  if (error) return { error: error.message }
   revalidatePath('/stock')
   revalidatePath('/dashboard')
+  revalidatePath('/logs')
   return { success: true }
 }
 
@@ -166,59 +140,33 @@ export async function adjustStock(payload: AdjustPayload) {
 
 export async function recordTransfer(payload: TransferPayload) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) throw new Error('No van assigned')
-
-  const db = createServerClient()
-
-  const { data: current } = await db
-    .from('stock')
-    .select('quantity')
-    .eq('van_id', profile.van_id)
-    .eq('product_id', payload.product_id)
-    .single()
-
-  const currentQty = current?.quantity ?? 0
-  let newQty = currentQty
-
-  if (payload.type === 'issue' || payload.type === 'depot' || payload.type === 'van-to-van') {
-    if (currentQty < payload.quantity) return { error: 'Not enough stock on van' }
-    newQty = currentQty - payload.quantity
-  } else if (payload.type === 'return') {
-    newQty = currentQty + payload.quantity
+  if (!profile.van_id) return { error: 'No van assigned' }
+  // Never pretend to transfer stock to a second location by merely debiting
+  // the source van. Dedicated two-sided RPCs will handle those movements.
+  if (payload.type === 'van-to-van' || payload.type === 'depot') {
+    return { error: 'Use the warehouse or van-to-van transfer workflow when enabled.' }
   }
-
-  const { error: stockError } = await db
-    .from('stock')
-    .upsert({
-      van_id: profile.van_id,
-      product_id: payload.product_id,
-      quantity: newQty,
-      updated_at: new Date().toISOString(),
-    })
-
-  if (stockError) return { error: stockError.message }
-
-  const { data: product } = await db
-    .from('products')
-    .select('name')
-    .eq('id', payload.product_id)
-    .single()
-
-  await db.from('activity_log').insert({
-    company_id: profile.company_id,
-    van_id: profile.van_id,
-    user_id: profile.id,
-    product_id: payload.product_id,
-    product_name: product?.name ?? 'Unknown',
-    type: payload.type,
-    quantity: payload.quantity,
-    reference: payload.reference,
-    notes: payload.notes ?? null,
+  if (payload.type !== 'issue' && payload.type !== 'return') {
+    return { error: 'Unsupported transfer type' }
+  }
+  if (!payload.reference?.trim()) return { error: 'A reference is required' }
+  if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+    return { error: 'Enter a positive quantity' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('apply_van_stock_action', {
+    p_product_id: payload.product_id,
+    p_operation: payload.type,
+    p_quantity: payload.quantity,
+    p_reference: payload.reference.trim(),
+    p_notes: payload.notes ?? '',
   })
+  if (error) return { error: error.message }
 
   revalidatePath('/transfer')
   revalidatePath('/dashboard')
   revalidatePath('/stock')
+  revalidatePath('/logs')
   return { success: true }
 }
 
