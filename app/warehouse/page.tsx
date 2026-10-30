@@ -1,6 +1,7 @@
 // Read-only warehouse overview. Stock movements remain disabled until rollout approval.
 import { redirect } from 'next/navigation'
 import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
+import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts } from '@/lib/actions'
 
 export default async function WarehousePage() {
@@ -18,6 +19,7 @@ export default async function WarehousePage() {
   const [overview, adminData, products] = await Promise.all([
     getWarehouseOverview(), getAdminData(), getProducts(),
   ])
+  const writesEnabled = process.env.WAREHOUSE_WRITES_ENABLED === 'true' && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
   const totals = overview.warehouses.map((warehouse) => {
     const rows = overview.items.filter((item) => item.warehouse_id === warehouse.id)
@@ -37,7 +39,7 @@ export default async function WarehousePage() {
       </div>
       <div className="p-5">
         <div className="alert alert-info mb-4">
-          Warehouse overview only. Stock transfers and opening balance adjustments are not enabled yet.
+          Warehouse quantities are shown for review. Stock-changing operations stay disabled until database validation and commissioning are complete.
         </div>
         {overview.setupRequired ? (
           <div className="card">
@@ -96,9 +98,15 @@ export default async function WarehousePage() {
           </div>
         )}
         <WarehouseReplenishmentDraft
-          enabled={!overview.setupRequired}
+          enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           vans={adminData.vans.map(v => ({ id: v.id, van_number: v.van_number }))}
+          products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
+          balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
+        />
+        <WarehouseOpeningStockForm
+          enabled={writesEnabled}
+          warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
         />
