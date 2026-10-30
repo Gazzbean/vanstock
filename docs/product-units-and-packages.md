@@ -38,7 +38,7 @@ The Rev6 SOP proposed cylinder-count reduction when emptied and detailed partial
 ## Technical requirements before release
 
 1. Preserve existing van quantities and historical records. Never automatically interpret existing count values as kilograms.
-2. Store each product's stock unit and use exact decimal quantities for kg and m (e.g. numeric with three decimal places, subject to confirmation).
+2. Store each product's stock unit and use exact decimal quantities for kg and m (e.g. numeric with two decimal places, as agreed).
 3. Convert existing integer-only warehouse/van balance tables, logs, stock actions and transfer RPCs in a coordinated **tested** migration before enabling fractional quantities.
 4. Keep a separate stock balance for each (location, product) pair. No cylinder entity or package-content ledger is required for refrigerants.
 5. Validate nonnegative balances and stock transfer quantities; enforce atomic debits/credits and log who/when/quantity/reason.
