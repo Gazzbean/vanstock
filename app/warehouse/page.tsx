@@ -18,12 +18,13 @@ export default async function WarehousePage() {
   const [overview, adminData, products] = await Promise.all([
     getWarehouseOverview(), getAdminData(), getProducts(),
   ])
+  const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
   const totals = overview.warehouses.map((warehouse) => {
     const rows = overview.items.filter((item) => item.warehouse_id === warehouse.id)
+      .map(item => ({ ...item, unit: productUnits.get(item.product_id) ?? 'ea' }))
     return {
       id: warehouse.id,
       name: warehouse.name,
-      total: rows.reduce((sum, row) => sum + row.quantity, 0),
       productTypes: rows.length,
       rows,
     }
@@ -60,9 +61,8 @@ export default async function WarehousePage() {
                       {warehouse.productTypes} product types with recorded balances
                     </p>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xl font-semibold">{warehouse.total}</div>
-                    <div className="text-xs text-gray-500">Total units (discrete stock)</div>
+                  <div className="text-right text-xs text-gray-500">
+                    Quantities shown by product and unit
                   </div>
                 </div>
                 {warehouse.rows.length === 0 ? (
@@ -84,7 +84,7 @@ export default async function WarehousePage() {
                           <tr key={row.product_id}>
                             <td className="table-cell font-medium">{row.product_name}</td>
                             <td className="table-cell">{row.category}</td>
-                            <td className="table-cell">{row.quantity}</td>
+                            <td className="table-cell">{row.quantity} {row.unit}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -99,7 +99,7 @@ export default async function WarehousePage() {
           enabled={!overview.setupRequired}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           vans={adminData.vans.map(v => ({ id: v.id, van_number: v.van_number }))}
-          products={products.map(p => ({ id: p.id, name: p.name }))}
+          products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
         />
       </div>
