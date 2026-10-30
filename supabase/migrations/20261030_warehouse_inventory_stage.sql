@@ -74,6 +74,10 @@ declare
 begin
   if v_user_id is null then raise exception 'Login required'; end if;
   if p_quantity is null or p_quantity <= 0 then raise exception 'Quantity must be positive'; end if;
+  if p_quantity <> trunc(p_quantity, 3) then
+    raise exception 'Maximum three decimal places permitted';
+  end if;
+  if p_quantity >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
   if p_direction not in ('warehouse-to-van', 'van-to-warehouse') or p_direction is null then
     raise exception 'Invalid movement direction';
   end if;
