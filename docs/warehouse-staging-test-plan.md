@@ -11,7 +11,7 @@ Run `supabase/checks/warehouse-preflight-readonly.sql` **in an isolated Supabase
 5. Confirm permissions and RLS using signed-in administrator/manager/technician test accounts; SQL Editor superuser access does **not** prove those role restrictions.
 6. Use physical stocktake test data to test kg, m, and ea, duplicate opening balance, over-withdrawals and simultaneous transfer attempts. Include direct RPC calls with 1.235 kg; the arguments must remain unconstrained NUMERIC until the explicit precision check rejects them.
 7. Test a failed transaction and verify neither balance nor activity log changed.
-8. Check application forms and dashboards against the test database.
+8. Run `supabase/checks/warehouse-postmigration-readonly.sql` and verify expected types, RPC execute privileges, direct table write restrictions, RLS and balances. Then check application forms and dashboards against the test database.
 9. Keep `WAREHOUSE_WRITES_ENABLED` absent/false in production; enable only for controlled test environment.
 
 **Unresolved release blocker:** no isolated Supabase test project or actual database execution has been completed through GitHub. Source review and Vercel build passing are not end-to-end verification.
@@ -24,3 +24,8 @@ Run `supabase/checks/warehouse-preflight-readonly.sql` **in an isolated Supabase
 - Concurrent archive and stock mutation must not create a positive archived balance; product-row locking is included in the staged action functions.
 - Product deletion remains prohibited; no rows are removed by archiving.
 - This feature is release-gated by the same test-only WAREHOUSE_WRITES_ENABLED flag.
+
+## Current source-review result (31 October 2026)
+- Vercel build passed for the previous commit.
+- PostgreSQL van-stock RPC return signature adjusted from `RETURNS numeric(12,2)` to `RETURNS numeric`; the internal balance variables and stored columns remain `NUMERIC(12,2)`.
+- No Supabase test environment is connected here; no database SQL has been executed. Release remains blocked pending isolated test execution.
