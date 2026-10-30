@@ -62,6 +62,9 @@ export default function AddProductModal() {
                   <label className="form-label">Category</label>
                   <select className="form-input" value={category} onChange={(e) => setCategory(e.target.value)}>
                     <option>Gas cylinder</option>
+                    <option>Refrigerant</option>
+                    <option>Tube / cable</option>
+                    <option>Consumable</option>
                     <option>Regulator</option>
                     <option>Fitting</option>
                     <option>Safety equipment</option>
