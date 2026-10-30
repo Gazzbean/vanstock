@@ -52,6 +52,7 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
       {/* Navigation links */}
       <nav className="flex-1 py-2">
         {navItems.map((item) => {
+          if (item.href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return null
           const isActive = pathname.startsWith(item.href)
           return (
             <Link
