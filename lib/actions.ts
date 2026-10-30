@@ -365,3 +365,50 @@ export async function getCurrentUserDisplay() {
     return null
   }
 }
+
+
+// ── WAREHOUSE USER PERMISSIONS (requires SQL migration) ─────────
+// Only administrators can read or update the permission register.
+export async function getWarehousePermissionData() {
+  const profile = await getCurrentProfile()
+  if (profile.role !== 'admin') return null
+  const db = createServerClient()
+  const { data, error } = await db
+    .from('user_warehouse_permissions')
+    .select('user_id, can_view, can_request, can_issue, can_receive, can_adjust, can_stocktake')
+    .eq('company_id', profile.company_id)
+  if (error) throw new Error('Warehouse permissions are not installed: ' + error.message)
+  return data ?? []
+}
+
+export async function saveWarehousePermissions(
+  userId: string,
+  permissions: {
+    can_view: boolean
+    can_request: boolean
+    can_issue: boolean
+    can_receive: boolean
+    can_adjust: boolean
+    can_stocktake: boolean
+  }
+) {
+  const profile = await getCurrentProfile()
+  if (profile.role !== 'admin') return { error: 'Administrator access required' }
+  if (!userId || Object.values(permissions).some(value => typeof value !== 'boolean')) {
+    return { error: 'Invalid permission settings' }
+  }
+
+  const sessionClient = await createSessionClient()
+  const { error } = await sessionClient.rpc('set_warehouse_user_permissions', {
+    p_user_id: userId,
+    p_can_view: permissions.can_view,
+    p_can_request: permissions.can_request,
+    p_can_issue: permissions.can_issue,
+    p_can_receive: permissions.can_receive,
+    p_can_adjust: permissions.can_adjust,
+    p_can_stocktake: permissions.can_stocktake,
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/admin')
+  return { success: true }
+}
