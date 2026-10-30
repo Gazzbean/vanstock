@@ -51,6 +51,10 @@ begin
   if p_count is null or p_count < 0 then
     raise exception 'Opening count must be zero or greater';
   end if;
+  if p_count <> trunc(p_count, 3) then
+    raise exception 'Maximum three decimal places permitted';
+  end if;
+  if p_count >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
   if p_stocktake_reference is null
       or length(trim(p_stocktake_reference)) = 0
       or length(p_stocktake_reference) > 500 then
