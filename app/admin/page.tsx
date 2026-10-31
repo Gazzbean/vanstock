@@ -13,6 +13,7 @@ import SupplierAndBinsPanel from '@/components/SupplierAndBinsPanel'
 import VanStockStandardsPanel from '@/components/VanStockStandardsPanel'
 import FleetStandardsOverview from '@/components/FleetStandardsOverview'
 import ConsumablesAssignmentsPanel from '@/components/ConsumablesAssignmentsPanel'
+import ReceivePackPanel from '@/components/ReceivePackPanel'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 
@@ -163,6 +164,7 @@ export default async function AdminPage() {
         <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
         <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />
         <ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />
+        <ReceivePackPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} packages={phase1b.options} vans={phase1b.vans} warehouses={phase1b.warehouses} />
         <CatalogueImport />
         {user.role === 'admin' && warehousePermissions && (
           <div className="mt-4">
