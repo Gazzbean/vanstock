@@ -32,7 +32,7 @@ export default async function AdminPage() {
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
   ])
 
-  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED === 'true'
+  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
 
   return (
     <div>
