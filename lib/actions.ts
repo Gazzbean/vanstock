@@ -227,7 +227,7 @@ export async function getAdminProducts() {
 }
 
 export async function setProductArchived(productId: string, archive: boolean) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') {
     return { error: 'Catalogue archiving is not enabled yet.' }
   }
   const profile = await getCurrentProfile()
@@ -447,12 +447,12 @@ export async function getWarehouseOverview() {
 
 
 // ── WAREHOUSE WRITE ACTIONS: RELEASE GATED ─────────────────────
-// Both actions are DISABLED by default; set WAREHOUSE_WRITES_ENABLED=true
-// only in an isolated verified test deployment with migrations applied.
+// Warehouse writes are enabled after verified production migrations.
+// Set WAREHOUSE_WRITES_ENABLED=false to disable them quickly.
 export async function postWarehouseOpeningStock(
   warehouseId: string, productId: string, quantity: number, stocktakeReference: string,
 ) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') {
     return { error: 'Opening stock posting is not yet enabled.' }
   }
   const profile = await getCurrentProfile()
@@ -480,7 +480,7 @@ export async function transferWarehouseToVan(
   warehouseId: string, vanId: string, productId: string, quantity: number,
   reference: string,
 ) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') {
     return { error: 'Warehouse replenishment is not yet enabled.' }
   }
   const profile = await getCurrentProfile()
