@@ -815,3 +815,18 @@ export async function saveVanStockStandard(
  revalidatePath('/admin')
  return {success:true}
 }
+
+
+// ── PHASE 1D: READ-ONLY FLEET STOCK STANDARDS OVERVIEW ────
+// Only return balances for vans belonging to the authenticated manager's company.
+export async function getFleetStockOverview(){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
+ const db=createServerClient()
+ const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',p.company_id).order('van_number')
+ if(vanError)throw new Error(vanError.message)
+ if(!vans?.length)return []
+ const {data:rows,error}=await db.from('stock').select('van_id,product_id,quantity').in('van_id',vans.map(v=>v.id))
+ if(error)throw new Error(error.message)
+ return rows??[]
+}
