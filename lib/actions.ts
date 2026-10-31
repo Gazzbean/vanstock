@@ -508,3 +508,52 @@ export async function transferWarehouseToVan(
   revalidatePath('/logs')
   return { success: true }
 }
+
+
+// Warehouse returns and adjustments use database RPCs: both write a single audit event.
+export async function returnVanStockToWarehouse(
+  warehouseId: string, vanId: string, productId: string,
+  quantity: number, reference: string,
+) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') return { error: 'Warehouse operations disabled.' }
+  const profile = await getCurrentProfile()
+  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  if (!warehouseId || !vanId || !productId || !reference?.trim() ||
+      !Number.isFinite(quantity) || quantity <= 0 ||
+      Math.abs(quantity * 100 - Math.round(quantity * 100)) > 1e-7) {
+    return { error: 'Enter a valid return quantity (up to two decimal places) and reference.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('move_warehouse_van_stock', {
+    p_warehouse_id: warehouseId, p_van_id: vanId,
+    p_product_id: productId, p_quantity: quantity,
+    p_direction: 'van-to-warehouse', p_reference: reference.trim(), p_notes: '',
+  })
+  if (error) return { error: error.message }
+  for (const path of ['/warehouse','/stock','/dashboard','/logs']) revalidatePath(path)
+  return { success: true }
+}
+
+export async function adjustWarehouseStock(
+  warehouseId: string, productId: string, operation: 'add'|'remove'|'set',
+  quantity: number, reference: string,
+) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') return { error: 'Warehouse operations disabled.' }
+  const profile = await getCurrentProfile()
+  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  if (!warehouseId || !productId || !['add','remove','set'].includes(operation) ||
+      !reference?.trim() || !Number.isFinite(quantity) || quantity < 0 ||
+      (operation !== 'set' && quantity === 0) ||
+      Math.abs(quantity * 100 - Math.round(quantity * 100)) > 1e-7) {
+    return { error: 'Enter a valid adjustment quantity and reference.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('adjust_warehouse_stock', {
+    p_warehouse_id: warehouseId, p_product_id: productId,
+    p_operation: operation, p_quantity: quantity, p_reference: reference.trim(),
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/warehouse')
+  revalidatePath('/logs')
+  return { success: true }
+}
