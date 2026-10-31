@@ -7,10 +7,10 @@ Run `supabase/checks/warehouse-preflight-readonly.sql` **in an isolated Supabase
 1. Verify product, stock, log and profile columns.
 2. Record table row counts, negative balances and any duplicate stock pairs.
 3. Compare schema information to the tested migration sequence.
-4. Apply staged migrations in order: warehouse permissions (PR #3), product unit **and archived_at column**, warehouse inventory/decimals, product archive/restore function, atomic van actions, opening warehouse stock, direct-write restriction. The warehouse RPC reads archived_at, so the metadata column must be present before creating that RPC.
+4. Apply staged migrations in order: warehouse permissions (PR #3), product unit **and archived_at column**, warehouse inventory/decimals, product archive/restore function, atomic van actions, opening warehouse stock, direct-write restriction, nonnegative stock integrity constraints. The warehouse RPC reads archived_at, so the metadata column must be present before creating that RPC.
 5. Confirm permissions and RLS using signed-in administrator/manager/technician test accounts; SQL Editor superuser access does **not** prove those role restrictions. Specifically test a technician with no van assigned: their activity log must return no entries, not company-wide activity.
 6. Use physical stocktake test data to test kg, m, and ea, duplicate opening balance, over-withdrawals and simultaneous transfer attempts. Include direct RPC calls with 1.235 kg; the arguments must remain unconstrained NUMERIC until the explicit precision check rejects them.
-7. Test a failed transaction and verify neither balance nor activity log changed.
+7. Test a failed transaction and verify neither balance nor activity log changed. Confirm the warehouse transfer RPC rejects an empty reference, a reference over 500 characters, and notes over 2000 characters. Verify that negative stock, negative minimum stock and negative audit quantities are rejected by database CHECK constraints.
 8. Run `supabase/checks/warehouse-postmigration-readonly.sql` and verify expected types, RPC execute privileges, direct table write restrictions, RLS and balances. Then check application forms and dashboards against the test database.
 9. Keep `WAREHOUSE_WRITES_ENABLED` absent/false in production; enable only for controlled test environment.
 
