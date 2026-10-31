@@ -3,7 +3,7 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview } from '@/lib/actions'
+import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import EditProductModal from '@/components/EditProductModal'
@@ -12,6 +12,7 @@ import CatalogueSettingsPanel from '@/components/CatalogueSettingsPanel'
 import SupplierAndBinsPanel from '@/components/SupplierAndBinsPanel'
 import VanStockStandardsPanel from '@/components/VanStockStandardsPanel'
 import FleetStandardsOverview from '@/components/FleetStandardsOverview'
+import ConsumablesAssignmentsPanel from '@/components/ConsumablesAssignmentsPanel'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 
@@ -32,7 +33,7 @@ export default async function AdminPage() {
     )
   }
 
-  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances] = await Promise.all([
+  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments] = await Promise.all([
     getAdminProducts(),
     getAdminData(),
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
@@ -40,6 +41,7 @@ export default async function AdminPage() {
     getPhase1BSupplierData(),
     getVanStockStandardsAdmin(),
     getFleetStockOverview(),
+    getConsumablesAssignments(),
   ])
 
   const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
@@ -160,6 +162,7 @@ export default async function AdminPage() {
         <SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} />
         <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
         <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />
+        <ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />
         <CatalogueImport />
         {user.role === 'admin' && warehousePermissions && (
           <div className="mt-4">
