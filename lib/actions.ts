@@ -830,3 +830,62 @@ export async function getFleetStockOverview(){
  if(error)throw new Error(error.message)
  return rows??[]
 }
+
+
+// ── PHASE 2A: ESTIMATED CONSUMABLE ISSUES ────────────────
+export async function getConsumablesAssignments(){
+ const p=await getCurrentProfile()
+ const db=createServerClient()
+ const [a,g]=await Promise.all([
+  db.from('product_consumables_groups').select('product_id,group_id').eq('company_id',p.company_id),
+  db.from('consumables_groups').select('id,name,unit,quick_1,quick_2,quick_3,quick_4').eq('company_id',p.company_id).eq('active',true),
+ ])
+ if(a.error||g.error)throw new Error(a.error?.message||g.error?.message)
+ return {assignments:a.data??[],groups:g.data??[]}
+}
+export async function assignProductConsumablesGroup(productId:string,groupId:string){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ const session=await createSessionClient()
+ const [product,group]=await Promise.all([
+   session.from('products').select('id,stock_unit,archived_at').eq('company_id',p.company_id).eq('id',productId).maybeSingle(),
+   session.from('consumables_groups').select('id,unit').eq('company_id',p.company_id).eq('id',groupId).eq('active',true).maybeSingle(),
+ ])
+ if(product.error||group.error||!product.data||!group.data||product.data.archived_at)
+  return {error:'Valid active product and group required'}
+ if((product.data.stock_unit??'ea')!==group.data.unit)
+  return {error:'Product stock unit must match consumables group unit'}
+ const {error}=await session.from('product_consumables_groups').upsert({
+  company_id:p.company_id,product_id:productId,group_id:groupId,updated_at:new Date().toISOString(),
+ },{onConflict:'product_id'})
+ if(error)return {error:error.message}
+ revalidatePath('/admin');revalidatePath('/stock')
+ return {success:true}
+}
+export async function issueEstimatedConsumable(productId:string,groupId:string,quantity:number,jobRef:string){
+ const p=await getCurrentProfile()
+ if(!p.van_id)return {error:'Assigned van required'}
+ if(typeof jobRef!=='string'||!jobRef.trim()||jobRef.trim().length>120)
+  return {error:'Enter a job reference (synthetic references only during testing)'}
+ const session=await createSessionClient()
+ // Read group options from the database instead of trusting amounts from the browser.
+ const [a,g,product]=await Promise.all([
+  session.from('product_consumables_groups').select('group_id').eq('product_id',productId).eq('company_id',p.company_id).maybeSingle(),
+  session.from('consumables_groups').select('id,unit,quick_1,quick_2,quick_3,quick_4').eq('id',groupId).eq('company_id',p.company_id).eq('active',true).maybeSingle(),
+  session.from('products').select('id,stock_unit,archived_at').eq('id',productId).eq('company_id',p.company_id).maybeSingle(),
+ ])
+ if(a.error||g.error||product.error||!a.data||!g.data||!product.data
+  ||a.data.group_id!==groupId||product.data.archived_at||
+  (product.data.stock_unit??'ea')!==g.data.unit)
+  return {error:'Product is not assigned to the selected consumables group'}
+ const allowed=[g.data.quick_1,g.data.quick_2,g.data.quick_3,g.data.quick_4].map(Number)
+ if(!Number.isFinite(quantity)||!allowed.some(q=>q===quantity))
+  return {error:'Select one of the four configured quantities'}
+ const {error}=await session.rpc('apply_van_stock_action',{
+  p_product_id:productId,p_operation:'issue',p_quantity:quantity,
+  p_reference:jobRef.trim(),p_notes:'Estimated consumables usage; no ServiceM8 charge posted.',
+ })
+ if(error)return {error:error.message}
+ for(const path of ['/stock','/dashboard','/logs','/admin'])revalidatePath(path)
+ return {success:true}
+}
