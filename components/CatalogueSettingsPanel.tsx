@@ -26,24 +26,25 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
  const [productMessage,setProductMessage]=useState('')
  const [groupError,setGroupError]=useState('')
  const [groupMessage,setGroupMessage]=useState('')
- const [busy,start]=useTransition()
+ const [productBusy,startProduct]=useTransition()
+ const [groupBusy,startGroup]=useTransition()
  function chooseProduct(id:string) {
    const s=settings.find(x=>x.product_id===id)
    setProductId(id);setTracking(s?.tracking_type??'stocked')
    setMapping(s?.mapping_status??'unlinked')
    setSm8uuid(s?.servicem8_material_uuid??'');setSm8code(s?.servicem8_item_number??'')
-   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
+   setProductError('');setProductMessage('')
  }
  function chooseGroup(id:string) {
    const g=groups.find(x=>x.id===id)
    setGroupId(id)
    if(g)setGroupValues([g.quick_1,g.quick_2,g.quick_3,g.quick_4].map(String))
-   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
+   setGroupError('');setGroupMessage('')
  }
  function saveProduct(){
    if(!productId)return
-   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
-   start(async()=>{
+   setProductError('');setProductMessage('')
+   startProduct(async()=>{
      const r=await saveCatalogueSettings(productId,tracking,mapping,sm8uuid,sm8code)
      if(r.error)setProductError(r.error);else setProductMessage('Product classification saved. Existing stock is unchanged.')
    })
@@ -53,8 +54,8 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
    if(vals.length!==4||vals.some(x=>!Number.isFinite(x)||x<=0)||vals.some((x,i)=>i>0&&x<=vals[i-1])){
      setGroupError('Enter four positive usage quantities in ascending order.');return
    }
-   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
-   start(async()=>{
+   setProductError('');setProductMessage('')
+   startGroup(async()=>{
      const r=await saveConsumablesGroup(groupId,vals)
      if(r.error)setGroupError(r.error);else setGroupMessage('Consumables group updated.')
    })
@@ -82,7 +83,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
    <label className="form-label" htmlFor="sm8-uuid">ServiceM8 material UUID (required when linked)</label>
    <input className="form-input mb-3" id="sm8-uuid" value={sm8uuid} onChange={e=>setSm8uuid(e.target.value)} maxLength={120}/>
    <p className="text-xs text-amber-700 mb-3">Enter only verified ServiceM8 references. No ServiceM8 connection is active.</p>
-   <button className="btn btn-primary" type="button" disabled={busy} onClick={saveProduct}>{busy?'Saving…':'Save classification'}</button>
+   <button className="btn btn-primary" type="button" disabled={productBusy} onClick={saveProduct}>{productBusy?'Saving…':'Save classification'}</button>
    </>:<p className="text-sm text-gray-500">No products available.</p>}
    {(productError||productMessage)&&<p role={productError?'alert':'status'} className={productError?'text-sm text-red-700 mt-3':'text-sm text-green-700 mt-3'}>{productError||productMessage}</p>}
   </section>
@@ -101,7 +102,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
            onChange={e=>setGroupValues(prev=>prev.map((x,j)=>j===i?e.target.value:x))}/>
        </div>)}
       </div>
-      <button className="btn btn-primary" type="button" disabled={busy} onClick={saveGroup}>{busy?'Saving…':'Save four options'}</button>
+      <button className="btn btn-primary" type="button" disabled={groupBusy} onClick={saveGroup}>{groupBusy?'Saving…':'Save four options'}</button>
     </>:<p className="text-sm text-gray-500">No groups configured.</p>}
     {(groupError||groupMessage)&&<p role={groupError?'alert':'status'} className={groupError?'text-sm text-red-700 mt-3':'text-sm text-green-700 mt-3'}>{groupError||groupMessage}</p>}
   </section>
