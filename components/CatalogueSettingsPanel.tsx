@@ -22,39 +22,41 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
  const [sm8code,setSm8code]=useState(current?.servicem8_item_number??'')
  const [groupId,setGroupId]=useState(groups[0]?.id??'')
  const [groupValues,setGroupValues]=useState<string[]>(groups.length? [groups[0].quick_1,groups[0].quick_2,groups[0].quick_3,groups[0].quick_4].map(String):[])
- const [error,setError]=useState('')
- const [message,setMessage]=useState('')
+ const [productError,setProductError]=useState('')
+ const [productMessage,setProductMessage]=useState('')
+ const [groupError,setGroupError]=useState('')
+ const [groupMessage,setGroupMessage]=useState('')
  const [busy,start]=useTransition()
  function chooseProduct(id:string) {
    const s=settings.find(x=>x.product_id===id)
    setProductId(id);setTracking(s?.tracking_type??'stocked')
    setMapping(s?.mapping_status??'unlinked')
    setSm8uuid(s?.servicem8_material_uuid??'');setSm8code(s?.servicem8_item_number??'')
-   setError('');setMessage('')
+   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
  }
  function chooseGroup(id:string) {
    const g=groups.find(x=>x.id===id)
    setGroupId(id)
    if(g)setGroupValues([g.quick_1,g.quick_2,g.quick_3,g.quick_4].map(String))
-   setError('');setMessage('')
+   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
  }
  function saveProduct(){
    if(!productId)return
-   setError('');setMessage('')
+   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
    start(async()=>{
      const r=await saveCatalogueSettings(productId,tracking,mapping,sm8uuid,sm8code)
-     if(r.error)setError(r.error);else setMessage('Product classification saved. Existing stock is unchanged.')
+     if(r.error)setProductError(r.error);else setProductMessage('Product classification saved. Existing stock is unchanged.')
    })
  }
  function saveGroup(){
    const vals=groupValues.map(Number)
    if(vals.length!==4||vals.some(x=>!Number.isFinite(x)||x<=0)||vals.some((x,i)=>i>0&&x<=vals[i-1])){
-     setError('Enter four positive usage quantities in ascending order.');return
+     setGroupError('Enter four positive usage quantities in ascending order.');return
    }
-   setError('');setMessage('')
+   setProductError('');setProductMessage('');setGroupError('');setGroupMessage('')
    start(async()=>{
      const r=await saveConsumablesGroup(groupId,vals)
-     if(r.error)setError(r.error);else setMessage('Consumables group updated.')
+     if(r.error)setGroupError(r.error);else setGroupMessage('Consumables group updated.')
    })
  }
  return <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
@@ -82,6 +84,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
    <p className="text-xs text-amber-700 mb-3">Enter only verified ServiceM8 references. No ServiceM8 connection is active.</p>
    <button className="btn btn-primary" type="button" disabled={busy} onClick={saveProduct}>{busy?'Saving…':'Save classification'}</button>
    </>:<p className="text-sm text-gray-500">No products available.</p>}
+   {(productError||productMessage)&&<p role={productError?'alert':'status'} className={productError?'text-sm text-red-700 mt-3':'text-sm text-green-700 mt-3'}>{productError||productMessage}</p>}
   </section>
   <section className="card">
     <h2 className="text-sm font-medium mb-2">Consumables group quick-use presets</h2>
@@ -100,7 +103,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
       </div>
       <button className="btn btn-primary" type="button" disabled={busy} onClick={saveGroup}>{busy?'Saving…':'Save four options'}</button>
     </>:<p className="text-sm text-gray-500">No groups configured.</p>}
+    {(groupError||groupMessage)&&<p role={groupError?'alert':'status'} className={groupError?'text-sm text-red-700 mt-3':'text-sm text-green-700 mt-3'}>{groupError||groupMessage}</p>}
   </section>
-  {(error||message)&&<div className="lg:col-span-2"><p role={error?'alert':'status'} className={error?'text-sm text-red-700':'text-sm text-green-700'}>{error||message}</p></div>}
  </div>
 }
