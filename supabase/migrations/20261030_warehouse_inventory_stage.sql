@@ -167,18 +167,17 @@ begin
     do update set quantity = public.warehouse_stock.quantity + excluded.quantity, updated_at = now();
   end if;
 
-  -- Store one warehouse-side and one van-side ledger entry together.
-  -- Schema does not yet have warehouse_id in activity_log; readable references
-  -- are included until the unified transaction ledger is introduced.
+  -- ONE movement = ONE audit event. The van ID and both location names
+  -- remain visible without doubling transfers in company-wide reports.
+  -- Stock debit and credit have already occurred within this transaction.
   insert into public.activity_log
     (company_id, van_id, user_id, product_id, product_name, type, quantity, reference, notes)
   values
-    (v_company_id, null, v_user_id, p_product_id, v_product_label, p_direction,
-      p_quantity, v_warehouse_label || ' / ' || v_van_label || ' / ' || coalesce(p_reference,''),
-      'Warehouse ledger entry. ' || coalesce(p_notes,'')),
-    (v_company_id, p_van_id, v_user_id, p_product_id, v_product_label, p_direction,
-      p_quantity, v_warehouse_label || ' / ' || v_van_label || ' / ' || coalesce(p_reference,''),
-      'Van ledger entry. ' || coalesce(p_notes,''));
+    (v_company_id, p_van_id, v_user_id, p_product_id, v_product_label,
+     p_direction, p_quantity,
+     v_warehouse_label || ' / ' || v_van_label || ' / ' || coalesce(p_reference,''),
+     'Warehouse/van stock movement. ' || coalesce(p_notes,''));
+
 end;
 $function$;
 
