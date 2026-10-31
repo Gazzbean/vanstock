@@ -48,8 +48,8 @@ export default async function StockPage() {
                     <td className="table-cell">
                       <span className="badge badge-gray">{s.product?.category}</span>
                     </td>
-                    <td className="table-cell font-medium">{s.quantity}</td>
-                    <td className="table-cell text-gray-400">{s.product?.min_stock}</td>
+                    <td className="table-cell font-medium">{s.quantity} {s.product?.stock_unit ?? 'ea'}</td>
+                    <td className="table-cell text-gray-400">{s.product?.min_stock} {s.product?.stock_unit ?? 'ea'}</td>
                     <td className="table-cell">
                       <span className={`badge ${st.cls}`}>{st.label}</span>
                     </td>

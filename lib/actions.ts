@@ -71,7 +71,7 @@ export async function getDashboardStats() {
     .select('quantity, product:products(name, min_stock)')
     .eq('van_id', profile.van_id)
 
-  const totalItems = stockItems?.reduce((sum, s) => sum + s.quantity, 0) ?? 0
+  const totalItems = stockItems?.filter(s => s.quantity > 0).length ?? 0
   const lowStockCount = stockItems?.filter(
     (s) => s.quantity < (s.product as any)?.min_stock
   ).length ?? 0
@@ -86,9 +86,7 @@ export async function getDashboardStats() {
     .gte('created_at', today.toISOString())
 
   const transfersToday = todayLogs?.length ?? 0
-  const issuedToday = todayLogs
-    ?.filter(l => l.type === 'issue')
-    .reduce((sum, l) => sum + l.quantity, 0) ?? 0
+  const issuedToday = todayLogs?.filter(l => l.type === 'issue').length ?? 0
 
   return { totalItems, lowStockCount, transfersToday, issuedToday }
 }
@@ -111,54 +109,28 @@ export async function getMyStock() {
 
 export async function adjustStock(payload: AdjustPayload) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) throw new Error('No van assigned')
+  if (!profile.van_id) return { error: 'No van assigned' }
+  if (!['add', 'remove', 'set'].includes(payload.action)) return { error: 'Invalid adjustment' }
+  if (!Number.isFinite(payload.quantity) || payload.quantity < 0 ||
+      (payload.quantity === 0 && payload.action !== 'set')) {
+    return { error: 'Enter a valid quantity' }
+  }
+  if (!payload.reason?.trim()) return { error: 'A reason is required' }
 
-  const db = createServerClient()
-
-  const { data: current } = await db
-    .from('stock')
-    .select('quantity')
-    .eq('van_id', profile.van_id)
-    .eq('product_id', payload.product_id)
-    .single()
-
-  const prev = current?.quantity ?? 0
-  let newQty: number
-
-  if (payload.action === 'add') newQty = prev + payload.quantity
-  else if (payload.action === 'remove') newQty = Math.max(0, prev - payload.quantity)
-  else newQty = payload.quantity
-
-  const { error } = await db
-    .from('stock')
-    .upsert({
-      van_id: profile.van_id,
-      product_id: payload.product_id,
-      quantity: newQty,
-      updated_at: new Date().toISOString(),
-    })
-
-  if (error) return { error: error.message }
-
-  const { data: product } = await db
-    .from('products')
-    .select('name')
-    .eq('id', payload.product_id)
-    .single()
-
-  await db.from('activity_log').insert({
-    company_id: profile.company_id,
-    van_id: profile.van_id,
-    user_id: profile.id,
-    product_id: payload.product_id,
-    product_name: product?.name ?? 'Unknown',
-    type: 'adjust',
-    quantity: Math.abs(newQty - prev) || payload.quantity,
-    reference: payload.reason,
+  // Session-scoped RPC uses auth.uid() and a database transaction. Never use
+  // the service-role client for end-user stock changes.
+  const session = await createSessionClient()
+  const { error } = await session.rpc('apply_van_stock_action', {
+    p_product_id: payload.product_id,
+    p_operation: 'adjust-' + payload.action,
+    p_quantity: payload.quantity,
+    p_reference: payload.reason.trim(),
+    p_notes: '',
   })
-
+  if (error) return { error: error.message }
   revalidatePath('/stock')
   revalidatePath('/dashboard')
+  revalidatePath('/logs')
   return { success: true }
 }
 
@@ -166,59 +138,33 @@ export async function adjustStock(payload: AdjustPayload) {
 
 export async function recordTransfer(payload: TransferPayload) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) throw new Error('No van assigned')
-
-  const db = createServerClient()
-
-  const { data: current } = await db
-    .from('stock')
-    .select('quantity')
-    .eq('van_id', profile.van_id)
-    .eq('product_id', payload.product_id)
-    .single()
-
-  const currentQty = current?.quantity ?? 0
-  let newQty = currentQty
-
-  if (payload.type === 'issue' || payload.type === 'depot' || payload.type === 'van-to-van') {
-    if (currentQty < payload.quantity) return { error: 'Not enough stock on van' }
-    newQty = currentQty - payload.quantity
-  } else if (payload.type === 'return') {
-    newQty = currentQty + payload.quantity
+  if (!profile.van_id) return { error: 'No van assigned' }
+  // Never pretend to transfer stock to a second location by merely debiting
+  // the source van. Dedicated two-sided RPCs will handle those movements.
+  if (payload.type === 'van-to-van' || payload.type === 'depot') {
+    return { error: 'Use the warehouse or van-to-van transfer workflow when enabled.' }
   }
-
-  const { error: stockError } = await db
-    .from('stock')
-    .upsert({
-      van_id: profile.van_id,
-      product_id: payload.product_id,
-      quantity: newQty,
-      updated_at: new Date().toISOString(),
-    })
-
-  if (stockError) return { error: stockError.message }
-
-  const { data: product } = await db
-    .from('products')
-    .select('name')
-    .eq('id', payload.product_id)
-    .single()
-
-  await db.from('activity_log').insert({
-    company_id: profile.company_id,
-    van_id: profile.van_id,
-    user_id: profile.id,
-    product_id: payload.product_id,
-    product_name: product?.name ?? 'Unknown',
-    type: payload.type,
-    quantity: payload.quantity,
-    reference: payload.reference,
-    notes: payload.notes ?? null,
+  if (payload.type !== 'issue' && payload.type !== 'return') {
+    return { error: 'Unsupported transfer type' }
+  }
+  if (!payload.reference?.trim()) return { error: 'A reference is required' }
+  if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+    return { error: 'Enter a positive quantity' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('apply_van_stock_action', {
+    p_product_id: payload.product_id,
+    p_operation: payload.type,
+    p_quantity: payload.quantity,
+    p_reference: payload.reference.trim(),
+    p_notes: payload.notes ?? '',
   })
+  if (error) return { error: error.message }
 
   revalidatePath('/transfer')
   revalidatePath('/dashboard')
   revalidatePath('/stock')
+  revalidatePath('/logs')
   return { success: true }
 }
 
@@ -235,7 +181,10 @@ export async function getActivityLog(filterType?: string) {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  if (profile.role === 'technician' && profile.van_id) {
+  // Fail closed: an unassigned technician must never receive company-wide
+  // logs through the service-role query.
+  if (profile.role === 'technician') {
+    if (!profile.van_id) return []
     query = query.eq('van_id', profile.van_id)
   }
 
@@ -258,66 +207,98 @@ export async function getProducts() {
     .from('products')
     .select('*')
     .eq('company_id', profile.company_id)
+    .is('archived_at', null)
     .order('name')
 
   if (error) throw new Error(error.message)
   return data ?? []
 }
 
+// The full catalogue is used by managers; operational selectors show only
+// active products. Archived records remain visible in administration.
+export async function getAdminProducts() {
+  const profile = await getCurrentProfile()
+  if (!['manager', 'admin'].includes(profile.role)) throw new Error('Manager access required')
+  const db = createServerClient()
+  const { data, error } = await db.from('products')
+    .select('*').eq('company_id', profile.company_id).order('name')
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+export async function setProductArchived(productId: string, archive: boolean) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+    return { error: 'Catalogue archiving is not enabled yet.' }
+  }
+  const profile = await getCurrentProfile()
+  if (!['manager', 'admin'].includes(profile.role)) {
+    return { error: 'Manager access required' }
+  }
+  if (!productId || typeof archive !== 'boolean') return { error: 'Invalid product or action' }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('set_product_archived', {
+    p_product_id: productId,
+    p_archive: archive,
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/admin')
+  revalidatePath('/warehouse')
+  revalidatePath('/transfer')
+  revalidatePath('/stock')
+  return { success: true }
+}
+
 export async function addProduct(
   name: string,
   category: string,
   minStock: number,
-  startingQty: number
+  startingQty: number,
+  stockUnit: 'ea' | 'kg' | 'm' | 'pack' | 'container' = 'ea',
 ) {
   const profile = await getCurrentProfile()
 
   if (!['manager', 'admin'].includes(profile.role)) {
     return { error: 'Only managers can add products' }
   }
-
-  const db = createServerClient()
-
-  const { data: product, error } = await db
-    .from('products')
-    .insert({ company_id: profile.company_id, name, category, min_stock: minStock })
-    .select()
-    .single()
-
-  if (error) return { error: error.message }
-
-  if (startingQty > 0 && profile.van_id) {
-    await db.from('stock').upsert({
-      van_id: profile.van_id,
-      product_id: product.id,
-      quantity: startingQty,
-    })
+  if (!name?.trim() || name.trim().length > 200 || !category?.trim()) {
+    return { error: 'Enter a valid product name and category' }
   }
+  if (!['ea', 'kg', 'm', 'pack', 'container'].includes(stockUnit)) {
+    return { error: 'Select a valid stock unit' }
+  }
+  if (!Number.isFinite(minStock) || minStock < 0 ||
+      Math.abs(minStock * 100 - Math.round(minStock * 100)) > 1e-7 ||
+      (['ea', 'pack', 'container'].includes(stockUnit) && !Number.isSafeInteger(minStock))) {
+    return { error: 'Minimum stock quantity must match the selected unit' }
+  }
+  // Initial stock must be counted and audited separately, not fabricated here.
+  if (startingQty !== 0) {
+    return { error: 'Opening stock must be entered through the stocktake procedure.' }
+  }
+  const db = createServerClient()
+  const { error } = await db.from('products').insert({
+    company_id: profile.company_id,
+    name: name.trim(),
+    category: category.trim(),
+    min_stock: minStock,
+    stock_unit: stockUnit,
+  })
+  if (error) return { error: error.message }
 
   revalidatePath('/admin')
   revalidatePath('/stock')
+  revalidatePath('/warehouse')
   return { success: true }
 }
 
+// Destructive product deletion is suspended until an audited archive/retire
+// operation is implemented. Existing stock references products ON DELETE CASCADE.
 export async function removeProduct(productId: string) {
   const profile = await getCurrentProfile()
-
   if (!['manager', 'admin'].includes(profile.role)) {
-    return { error: 'Only managers can remove products' }
+    return { error: 'Manager access required' }
   }
-
-  const db = createServerClient()
-
-  const { error } = await db
-    .from('products')
-    .delete()
-    .eq('id', productId)
-    .eq('company_id', profile.company_id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath('/admin')
-  return { success: true }
+  return { error: 'Product deletion is disabled to protect van stock and inventory history. A product archive option will be added.' }
 }
 
 // ── ADMIN ──────────────────────────────────────────────────
@@ -410,5 +391,120 @@ export async function saveWarehousePermissions(
   })
   if (error) return { error: error.message }
   revalidatePath('/admin')
+  return { success: true }
+}
+
+
+// ── READ-ONLY WAREHOUSE OVERVIEW ────────────────────────────
+// This page is available only after the staged warehouse migration.
+// Never return cross-company warehouse records.
+export async function getWarehouseOverview() {
+  const profile = await getCurrentProfile()
+  const allowedRoles = ['admin', 'manager']
+  if (!allowedRoles.includes(profile.role)) {
+    throw new Error('Warehouse management access required')
+  }
+
+  const db = createServerClient()
+  const { data: warehouses, error: warehouseError } = await db
+    .from('warehouses')
+    .select('id, name, company_id')
+    .eq('company_id', profile.company_id)
+    .order('name')
+
+  if (warehouseError) {
+    // Before applying the database migration, display a safe setup state.
+    if (warehouseError.code === '42P01' || warehouseError.code === 'PGRST205') {
+      return { setupRequired: true as const, warehouses: [], items: [] }
+    }
+    throw new Error('Could not read warehouse locations: ' + warehouseError.message)
+  }
+
+  const warehouseIds = (warehouses ?? []).map((w) => w.id)
+  if (warehouseIds.length === 0) {
+    return { setupRequired: false as const, warehouses: [], items: [] }
+  }
+
+  const { data: balances, error: balanceError } = await db
+    .from('warehouse_stock')
+    .select('warehouse_id, product_id, quantity, product:products(name, category)')
+    .in('warehouse_id', warehouseIds)
+    .order('product_id')
+
+  if (balanceError) throw new Error('Could not read warehouse balances: ' + balanceError.message)
+  return {
+    setupRequired: false as const,
+    warehouses: warehouses ?? [],
+    items: (balances ?? []).map((item) => ({
+      warehouse_id: item.warehouse_id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      product_name: (item.product as any)?.name ?? 'Unknown product',
+      category: (item.product as any)?.category ?? 'Other',
+    })),
+  }
+}
+
+
+// ── WAREHOUSE WRITE ACTIONS: RELEASE GATED ─────────────────────
+// Both actions are DISABLED by default; set WAREHOUSE_WRITES_ENABLED=true
+// only in an isolated verified test deployment with migrations applied.
+export async function postWarehouseOpeningStock(
+  warehouseId: string, productId: string, quantity: number, stocktakeReference: string,
+) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+    return { error: 'Opening stock posting is not yet enabled.' }
+  }
+  const profile = await getCurrentProfile()
+  if (!['admin', 'manager'].includes(profile.role)) {
+    return { error: 'Administrator or Manager access required.' }
+  }
+  if (!warehouseId || !productId || !stocktakeReference?.trim() ||
+      !Number.isFinite(quantity) || quantity < 0) {
+    return { error: 'Complete the warehouse, product, quantity and stocktake reference.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('post_warehouse_opening_stock', {
+    p_warehouse_id: warehouseId,
+    p_product_id: productId,
+    p_count: quantity,
+    p_stocktake_reference: stocktakeReference.trim(),
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/warehouse')
+  revalidatePath('/logs')
+  return { success: true }
+}
+
+export async function transferWarehouseToVan(
+  warehouseId: string, vanId: string, productId: string, quantity: number,
+  reference: string,
+) {
+  if (process.env.WAREHOUSE_WRITES_ENABLED !== 'true') {
+    return { error: 'Warehouse replenishment is not yet enabled.' }
+  }
+  const profile = await getCurrentProfile()
+  if (!['admin', 'manager'].includes(profile.role)) {
+    return { error: 'Warehouse issue permission required.' }
+  }
+  if (!warehouseId || !vanId || !productId || !reference?.trim() ||
+      !Number.isFinite(quantity) || quantity <= 0) {
+    return { error: 'Complete the warehouse, receiving van, product, quantity and reference.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('move_warehouse_van_stock', {
+    p_warehouse_id: warehouseId,
+    p_van_id: vanId,
+    p_product_id: productId,
+    p_quantity: quantity,
+    p_direction: 'warehouse-to-van',
+    p_reference: reference.trim(),
+    p_notes: '',
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/warehouse')
+  revalidatePath('/stock')
+  revalidatePath('/dashboard')
+  revalidatePath('/logs')
   return { success: true }
 }

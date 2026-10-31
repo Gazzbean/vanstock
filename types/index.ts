@@ -6,6 +6,7 @@
 // ============================================================
 
 export type Role = 'technician' | 'manager' | 'admin'
+export type StockUnit = 'ea' | 'kg' | 'm' | 'pack' | 'container'
 
 export type TransferType = 'issue' | 'return' | 'van-to-van' | 'depot' | 'adjust'
 
@@ -39,6 +40,8 @@ export interface Product {
   name: string
   category: string
   min_stock: number
+  // Optional until the product UOM migration is deployed.
+  stock_unit?: StockUnit
   created_at: string
 }
 

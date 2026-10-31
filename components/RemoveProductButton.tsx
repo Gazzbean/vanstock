@@ -1,32 +1,41 @@
-// ============================================================
-// components/RemoveProductButton.tsx
-// A simple delete button for removing a product.
-// Needs 'use client' because it calls a Server Action on click.
-// ============================================================
-
 'use client'
 
-import { useTransition } from 'react'
-import { removeProduct } from '@/lib/actions'
+import { useState, useTransition } from 'react'
+import { setProductArchived } from '@/lib/actions'
 
-export default function RemoveProductButton({ productId }: { productId: string }) {
-  const [isPending, startTransition] = useTransition()
-
-  function handleClick() {
-    if (!confirm('Remove this product? Stock entries will also be deleted.')) return
+// Never deletes a product. Archived products remain in stock and audit history.
+export default function RemoveProductButton({
+  productId, archived = false, enabled = false,
+}: {
+  productId: string
+  archived?: boolean
+  enabled?: boolean
+}) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState('')
+  function submit() {
+    if (!enabled) return
+    if (!confirm(archived ? 'Restore this product to the active catalogue?' :
+      'Archive this product? This is allowed only when all van and warehouse balances are zero.')) return
     startTransition(async () => {
-      await removeProduct(productId)
+      setError('')
+      try {
+        const result = await setProductArchived(productId, !archived)
+        if (result.error) setError(result.error)
+      } catch {
+        setError('The catalogue could not be updated.')
+      }
     })
   }
-
   return (
-    <button
-      onClick={handleClick}
-      disabled={isPending}
-      className="btn btn-sm btn-danger"
-      aria-label="Remove product"
-    >
-      {isPending ? '…' : '🗑'}
-    </button>
+    <div className="flex flex-col gap-1">
+      <button type="button" className="btn btn-sm"
+        disabled={!enabled || pending} onClick={submit}
+        title={enabled ? (archived ? 'Restore product' : 'Archive unused product') :
+          'Archiving is disabled until warehouse commissioning'}>
+        {archived ? 'Restore' : 'Archive'}
+      </button>
+      {error && <span role="alert" className="text-xs text-red-700">{error}</span>}
+    </div>
   )
 }
