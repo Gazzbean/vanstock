@@ -6,6 +6,7 @@
 import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
+import EditProductModal from '@/components/EditProductModal'
 import CatalogueImport from '@/components/CatalogueImport'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
@@ -70,7 +71,7 @@ export default async function AdminPage() {
                     <td className="table-cell text-gray-500">{p.stock_unit ?? "ea"}</td>
                     <td className="table-cell text-gray-400">{p.min_stock}</td>
                     <td className="table-cell">
-                      <RemoveProductButton productId={p.id} archived={!!p.archived_at} enabled={archiveEnabled} />
+                      <div className="flex items-center gap-2"><EditProductModal product={p} /><RemoveProductButton productId={p.id} archived={!!p.archived_at} enabled={archiveEnabled} /></div>
                     </td>
                   </tr>
                 ))}
