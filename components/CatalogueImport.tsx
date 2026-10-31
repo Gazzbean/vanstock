@@ -38,6 +38,7 @@ function parseCSV(text: string): string[][] {
 
 export default function CatalogueImport() {
   const [items,setItems] = useState<Item[]>([])
+  const [filename,setFilename] = useState('')
   const [error,setError] = useState('')
   const [message,setMessage] = useState('')
   const [pending,startTransition] = useTransition()
@@ -52,7 +53,7 @@ export default function CatalogueImport() {
   }
 
   async function load(file?: File) {
-    setError(''); setMessage(''); setItems([])
+    setError(''); setMessage(''); setItems([]); setFilename('')
     if (!file) return
     if (file.size > 250000) { setError('CSV exceeds the 250 KB file limit.'); return }
     try {
@@ -83,6 +84,7 @@ export default function CatalogueImport() {
         parsed.push({name,category,stock_unit:unit as Unit,min_stock:quantity})
       }
       setItems(parsed)
+      setFilename(file.name)
       setMessage(parsed.length+' products ready for review; nothing has been imported.')
     } catch(e) { setError(e instanceof Error ? e.message : 'Invalid CSV file.') }
   }
@@ -97,6 +99,7 @@ export default function CatalogueImport() {
         else {
           setMessage('Imported '+result.imported+' products. No stock quantities were created.')
           setItems([])
+          setFilename('')
         }
       } catch { setError('Import could not be confirmed. Check the catalogue before retrying.') }
     })
@@ -112,6 +115,7 @@ export default function CatalogueImport() {
     <label className="form-label" htmlFor="catalogue-csv">Select completed CSV file</label>
     <input id="catalogue-csv" className="form-input" type="file" accept=".csv,text/csv"
       onChange={e=>{ void load(e.target.files?.[0]); e.currentTarget.value='' }} />
+    {filename && <p className="text-xs text-gray-600 mt-2">Loaded file: <strong>{filename}</strong></p>}
     {error && <p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
     {message && <p role="status" className="text-sm text-green-700 mt-3">{message}</p>}
     {items.length>0 && <>
