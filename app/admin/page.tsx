@@ -6,6 +6,7 @@
 import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
+import CatalogueImport from '@/components/CatalogueImport'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 
@@ -146,6 +147,7 @@ export default async function AdminPage() {
           </div>
 
         </div>
+        <CatalogueImport />
         {user.role === 'admin' && warehousePermissions && (
           <div className="mt-4">
             <WarehousePermissionsPanel users={profiles.filter((p: any) => p.role === 'technician').map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} />
