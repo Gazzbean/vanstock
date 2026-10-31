@@ -4,8 +4,9 @@
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts } from '@/lib/actions'
+import { getMyStock, getProducts, getConsumablesAssignments } from '@/lib/actions'
 import AdjustStockModal from '@/components/AdjustStockModal'
+import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
 
 function stockStatus(qty: number, min: number) {
   if (qty <= 0)   return { label: 'Critical', cls: 'badge-critical', pct: 0,   color: '#ef4444' }
@@ -14,7 +15,7 @@ function stockStatus(qty: number, min: number) {
 }
 
 export default async function StockPage() {
-  const [stockItems, products] = await Promise.all([getMyStock(), getProducts()])
+  const [stockItems, products, consumables] = await Promise.all([getMyStock(), getProducts(), getConsumablesAssignments()])
 
   return (
     <div>
@@ -82,6 +83,7 @@ export default async function StockPage() {
             </tbody>
           </table>
         </div>
+        <EstimatedConsumablesIssue products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />
       </div>
     </div>
   )
