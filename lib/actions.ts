@@ -557,3 +557,59 @@ export async function adjustWarehouseStock(
   revalidatePath('/logs')
   return { success: true }
 }
+
+
+type CatalogueImportItem = {
+  name: string
+  category: string
+  stock_unit: 'ea'|'kg'|'m'|'pack'|'container'
+  min_stock: number
+}
+
+// One request, one database INSERT: either all validated products are created or none.
+// Stock balances are deliberately excluded; the separate opening stocktake remains authoritative.
+export async function importProductCatalogue(items: CatalogueImportItem[]) {
+  const profile = await getCurrentProfile()
+  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
+    return { error: 'Import between 1 and 200 products at a time.' }
+  }
+  const allowedUnits = ['ea','kg','m','pack','container']
+  const normalized = new Set<string>()
+  for (const item of items) {
+    if (typeof item?.name !== 'string' || !item.name.trim() ||
+        item.name.trim().length > 200 || typeof item.category !== 'string' ||
+        !item.category.trim() || item.category.trim().length > 100 ||
+        !allowedUnits.includes(item.stock_unit) ||
+        !Number.isFinite(item.min_stock) || item.min_stock < 0 ||
+        item.min_stock >= 1000000000 ||
+        Math.abs(item.min_stock*100-Math.round(item.min_stock*100)) > 1e-7 ||
+        (['ea','pack','container'].includes(item.stock_unit) &&
+          !Number.isSafeInteger(item.min_stock))) {
+      return { error: 'Invalid product, category, unit or minimum stock in the import.' }
+    }
+    const key = item.name.trim().toLowerCase()
+    if (normalized.has(key)) return { error: 'Duplicate name in import: ' + item.name.trim() }
+    normalized.add(key)
+  }
+  const db = createServerClient()
+  const { data: existing, error: readError } = await db.from('products')
+    .select('name').eq('company_id',profile.company_id)
+  if (readError) return { error: 'Cannot check existing catalogue: '+readError.message }
+  const names = new Set((existing ?? []).map(item => item.name.trim().toLowerCase()))
+  const duplicate = items.find(item => names.has(item.name.trim().toLowerCase()))
+  if (duplicate) return { error: 'Already exists in catalogue (including archived items): '+duplicate.name }
+  const { error } = await db.from('products').insert(items.map(item => ({
+    company_id: profile.company_id,
+    name: item.name.trim(),
+    category: item.category.trim(),
+    stock_unit: item.stock_unit,
+    min_stock: item.min_stock,
+  })))
+  if (error) return { error: error.code === '23505'
+    ? 'One or more product names already exist. No products imported.'
+    : error.message }
+  revalidatePath('/admin')
+  revalidatePath('/warehouse')
+  return { success: true, imported: items.length }
+}
