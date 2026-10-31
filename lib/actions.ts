@@ -664,6 +664,21 @@ export async function saveCatalogueSettings(productId:string,trackingType:string
   || typeof materialUuid!=='string'||materialUuid.length>120
   || typeof itemNumber!=='string'||itemNumber.length>120
   || (mappingStatus==='linked'&&!materialUuid.trim()))return {error:'Invalid tracking or ServiceM8 mapping settings'}
+ // Until the cylinder and bulk-unit migration exists, prevent unsafe reclassification
+ // of products already involved in physical stock or audit history.
+ if(trackingType!=='stocked'){
+   const db=createServerClient()
+   const {data:product,error:productError}=await db.from('products').select('id').eq('id',productId).eq('company_id',p.company_id).maybeSingle()
+   if(productError||!product)return {error:'Product not found for this company'}
+   const [van,warehouse,logs]=await Promise.all([
+     db.from('stock').select('id').eq('product_id',productId).limit(1),
+     db.from('warehouse_stock').select('product_id').eq('product_id',productId).limit(1),
+     db.from('activity_log').select('id').eq('product_id',productId).limit(1),
+   ])
+   if(van.error||warehouse.error||logs.error)return {error:'Cannot verify product inventory history'}
+   if(van.data?.length||warehouse.data?.length||logs.data?.length)
+     return {error:'This product has stock or transaction history. Changing its tracking type requires a controlled migration.'}
+ }
  const session=await createSessionClient()
  // Product company membership is enforced again by a composite database FK.
  const {error}=await session.from('product_settings').upsert({
