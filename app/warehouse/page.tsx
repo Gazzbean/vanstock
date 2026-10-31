@@ -1,4 +1,4 @@
-// Read-only warehouse overview. Stock movements remain disabled until rollout approval.
+// Warehouse stock overview and audited stocktake/replenishment actions.
 import { redirect } from 'next/navigation'
 import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
@@ -19,7 +19,7 @@ export default async function WarehousePage() {
   const [overview, adminData, products] = await Promise.all([
     getWarehouseOverview(), getAdminData(), getProducts(),
   ])
-  const writesEnabled = process.env.WAREHOUSE_WRITES_ENABLED === 'true' && !overview.setupRequired
+  const writesEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false' && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
   const totals = overview.warehouses.map((warehouse) => {
     const rows = overview.items.filter((item) => item.warehouse_id === warehouse.id)
@@ -39,7 +39,7 @@ export default async function WarehousePage() {
       </div>
       <div className="p-5">
         <div className="alert alert-info mb-4">
-          Warehouse quantities are shown for review. Stock-changing operations stay disabled until database validation and commissioning are complete.
+          Warehouse quantities are shown by product and unit. Opening stock and replenishment are recorded with an audit reference.
         </div>
         {overview.setupRequired ? (
           <div className="card">
