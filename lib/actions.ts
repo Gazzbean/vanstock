@@ -613,3 +613,31 @@ export async function importProductCatalogue(items: CatalogueImportItem[]) {
   revalidatePath('/warehouse')
   return { success: true, imported: items.length }
 }
+
+
+export async function updateCatalogueProduct(
+  productId: string, name: string, category: string,
+  stockUnit: 'ea' | 'kg' | 'm' | 'pack' | 'container', minStock: number,
+) {
+  const profile = await getCurrentProfile()
+  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  if (!productId || !name?.trim() || name.trim().length > 200 ||
+      !category?.trim() || category.trim().length > 100 ||
+      !['ea','kg','m','pack','container'].includes(stockUnit) ||
+      !Number.isFinite(minStock) || minStock < 0 || minStock >= 1000000000 ||
+      Math.abs(minStock*100 - Math.round(minStock*100)) > 1e-7 ||
+      (['ea','pack','container'].includes(stockUnit) && !Number.isSafeInteger(minStock))) {
+    return { error: 'Check product name, category, stock unit and minimum stock quantity.' }
+  }
+  const session = await createSessionClient()
+  const { error } = await session.rpc('update_catalogue_product', {
+    p_product_id: productId,
+    p_name: name.trim(),
+    p_category: category.trim(),
+    p_stock_unit: stockUnit,
+    p_min_stock: minStock,
+  })
+  if (error) return { error: error.message }
+  for (const path of ['/admin','/warehouse','/stock','/dashboard','/transfer']) revalidatePath(path)
+  return { success: true }
+}
