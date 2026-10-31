@@ -181,7 +181,10 @@ export async function getActivityLog(filterType?: string) {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  if (profile.role === 'technician' && profile.van_id) {
+  // Fail closed: an unassigned technician must never receive company-wide
+  // logs through the service-role query.
+  if (profile.role === 'technician') {
+    if (!profile.van_id) return []
     query = query.eq('van_id', profile.van_id)
   }
 
