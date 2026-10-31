@@ -641,3 +641,53 @@ export async function updateCatalogueProduct(
   for (const path of ['/admin','/warehouse','/stock','/dashboard','/transfer']) revalidatePath(path)
   return { success: true }
 }
+
+
+// ── PHASE 1A: CATALOGUE SETTINGS (metadata only) ─────────
+export async function getPhase1CatalogueSettings(){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
+ const db=createServerClient()
+ const [settings,groups]=await Promise.all([
+  db.from('product_settings').select('product_id,tracking_type,servicem8_material_uuid,servicem8_item_number,mapping_status').eq('company_id',p.company_id),
+  db.from('consumables_groups').select('id,name,unit,quick_1,quick_2,quick_3,quick_4').eq('company_id',p.company_id).order('name'),
+ ])
+ if(settings.error) throw new Error(settings.error.message)
+ if(groups.error) throw new Error(groups.error.message)
+ return {settings:settings.data??[],groups:groups.data??[]}
+}
+export async function saveCatalogueSettings(productId:string,trackingType:string,mappingStatus:string,materialUuid:string,itemNumber:string){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!['stocked','bulk_consumable','cylinder','kit','reference_only','billing_only'].includes(trackingType)
+  || !['unlinked','linked','needs_review','vanstock_only'].includes(mappingStatus)
+  || typeof materialUuid!=='string'||materialUuid.length>120
+  || typeof itemNumber!=='string'||itemNumber.length>120
+  || (mappingStatus==='linked'&&!materialUuid.trim()))return {error:'Invalid tracking or ServiceM8 mapping settings'}
+ const session=await createSessionClient()
+ // Product company membership is enforced again by a composite database FK.
+ const {error}=await session.from('product_settings').upsert({
+  product_id:productId,company_id:p.company_id,tracking_type:trackingType,
+  mapping_status:mappingStatus,servicem8_material_uuid:materialUuid.trim()||null,
+  servicem8_item_number:itemNumber.trim()||null,updated_at:new Date().toISOString(),
+ },{onConflict:'product_id'})
+ if(error)return {error:error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
+export async function saveConsumablesGroup(groupId:string,quantities:number[]){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!Array.isArray(quantities)||quantities.length!==4
+ || quantities.some(q=>!Number.isFinite(q)||q<=0||q>=1000000000||Math.abs(q*100-Math.round(q*100))>1e-7)
+ || quantities.some((q,i)=>i>0&&q<=quantities[i-1]))
+ return {error:'Exactly four increasing, positive quantities are required (maximum two decimal places).'}
+ const session=await createSessionClient()
+ const {data,error}=await session.from('consumables_groups')
+  .update({quick_1:quantities[0],quick_2:quantities[1],quick_3:quantities[2],quick_4:quantities[3],updated_at:new Date().toISOString()})
+  .eq('id',groupId).eq('company_id',p.company_id).select('id')
+ if(error)return {error:error.message}
+ if(!data?.length)return {error:'Consumables group not found or not authorised'}
+ revalidatePath('/admin')
+ return {success:true}
+}
