@@ -771,3 +771,47 @@ export async function saveProductBin(productId:string,locationType:'van'|'wareho
  revalidatePath('/admin')
  return {success:true}
 }
+
+
+// ── PHASE 1C: PER-VAN STOCK STANDARDS ─────────────────────
+export async function getVanStockStandardsAdmin(){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
+ const db=createServerClient()
+ const {data,error}=await db.from('van_stock_standards')
+   .select('id,van_id,product_id,classification,min_quantity,target_quantity')
+   .eq('company_id',p.company_id)
+ if(error)throw new Error(error.message)
+ return data??[]
+}
+export async function saveVanStockStandard(
+ vanId:string,productId:string,classification:string,minQuantity:number,targetQuantity:number,
+){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!vanId||!productId||!['mandatory','preferred','optional','not_assigned'].includes(classification))
+   return {error:'Invalid van, product or classification'}
+ if(!Number.isFinite(minQuantity)||!Number.isFinite(targetQuantity)||
+    minQuantity<0||targetQuantity<minQuantity||targetQuantity>=1000000000 ||
+    [minQuantity,targetQuantity].some(q=>Math.abs(q*100-Math.round(q*100))>1e-7))
+   return {error:'Enter valid minimum and target quantities (target must be at least minimum)'}
+ if(['optional','not_assigned'].includes(classification) && (minQuantity!==0||targetQuantity!==0))
+   return {error:'Optional and Not assigned items do not have routine stock targets'}
+ const session=await createSessionClient()
+ const [van,product]=await Promise.all([
+   session.from('vans').select('id').eq('id',vanId).eq('company_id',p.company_id).maybeSingle(),
+   session.from('products').select('id,stock_unit,archived_at').eq('id',productId).eq('company_id',p.company_id).maybeSingle(),
+ ])
+ if(van.error||product.error)return {error:'Could not verify van or product'}
+ if(!van.data||!product.data||product.data.archived_at)return {error:'Select an active product and a valid van'}
+ if(!['kg','m'].includes(product.data.stock_unit??'ea') &&
+    (!Number.isSafeInteger(minQuantity)||!Number.isSafeInteger(targetQuantity)))
+   return {error:'Whole-number quantities are required for this product unit'}
+ const {error}=await session.from('van_stock_standards').upsert({
+    company_id:p.company_id,van_id:vanId,product_id:productId,classification,
+    min_quantity:minQuantity,target_quantity:targetQuantity,updated_at:new Date().toISOString(),
+ },{onConflict:'van_id,product_id'})
+ if(error)return {error:error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
