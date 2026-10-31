@@ -62,5 +62,21 @@ select 'van_negative' as violation, count(*) as occurrences
 from public.stock where quantity < 0
 union all select 'warehouse_negative', count(*) from public.warehouse_stock where quantity < 0;
 
+-- Expected: all three nonnegative constraints are present and validated.
+select c.conrelid::regclass as table_name, c.conname as constraint_name,
+       c.convalidated as validated
+from pg_constraint c
+where c.conrelid in (
+    'public.stock'::regclass,
+    'public.products'::regclass,
+    'public.activity_log'::regclass
+  )
+  and c.conname in (
+    'stock_quantity_nonnegative',
+    'products_min_stock_nonnegative',
+    'activity_log_quantity_nonnegative'
+  )
+order by table_name, constraint_name;
+
 -- Still required separately: signed-in user tests, concurrency, rollback,
 -- and actual debit/credit reconciliation. A green result here is not release approval.
