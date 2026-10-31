@@ -3,11 +3,12 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData } from '@/lib/actions'
+import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import EditProductModal from '@/components/EditProductModal'
 import CatalogueImport from '@/components/CatalogueImport'
+import CatalogueSettingsPanel from '@/components/CatalogueSettingsPanel'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 
@@ -28,10 +29,11 @@ export default async function AdminPage() {
     )
   }
 
-  const [products, { vans, profiles }, warehousePermissions] = await Promise.all([
+  const [products, { vans, profiles }, warehousePermissions, phase1] = await Promise.all([
     getAdminProducts(),
     getAdminData(),
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
+    getPhase1CatalogueSettings(),
   ])
 
   const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
@@ -148,6 +150,7 @@ export default async function AdminPage() {
           </div>
 
         </div>
+        <CatalogueSettingsPanel products={products.map(p=>({id:p.id,name:p.name}))} settings={phase1.settings} groups={phase1.groups} />
         <CatalogueImport />
         {user.role === 'admin' && warehousePermissions && (
           <div className="mt-4">
