@@ -706,3 +706,68 @@ export async function saveConsumablesGroup(groupId:string,quantities:number[]){
  revalidatePath('/admin')
  return {success:true}
 }
+
+
+// ── PHASE 1B: suppliers, purchase packages and bins ───────
+export async function getPhase1BSupplierData(){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))throw new Error('Manager access required')
+ const db=createServerClient()
+ const [suppliers,options,bins,vans,warehouses]=await Promise.all([
+   db.from('suppliers').select('id,name,account_number,active').eq('company_id',p.company_id).order('name'),
+   db.from('supplier_product_options').select('id,product_id,supplier_id,supplier_code,package_label,purchase_unit,units_per_package,preferred').eq('company_id',p.company_id),
+   db.from('product_bins').select('id,product_id,van_id,warehouse_id,bin_label').eq('company_id',p.company_id),
+   db.from('vans').select('id,van_number').eq('company_id',p.company_id).order('van_number'),
+   db.from('warehouses').select('id,name').eq('company_id',p.company_id).order('name'),
+ ])
+ for(const r of [suppliers,options,bins,vans,warehouses])if(r.error)throw new Error(r.error.message)
+ return {suppliers:suppliers.data??[],options:options.data??[],bins:bins.data??[],vans:vans.data??[],warehouses:warehouses.data??[]}
+}
+export async function addCatalogueSupplier(name:string,accountNumber:string){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(typeof name!=='string'||!name.trim()||name.trim().length>120||typeof accountNumber!=='string'||accountNumber.length>100)return {error:'Invalid supplier details'}
+ const session=await createSessionClient()
+ const {error}=await session.from('suppliers').insert({company_id:p.company_id,name:name.trim(),account_number:accountNumber.trim()||null})
+ if(error)return {error:error.code==='23505'?'Supplier already exists':error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
+export async function addSupplierPackage(productId:string,supplierId:string,supplierCode:string,packageLabel:string,purchaseUnit:string,unitsPerPackage:number){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!productId||!supplierId||typeof supplierCode!=='string'||supplierCode.length>120||
+ typeof packageLabel!=='string'||!packageLabel.trim()||packageLabel.trim().length>100||
+ !['ea','kg','m','pack','container','roll','box','cylinder'].includes(purchaseUnit)||
+ !Number.isFinite(unitsPerPackage)||unitsPerPackage<=0||unitsPerPackage>=1000000000||
+ Math.abs(unitsPerPackage*100-Math.round(unitsPerPackage*100))>1e-7)
+ return {error:'Invalid supplier package. Use a positive quantity with at most two decimals.'}
+ const session=await createSessionClient()
+ const {error}=await session.from('supplier_product_options').insert({
+   company_id:p.company_id,product_id:productId,supplier_id:supplierId,
+   supplier_code:supplierCode.trim()||null,package_label:packageLabel.trim(),
+   purchase_unit:purchaseUnit,units_per_package:unitsPerPackage
+ })
+ if(error)return {error:error.code==='23505'?'This supplier package already exists':error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
+export async function saveProductBin(productId:string,locationType:'van'|'warehouse',locationId:string,binLabel:string){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!productId||!locationId||!['van','warehouse'].includes(locationType)||
+ typeof binLabel!=='string'||!binLabel.trim()||binLabel.trim().length>80)return {error:'Invalid bin or location'}
+ const session=await createSessionClient()
+ const existingQuery=session.from('product_bins').select('id').eq('company_id',p.company_id).eq('product_id',productId)
+  .eq(locationType==='van'?'van_id':'warehouse_id',locationId)
+ const {data:existing,error:lookupError}=await existingQuery.maybeSingle()
+ if(lookupError)return {error:lookupError.message}
+ const data={company_id:p.company_id,product_id:productId,van_id:locationType==='van'?locationId:null,
+  warehouse_id:locationType==='warehouse'?locationId:null,bin_label:binLabel.trim()}
+ const result=existing
+  ? await session.from('product_bins').update({bin_label:binLabel.trim(),updated_at:new Date().toISOString()}).eq('id',existing.id)
+  : await session.from('product_bins').insert(data)
+ if(result.error)return {error:result.error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
