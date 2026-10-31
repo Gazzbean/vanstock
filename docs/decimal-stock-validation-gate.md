@@ -16,12 +16,12 @@ Status: SOURCE REVIEW ONLY. No database tests have run. Do not apply to producti
 2. Compare existing stock and activity-log quantities before and after conversion; check exact preservation.
 3. Verify all SQL function signatures, RLS, company isolation, and role grants.
 4. Reject 1.5 ea; accept 2.50 kg and 1.25 m; reject zero, negatives and invalid precision. In particular, send 1.235 kg directly to each RPC and confirm it is rejected rather than rounded to 1.24 kg; check that a very large quantity also fails without changing balances.
-5. Transfer 2.50 kg warehouse to van, checking equal debit and credit and complete audit logging.
+5. Transfer 2.50 kg warehouse to van, checking equal debit and credit and exactly ONE movement log row that identifies both locations.
 6. Return 1.25 kg van to warehouse with equal debit and credit.
 7. Reject insufficient source stock with no balance or log change.
 8. Force transaction failure after debit and verify complete rollback.
 9. Reject cross-company resources and unauthorised technician requests.
-10. Run concurrent withdrawals and verify no negative balances or lost updates.
+10. Run concurrent withdrawals and verify no negative balances or lost updates. Confirm a warehouse movement does not appear twice in the company-wide Activity Log.
 11. Check dashboard, stock pages, transfer forms and activity logs for correct units and no mixed-unit totals.
 12. Confirm end-to-end behaviour with test users; a successful Vercel build alone is insufficient.
 
