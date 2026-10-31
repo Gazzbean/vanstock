@@ -58,8 +58,9 @@ export default function WarehouseOpeningStockForm({
     <section className="card mt-4">
       <h2 className="text-sm font-medium mb-2">Opening warehouse stocktake</h2>
       <p className="text-xs text-gray-500 mb-4">
-        Record the approved physical count once per product. This section is disabled until
-        database validation and commissioning are complete.
+        {enabled
+          ? 'Enter the verified opening count once for each product, with a stocktake reference. Posted balances cannot be overwritten here.'
+          : 'Opening stock posting is currently disabled by the administrator.'}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
