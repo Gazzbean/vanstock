@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { transferWarehouseToVan } from '@/lib/actions'
 
-// Server action is disabled unless WAREHOUSE_WRITES_ENABLED=true in tested deployment.
+// Live posting is controlled by the enabled prop and server-side access checks.
 type VanOption = { id: string; van_number: string }
 type ProductOption = { id: string; name: string; unit: string }
 type WarehouseOption = { id: string; name: string }
@@ -32,7 +32,7 @@ export default function WarehouseReplenishmentDraft({
   const product = products.find(p => p.id === productId)
   const available = balances.find(b => b.warehouse_id === warehouseId && b.product_id === productId)?.quantity ?? 0
   const requested = Number(quantity)
-  // This is a read-only planning preview. It does NOT authorize fractional database writes.
+  // Validate quantities before submitting to the transactional server action.
   const supportsDecimals = product?.unit === 'kg' || product?.unit === 'm'
   const step = supportsDecimals ? '0.01' : '1'
   const precisionValid = supportsDecimals
@@ -67,10 +67,11 @@ export default function WarehouseReplenishmentDraft({
 
   return (
     <section className="card mt-4">
-      <h2 className="text-sm font-medium mb-2">Warehouse → Van replenishment (planning preview)</h2>
+      <h2 className="text-sm font-medium mb-2">Warehouse → Van replenishment</h2>
       <p className="text-xs text-gray-500 mb-4">
-        Review the stock movement. Posting stays disabled until the database,
-        opening balances and transactional controls have been commissioned.
+        {enabled
+          ? 'Select the source, receiving van and product. A recorded warehouse balance is required before replenishment.'
+          : 'Stock movements are currently disabled by the administrator.'}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
