@@ -2,6 +2,7 @@
 import { redirect } from 'next/navigation'
 import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
+import WarehouseCorrections from '@/components/WarehouseCorrections'
 import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts } from '@/lib/actions'
 
 export default async function WarehousePage() {
@@ -98,6 +99,13 @@ export default async function WarehousePage() {
           </div>
         )}
         <WarehouseReplenishmentDraft
+          enabled={writesEnabled}
+          warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
+          vans={adminData.vans.map(v => ({ id: v.id, van_number: v.van_number }))}
+          products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
+          balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
+        />
+        <WarehouseCorrections
           enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           vans={adminData.vans.map(v => ({ id: v.id, van_number: v.van_number }))}
