@@ -79,6 +79,13 @@ begin
     raise exception 'Maximum two decimal places permitted';
   end if;
   if p_quantity >= 1000000000 then raise exception 'Quantity exceeds supported range'; end if;
+  if p_reference is null or length(btrim(p_reference)) = 0
+     or length(p_reference) > 500 then
+    raise exception 'A movement reference is required (up to 500 characters)';
+  end if;
+  if length(coalesce(p_notes,'')) > 2000 then
+    raise exception 'Movement notes exceed 2000 characters';
+  end if;
   if p_direction not in ('warehouse-to-van', 'van-to-warehouse') or p_direction is null then
     raise exception 'Invalid movement direction';
   end if;
@@ -175,7 +182,7 @@ begin
   values
     (v_company_id, p_van_id, v_user_id, p_product_id, v_product_label,
      p_direction, p_quantity,
-     v_warehouse_label || ' / ' || v_van_label || ' / ' || coalesce(p_reference,''),
+     v_warehouse_label || ' / ' || v_van_label || ' / ' || btrim(p_reference),
      'Warehouse/van stock movement. ' || coalesce(p_notes,''));
 
 end;
