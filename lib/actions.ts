@@ -889,3 +889,27 @@ export async function issueEstimatedConsumable(productId:string,groupId:string,q
  for(const path of ['/stock','/dashboard','/logs','/admin'])revalidatePath(path)
  return {success:true}
 }
+
+
+// ── PHASE 2B: ATOMIC PACK RECEIVING ──────────────────────
+export async function receiveSupplierPack(
+ receiptId:string,optionId:string,packs:number,docket:string,
+ destinationType:'van'|'warehouse',destinationId:string,
+){
+ const p=await getCurrentProfile()
+ if(!['admin','manager','technician'].includes(p.role))return {error:'Not authorised'}
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receiptId)
+ || !optionId||!destinationId||!['van','warehouse'].includes(destinationType)
+ || !Number.isFinite(packs)||packs<=0||packs>=1000000000
+ || Math.abs(packs*100-Math.round(packs*100))>1e-7
+ || typeof docket!=='string'||!docket.trim()||docket.trim().length>120)
+ return {error:'Check pack count, receipt reference and destination'}
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('receive_supplier_pack',{
+  p_receipt_id:receiptId,p_option_id:optionId,p_packs:packs,
+  p_docket:docket.trim(),p_destination_type:destinationType,p_destination_id:destinationId,
+ })
+ if(error)return {error:error.message}
+ for(const path of ['/admin','/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
+ return {success:true,quantity:Number(data)}
+}
