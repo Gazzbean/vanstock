@@ -54,7 +54,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
    if(vals.length!==4||vals.some(x=>!Number.isFinite(x)||x<=0)||vals.some((x,i)=>i>0&&x<=vals[i-1])){
      setGroupError('Enter four positive usage quantities in ascending order.');return
    }
-   setProductError('');setProductMessage('')
+   setGroupError('');setGroupMessage('')
    startGroup(async()=>{
      const r=await saveConsumablesGroup(groupId,vals)
      if(r.error)setGroupError(r.error);else setGroupMessage('Consumables group updated.')
