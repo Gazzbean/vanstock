@@ -1217,10 +1217,10 @@ export async function inviteVanStockUser(details:{
  const actor=await getCurrentProfile()
  if(actor.role!=='admin')return {error:'Administrator access required'}
  if(!details||typeof details!=='object')return {error:'Invalid invitation details'}
- const name=typeof details.full_name==='string'?details.full_name.trim().replace(/\\s+/g,' '):''
+ const name=typeof details.full_name==='string'?details.full_name.trim().replace(/\s+/g,' '):''
  const email=typeof details.email==='string'?details.email.trim().toLowerCase():''
  const initials=typeof details.initials==='string'?details.initials.trim().toUpperCase():''
- if(name.length<3||name.length>120||!name.includes(' ')||!(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))||
+ if(name.length<3||name.length>120||!name.includes(' ')||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))||
     !(/^[A-Z]{2,5}$/.test(initials)))return {error:'Enter a full name, valid email and 2–5 letter initials'}
  if([details.is_active,details.technician,details.office,details.admin].some(v=>typeof v!=='boolean'))
   return {error:'Invalid access settings'}
