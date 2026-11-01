@@ -16,6 +16,7 @@ import { signOut } from '@/lib/actions'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard',      icon: '⊞' },
   { href: '/stock',     label: 'My Van Stock',   icon: '📦' },
+  { href: '/receive',   label: 'Receive Stock',   icon: '↓'  },
   { href: '/transfer',  label: 'Transfer Stock',  icon: '⇄'  },
   { href: '/logs',      label: 'Activity Log',   icon: '☰'  },
   { href: '/warehouse', label: 'Warehouse', icon: '▣' },
@@ -53,7 +54,7 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
       {/* Navigation links */}
       <nav className="flex-1 py-2">
         {navItems.map((item) => {
-          if ((item.href === '/admin' || item.href === '/warehouse') && user?.role !== 'manager' && user?.role !== 'admin') return null
+          if ((item.href === '/admin' || item.href === '/warehouse' || item.href === '/receive') && user?.role !== 'manager' && user?.role !== 'admin') return null
           const isActive = pathname.startsWith(item.href)
           return (
             <Link
