@@ -3,7 +3,7 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities } from '@/lib/actions'
+import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities, getUserAuthorizedVans } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import EditProductModal from '@/components/EditProductModal'
@@ -18,6 +18,7 @@ import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 import AdminTabbedSections from '@/components/AdminTabbedSections'
 import UsersAccessPanel from '@/components/UsersAccessPanel'
 import AccessCapabilitiesPanel from '@/components/AccessCapabilitiesPanel'
+import AuthorizedVansPanel from '@/components/AuthorizedVansPanel'
 
 export default async function AdminPage() {
   const user = await getCurrentUserDisplay()
@@ -27,7 +28,7 @@ export default async function AdminPage() {
       <div className="p-5"><div className="card"><h2 className="text-sm font-medium">Manager access required</h2>
       <p className="text-sm text-gray-500 mt-2">You do not have permission to access administration.</p></div></div></div>
   }
-  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities] = await Promise.all([
+  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities, userVans] = await Promise.all([
     getAdminProducts(),
     getAdminData(),
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
@@ -37,6 +38,7 @@ export default async function AdminPage() {
     getFleetStockOverview(),
     getConsumablesAssignments(),
     getUserAccessCapabilities(),
+    getUserAuthorizedVans(),
   ])
   const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
   return (
@@ -99,6 +101,7 @@ export default async function AdminPage() {
           access={<><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">          <div className="space-y-4">
             <UsersAccessPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,van_number:p.van?.van_number??null}))} />
             <AccessCapabilitiesPanel canEdit={user.role === 'admin'} staff={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,van_number:p.van?.van_number??null}))} initial={capabilities} />
+            <AuthorizedVansPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,van_id:p.van_id??null}))} vans={vans.map((v:any)=>({id:v.id,van_number:v.van_number}))} initial={userVans} />
             {/* Summary stats */}
             <div className="card">
               <h2 className="text-sm font-medium mb-3">System summary</h2>
