@@ -69,7 +69,7 @@ export default async function LogsPage({searchParams}:{
        <td className="table-cell whitespace-nowrap">{r.quantity.toLocaleString('en-AU')}{r.unit?' '+r.unit:''}</td>
        <td className="table-cell">{r.location}</td>
        <td className="table-cell">{r.reference||'—'}</td>
-       <td className="table-cell whitespace-nowrap">{processorLabel(r.processedBy)}</td>
+       <td className="table-cell whitespace-nowrap">{r.processorInitials??(r.processedBy?processorLabel(r.processedBy).split('(').pop()?.replace(')',''):'—')}</td>
        <td className="table-cell text-xs text-gray-500">{r.notes||'—'}</td>
       </tr>)}</tbody>
      </table>
