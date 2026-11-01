@@ -16,6 +16,7 @@ import ConsumablesAssignmentsPanel from '@/components/ConsumablesAssignmentsPane
 import ReceivePackPanel from '@/components/ReceivePackPanel'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
+import AdminTabbedSections from '@/components/AdminTabbedSections'
 
 export default async function AdminPage() {
   const user = await getCurrentUserDisplay()
@@ -25,38 +26,9 @@ export default async function AdminPage() {
       <div>
         <div className="topbar"><h1 className="topbar-title">Admin</h1></div>
         <div className="p-5">
-          <div className="card">
-            <h2 className="text-sm font-medium">Manager access required</h2>
-            <p className="text-sm text-gray-500 mt-2">You do not have permission to access administration.</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments] = await Promise.all([
-    getAdminProducts(),
-    getAdminData(),
-    user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
-    getPhase1CatalogueSettings(),
-    getPhase1BSupplierData(),
-    getVanStockStandardsAdmin(),
-    getFleetStockOverview(),
-    getConsumablesAssignments(),
-  ])
-
-  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
-
-  return (
-    <div>
-      <div className="topbar">
-        <h1 className="topbar-title">Admin</h1>
-      </div>
-
-      <div className="p-5">
-        <div className="grid grid-cols-2 gap-4">
-
-          {/* Product catalogue */}
+        <AdminTabbedSections
+          catalogue={<><div className="space-y-4">
+  <div className="grid grid-cols-1 gap-4">          {/* Product catalogue */}
           <div className="card">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-medium">Product catalogue</h2>
@@ -97,7 +69,18 @@ export default async function AdminPage() {
             </table>
           </div>
 
-          <div className="space-y-4">
+</div>
+  <CatalogueSettingsPanel products={products.map(p=>({id:p.id,name:p.name}))} settings={phase1.settings} groups={phase1.groups} />
+  <CatalogueImport />
+</div></>}
+          suppliers={<SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} />}
+          receiving={<ReceivePackPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} packages={phase1b.options} vans={phase1b.vans} warehouses={phase1b.warehouses} />}
+          standards={<>
+            <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
+            <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />
+          </>}
+          consumables={<ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />}
+          access={<><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">          <div className="space-y-4">
             {/* Vans & users */}
             <div className="card">
               <h2 className="text-sm font-medium mb-3">Vans & users</h2>
@@ -158,19 +141,11 @@ export default async function AdminPage() {
             </div>
           </div>
 
-        </div>
-        <CatalogueSettingsPanel products={products.map(p=>({id:p.id,name:p.name}))} settings={phase1.settings} groups={phase1.groups} />
-        <SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} />
-        <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
-        <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />
-        <ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />
-        <ReceivePackPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} packages={phase1b.options} vans={phase1b.vans} warehouses={phase1b.warehouses} />
-        <CatalogueImport />
-        {user.role === 'admin' && warehousePermissions && (
-          <div className="mt-4">
-            <WarehousePermissionsPanel users={profiles.filter((p: any) => p.role === 'technician').map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} />
-          </div>
-        )}
+</div>
+{user.role === 'admin' && warehousePermissions && (
+  <div className="mt-4"><WarehousePermissionsPanel users={profiles.filter((p: any) => p.role === 'technician').map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} /></div>
+)}</>}
+        />
       </div>
     </div>
   )
