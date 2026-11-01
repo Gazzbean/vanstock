@@ -7,7 +7,7 @@
 
 import { getActivityLog } from '@/lib/actions'
 
-function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
+function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
 
 const typeLabels: Record<string, string> = {
   issue:        'Issue',
