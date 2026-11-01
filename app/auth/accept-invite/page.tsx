@@ -26,8 +26,8 @@ export default function AcceptInvitePage(){
     const token=hash.get('access_token'),refresh=hash.get('refresh_token')
     // A normal logged-in session must never authorise an invitation page.
     // Require proof that this visit came from a Supabase invite link.
-    if(inviteType!=='invite' || (!(token&&refresh)&&!params.has('code')&&!params.has('token_hash'))){
-     throw new Error('Open the invitation link from your email to set up a new account. This page cannot be used from an existing login.')
+    if(!['invite','recovery'].includes(inviteType??'') || (!(token&&refresh)&&!params.has('code')&&!params.has('token_hash'))){
+     throw new Error('Open the invitation or account setup link from your email. This page cannot be used from an ordinary login.')
     }
     if(token&&refresh){
      const {error:e}=await client.auth.setSession({access_token:token,refresh_token:refresh})
@@ -38,7 +38,7 @@ export default function AcceptInvitePage(){
      if(e)throw e
      window.history.replaceState({},'',window.location.pathname)
     }else if(params.has('token_hash')){
-     const {error:e}=await client.auth.verifyOtp({token_hash:params.get('token_hash')!,type:'invite'})
+     const {error:e}=await client.auth.verifyOtp({token_hash:params.get('token_hash')!,type:inviteType as 'invite'|'recovery'})
      if(e)throw e
      window.history.replaceState({},'',window.location.pathname)
     }
@@ -62,8 +62,8 @@ export default function AcceptInvitePage(){
   })
  }
  return <main className="max-w-md mx-auto mt-16 p-6 bg-white border border-gray-200 rounded-xl">
-  <h1 className="text-lg font-semibold">Activate your VanStock account</h1>
-  <p className="text-sm text-gray-600 mt-2 mb-4">Set your password to finish accepting the invitation.</p>
+  <h1 className="text-lg font-semibold">Set up your VanStock account</h1>
+  <p className="text-sm text-gray-600 mt-2 mb-4">Follow the email link to set or reset your password.</p>
   {error&&<p role="alert" className="alert alert-danger mb-3">{error}</p>}
   {!ready&&!error&&<p className="text-sm">Verifying invitation…</p>}
   {ready&&<form onSubmit={save} className="space-y-3">
@@ -73,6 +73,6 @@ export default function AcceptInvitePage(){
     <input id="confirm-password" type="password" className="form-input" minLength={12} autoComplete="new-password" required value={confirmation} onChange={e=>setConfirmation(e.target.value)}/></div>
    <button type="submit" className="btn btn-primary" disabled={pending}>{pending?'Setting password…':'Set password and continue'}</button>
   </form>}
-  <p className="text-xs text-gray-500 mt-4">If the invitation has expired, ask your administrator to send another. Never share your invitation link or password.</p>
+  <p className="text-xs text-gray-500 mt-4">If the setup link has expired, ask your administrator to send a new one. Never share your invitation link or password.</p>
  </main>
 }
