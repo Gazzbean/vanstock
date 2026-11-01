@@ -4,7 +4,8 @@
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getConsumablesAssignments } from '@/lib/actions'
+import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans } from '@/lib/actions'
+import WorkingVanSelector from '@/components/WorkingVanSelector'
 import AdjustStockModal from '@/components/AdjustStockModal'
 import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
 
@@ -14,18 +15,20 @@ function stockStatus(qty: number, min: number) {
   return               { label: 'OK',        cls: 'badge-ok',       pct: Math.min(qty / (min * 2), 1), color: '#22c55e' }
 }
 
-export default async function StockPage() {
-  const [stockItems, products, consumables] = await Promise.all([getMyStock(), getProducts(), getConsumablesAssignments()])
+export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
+  const working=await getWorkingVans(searchParams?.van)
+  const [stockItems, products, consumables] = await Promise.all([getMyStock(working.selectedId??undefined), getProducts(), getConsumablesAssignments()])
 
   return (
     <div>
       <div className="topbar">
         <h1 className="topbar-title">My Van Stock</h1>
         {/* AdjustStockModal is a Client Component (needs user interaction) */}
-        <AdjustStockModal products={products} buttonLabel="+ Adjust quantity" />
+        {working.selectedId&&<AdjustStockModal products={products} selectedVanId={working.selectedId} buttonLabel="+ Adjust quantity" />}
       </div>
 
       <div className="p-5">
+        <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
         <div className="card">
           <table className="w-full">
             <thead>
@@ -65,6 +68,7 @@ export default async function StockPage() {
                     <td className="table-cell">
                       <AdjustStockModal
                         products={products}
+                        selectedVanId={working.selectedId??undefined}
                         preselectedProductId={s.product_id}
                         buttonLabel="Edit"
                         buttonSmall
@@ -83,7 +87,7 @@ export default async function StockPage() {
             </tbody>
           </table>
         </div>
-        <EstimatedConsumablesIssue products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />
+        {working.selectedId&&<EstimatedConsumablesIssue selectedVanId={working.selectedId} products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />}
       </div>
     </div>
   )
