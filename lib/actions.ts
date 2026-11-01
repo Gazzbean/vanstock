@@ -913,3 +913,27 @@ export async function receiveSupplierPack(
  for(const path of ['/admin','/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
  return {success:true,quantity:Number(data)}
 }
+
+
+// ── PHASE 2C: RECEIVE LOOSE STOCK UNITS ────────────────
+export async function receiveLooseItem(
+ receiptId:string,productId:string,supplierId:string,quantity:number,docket:string,
+ destinationType:'van'|'warehouse',destinationId:string
+){
+ const p=await getCurrentProfile()
+ if(!['admin','manager','technician'].includes(p.role))return {error:'Not authorised'}
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receiptId)
+ || !productId||!supplierId||!destinationId||!['van','warehouse'].includes(destinationType)
+ || !Number.isFinite(quantity)||quantity<=0||quantity>=1000000000
+ || Math.abs(quantity*100-Math.round(quantity*100))>1e-7
+ || typeof docket!=='string'||!docket.trim()||docket.trim().length>120)
+ return {error:'Check quantity, supplier, docket and receiving destination'}
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('receive_loose_item',{
+  p_receipt_id:receiptId,p_product_id:productId,p_supplier_id:supplierId,
+  p_quantity:quantity,p_docket:docket.trim(),p_destination_type:destinationType,p_destination_id:destinationId
+ })
+ if(error)return {error:error.message}
+ for(const path of ['/admin','/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
+ return {success:true,quantity:Number(data)}
+}
