@@ -18,7 +18,7 @@ const navItems = [
   { href: '/stock',     label: 'My Van Stock',   icon: '📦' },
   { href: '/receive',   label: 'Receive Stock',   icon: '↓'  },
   { href: '/transfer',  label: 'Transfer Stock',  icon: '⇄'  },
-  { href: '/logs',      label: 'Activity Log',   icon: '☰'  },
+  { href: '/logs',      label: 'Transaction History',   icon: '☰'  },
   { href: '/warehouse', label: 'Warehouse', icon: '▣' },
   { href: '/admin',     label: 'Admin',          icon: '⚙'  },
 ]
@@ -26,6 +26,7 @@ const navItems = [
 interface UserDisplay {
   full_name: string
   role: string
+  access?: {office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean;manage_users:boolean}
   van_number: string | null
 }
 
@@ -54,7 +55,10 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
       {/* Navigation links */}
       <nav className="flex-1 py-2">
         {navItems.map((item) => {
-          if ((item.href === '/admin' || item.href === '/warehouse' || item.href === '/receive') && user?.role !== 'manager' && user?.role !== 'admin') return null
+          if (item.href === '/receive' && !user?.access?.receive_stock) return null
+          if (item.href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return null
+          if (item.href === '/warehouse' && user?.role !== 'manager' && user?.role !== 'admin') return null
+          if (item.href === '/stock' && !user?.access?.technician_access) return null
           const isActive = pathname.startsWith(item.href)
           return (
             <Link
