@@ -13,8 +13,6 @@ import SupplierAndBinsPanel from '@/components/SupplierAndBinsPanel'
 import VanStockStandardsPanel from '@/components/VanStockStandardsPanel'
 import FleetStandardsOverview from '@/components/FleetStandardsOverview'
 import ConsumablesAssignmentsPanel from '@/components/ConsumablesAssignmentsPanel'
-import ReceivePackPanel from '@/components/ReceivePackPanel'
-import ReceiveLooseItemPanel from '@/components/ReceiveLooseItemPanel'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 import AdminTabbedSections from '@/components/AdminTabbedSections'
@@ -90,10 +88,6 @@ export default async function AdminPage() {
   <CatalogueImport />
 </div></>}
           suppliers={<SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} />}
-          receiving={<>
-            <ReceivePackPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} packages={phase1b.options} vans={phase1b.vans} warehouses={phase1b.warehouses} />
-            <ReceiveLooseItemPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} suppliers={phase1b.suppliers} vans={phase1b.vans} warehouses={phase1b.warehouses} />
-          </>}
           standards={<>
             <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
             <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />
