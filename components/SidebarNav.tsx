@@ -33,6 +33,8 @@ interface UserDisplay {
 export default function SidebarNav({ user }: { user: UserDisplay | null }) {
   const pathname = usePathname()
   const router = useRouter()
+  // Invite acceptance is a standalone auth flow, not an authenticated app screen.
+  if (pathname.startsWith('/auth/accept-invite')) return null
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
