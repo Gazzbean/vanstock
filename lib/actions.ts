@@ -971,12 +971,12 @@ export async function getRecentStockReceipts(){
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
   Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
-  db.from('profiles').select('id,full_name').eq('company_id',profile.company_id),
+  db.from('profiles').select('id,full_name,initials').eq('company_id',profile.company_id),
  ])
  const [vans,warehouses]=locations
  const error=packs.error||loose.error||products.error||suppliers.error||vans.error||warehouses.error||people.error
  if(error)throw new Error(error.message)
- const peopleMap=new Map((people.data??[]).map(p=>[p.id,p.full_name]))
+ const peopleMap=new Map((people.data??[]).map(p=>[p.id,{name:p.full_name,initials:p.initials}]))
  const productMap=new Map((products.data??[]).map(p=>[p.id,p]))
  const supplierMap=new Map((suppliers.data??[]).map(s=>[s.id,s.name]))
  const locationMap=new Map([
@@ -987,11 +987,11 @@ export async function getRecentStockReceipts(){
   ...(packs.data??[]).map(r=>({id:r.id,kind:'pack' as const,product:productMap.get(r.product_id)?.name??'Unknown product',
     unit:productMap.get(r.product_id)?.stock_unit??'ea',supplier:supplierMap.get(r.supplier_id)??'Unknown supplier',
     destination:locationMap.get(r.van_id??r.warehouse_id??'')??'Unknown location',
-    quantity:Number(r.stock_quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')??null})),
+    quantity:Number(r.stock_quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')?.name??null,processor_initials:peopleMap.get(r.received_by??'')?.initials??null})),
   ...(loose.data??[]).map(r=>({id:r.id,kind:'loose' as const,product:productMap.get(r.product_id)?.name??'Unknown product',
     unit:productMap.get(r.product_id)?.stock_unit??'ea',supplier:supplierMap.get(r.supplier_id)??'Unknown supplier',
     destination:locationMap.get(r.van_id??r.warehouse_id??'')??'Unknown location',
-    quantity:Number(r.quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')??null})),
+    quantity:Number(r.quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')?.name??null,processor_initials:peopleMap.get(r.received_by??'')?.initials??null})),
  ].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,10)
 }
 
@@ -1036,22 +1036,38 @@ export async function getTransactionHistory(startDate?:string,endDate?:string,ty
  if(error)throw new Error(error.message)
  const pmap=new Map((products.data??[]).map(p=>[p.id,p]))
  const smap=new Map((suppliers.data??[]).map(s=>[s.id,s.name]))
- const umap=new Map((people.data??[]).map(p=>[p.id,p.full_name]))
+ const umap=new Map((people.data??[]).map(p=>[p.id,{name:p.full_name,initials:p.initials}]))
  const locmap=new Map([
   ...(vans.data??[]).map(v=>[v.id,v.van_number] as const),
   ...(warehouses.data??[]).map(w=>[w.id,w.name] as const),
  ])
  const entries=[
   ...(activities.data??[]).map(r=>({id:'activity:'+r.id,date:r.created_at,type:r.type,product:r.product_name,quantity:Number(r.quantity),
-   unit:null as string|null,location:locmap.get(r.van_id??'')??'—',reference:r.reference??'',processedBy:umap.get(r.user_id??'')??null,notes:r.notes??''})),
+   unit:null as string|null,location:locmap.get(r.van_id??'')??'—',reference:r.reference??'',processedBy:umap.get(r.user_id??'')?.name??null,processorInitials:umap.get(r.user_id??'')?.initials??null,notes:r.notes??''})),
   ...(packs.data??[]).map(r=>({id:'pack:'+r.id,date:r.created_at,type:'receipt-pack',product:pmap.get(r.product_id)?.name??'Unknown product',
    quantity:Number(r.stock_quantity),unit:pmap.get(r.product_id)?.stock_unit??'ea',
-   location:locmap.get(r.van_id??r.warehouse_id??'')??'—',reference:r.docket,processedBy:umap.get(r.received_by??'')??null,
+   location:locmap.get(r.van_id??r.warehouse_id??'')??'—',reference:r.docket,processedBy:umap.get(r.received_by??'')?.name??null,processorInitials:umap.get(r.received_by??'')?.initials??null,
    notes:'Supplier: '+(smap.get(r.supplier_id)??'Unknown supplier')})),
   ...(loose.data??[]).map(r=>({id:'loose:'+r.id,date:r.created_at,type:'receipt-loose',product:pmap.get(r.product_id)?.name??'Unknown product',
    quantity:Number(r.quantity),unit:pmap.get(r.product_id)?.stock_unit??'ea',
-   location:locmap.get(r.van_id??r.warehouse_id??'')??'—',reference:r.docket,processedBy:umap.get(r.received_by??'')??null,
+   location:locmap.get(r.van_id??r.warehouse_id??'')??'—',reference:r.docket,processedBy:umap.get(r.received_by??'')?.name??null,processorInitials:umap.get(r.received_by??'')?.initials??null,
    notes:'Supplier: '+(smap.get(r.supplier_id)??'Unknown supplier')})),
  ].sort((x,y)=>y.date.localeCompare(x.date))
  return {entries:entries.slice(0,cap),capped:entries.length>cap}
+}
+
+
+// ── STAFF IDENTITY ───────────────────────────────────────
+export async function saveStaffInitials(userId:string,initials:string){
+ const p=await getCurrentProfile()
+ if(p.role!=='admin')return {error:'Administrator access required'}
+ const value=initials.trim().toUpperCase()
+ if(!/^[A-Z]{2,5}$/.test(value))return {error:'Use 2 to 5 letters for initials'}
+ const db=createServerClient()
+ const {data:target,error:targetError}=await db.from('profiles').select('id').eq('id',userId).eq('company_id',p.company_id).maybeSingle()
+ if(targetError||!target)return {error:'User not found in your company'}
+ const {error}=await db.from('profiles').update({initials:value}).eq('id',userId).eq('company_id',p.company_id)
+ if(error)return {error:error.code==='23505'?'These initials are already used by another staff member':error.message}
+ revalidatePath('/admin');revalidatePath('/logs');revalidatePath('/receive');revalidatePath('/transfer')
+ return {success:true}
 }
