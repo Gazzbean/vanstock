@@ -36,6 +36,11 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
   // Invite acceptance is a standalone auth flow, not an authenticated app screen.
   if (pathname.startsWith('/auth/accept-invite')) return null
 
+  const roleLabel = user?.access
+    ? [user.access.manage_users ? 'Administrator' : user.access.office_access ? 'Office' : '',
+       user.access.technician_access ? 'Technician' : ''].filter(Boolean).join(' + ') || 'User'
+    : user?.role ?? '—'
+
   const initials = user?.full_name
     ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
     : '?'
@@ -91,7 +96,7 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
               {user?.full_name ?? 'Unknown user'}
             </div>
             <div className="text-xs text-gray-400 capitalize truncate">
-              {user?.role ?? '—'}{user?.van_number ? ` · ${user.van_number}` : ''}
+              {roleLabel}{user?.access?.technician_access && user?.van_number ? ` · ${user.van_number}` : ''}
             </div>
           </div>
         </div>
