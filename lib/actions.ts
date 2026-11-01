@@ -56,8 +56,11 @@ async function accessFor(profile:any){
 // Log in with email and password — uses the session client so the
 // resulting login is remembered via cookies on future requests.
 export async function signIn(email: string, password: string) {
+  if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
+    return { error: 'Enter your email address and password.' }
+  }
   const sessionClient = await createSessionClient()
-  const { error } = await sessionClient.auth.signInWithPassword({ email, password })
+  const { error } = await sessionClient.auth.signInWithPassword({ email: email.trim(), password })
   if (error) return { error: error.message }
   try { await getCurrentProfile() } catch (e) { await sessionClient.auth.signOut(); return {error:e instanceof Error?e.message:'Account unavailable'} }
   revalidatePath('/')
