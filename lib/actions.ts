@@ -937,3 +937,58 @@ export async function receiveLooseItem(
  for(const path of ['/admin','/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
  return {success:true,quantity:Number(data)}
 }
+
+
+// ── RECEIVING: CURRENT BALANCE + RECENT RECEIPTS ──────
+// Read-only manager view; company scope is derived from the session profile.
+export async function getReceiveStockBalance(productId:string,destinationType:'van'|'warehouse',destinationId:string){
+ const profile=await getCurrentProfile()
+ if(!['admin','manager'].includes(profile.role))throw new Error('Manager access required')
+ if(!productId||!destinationId||!['van','warehouse'].includes(destinationType))throw new Error('Invalid stock location')
+ const db=createServerClient()
+ const [product,location]=await Promise.all([
+  db.from('products').select('id').eq('company_id',profile.company_id).eq('id',productId).maybeSingle(),
+  destinationType==='van'
+   ?db.from('vans').select('id').eq('company_id',profile.company_id).eq('id',destinationId).maybeSingle()
+   :db.from('warehouses').select('id').eq('company_id',profile.company_id).eq('id',destinationId).maybeSingle(),
+ ])
+ if(product.error||location.error||!product.data||!location.data)throw new Error('Product or receiving location not found')
+ const q=destinationType==='van'
+  ?db.from('stock').select('quantity').eq('product_id',productId).eq('van_id',destinationId).maybeSingle()
+  :db.from('warehouse_stock').select('quantity').eq('product_id',productId).eq('warehouse_id',destinationId).maybeSingle()
+ const {data,error}=await q
+ if(error)throw new Error(error.message)
+ return Number(data?.quantity??0)
+}
+
+export async function getRecentStockReceipts(){
+ const profile=await getCurrentProfile()
+ if(!['admin','manager'].includes(profile.role))throw new Error('Manager access required')
+ const db=createServerClient()
+ const [packs,loose,products,suppliers,locations]=await Promise.all([
+  db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
+  db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
+  db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
+  db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
+  Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
+ ])
+ const [vans,warehouses]=locations
+ const error=packs.error||loose.error||products.error||suppliers.error||vans.error||warehouses.error
+ if(error)throw new Error(error.message)
+ const productMap=new Map((products.data??[]).map(p=>[p.id,p]))
+ const supplierMap=new Map((suppliers.data??[]).map(s=>[s.id,s.name]))
+ const locationMap=new Map([
+  ...(vans.data??[]).map(v=>[v.id,v.van_number] as const),
+  ...(warehouses.data??[]).map(w=>[w.id,w.name] as const),
+ ])
+ return [
+  ...(packs.data??[]).map(r=>({id:r.id,kind:'pack' as const,product:productMap.get(r.product_id)?.name??'Unknown product',
+    unit:productMap.get(r.product_id)?.stock_unit??'ea',supplier:supplierMap.get(r.supplier_id)??'Unknown supplier',
+    destination:locationMap.get(r.van_id??r.warehouse_id??'')??'Unknown location',
+    quantity:Number(r.stock_quantity),docket:r.docket,created_at:r.created_at})),
+  ...(loose.data??[]).map(r=>({id:r.id,kind:'loose' as const,product:productMap.get(r.product_id)?.name??'Unknown product',
+    unit:productMap.get(r.product_id)?.stock_unit??'ea',supplier:supplierMap.get(r.supplier_id)??'Unknown supplier',
+    destination:locationMap.get(r.van_id??r.warehouse_id??'')??'Unknown location',
+    quantity:Number(r.quantity),docket:r.docket,created_at:r.created_at})),
+ ].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,10)
+}
