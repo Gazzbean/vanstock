@@ -7,6 +7,8 @@
 import { getMyStock, getProducts, getActivityLog } from '@/lib/actions'
 import TransferForm from '@/components/TransferForm'
 
+function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
+
 const typeLabels: Record<string, string> = {
   issue:        'Issued',
   return:       'Returned',
@@ -64,7 +66,7 @@ export default async function TransferPage() {
                       <div className="text-xs text-gray-400 mt-0.5">
                         {new Date(log.created_at).toLocaleTimeString('en-AU', {
                           hour: '2-digit', minute: '2-digit'
-                        })} · {log.reference ?? '—'}
+                        })} · {log.reference ?? '—'} · Processed by {processorLabel((log.profile as any)?.full_name)}
                       </div>
                     </div>
                   </div>
