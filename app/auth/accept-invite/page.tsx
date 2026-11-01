@@ -22,13 +22,23 @@ export default function AcceptInvitePage(){
     const hash=new URLSearchParams(window.location.hash.slice(1))
     const authError=params.get('error_description')||hash.get('error_description')
     if(authError){if(alive)setError(authError);return}
+    const inviteType=hash.get('type')||params.get('type')
     const token=hash.get('access_token'),refresh=hash.get('refresh_token')
+    // A normal logged-in session must never authorise an invitation page.
+    // Require proof that this visit came from a Supabase invite link.
+    if(inviteType!=='invite' || (!(token&&refresh)&&!params.has('code')&&!params.has('token_hash'))){
+     throw new Error('Open the invitation link from your email to set up a new account. This page cannot be used from an existing login.')
+    }
     if(token&&refresh){
      const {error:e}=await client.auth.setSession({access_token:token,refresh_token:refresh})
      if(e)throw e
      window.history.replaceState({},'',window.location.pathname)
     }else if(params.has('code')){
      const {error:e}=await client.auth.exchangeCodeForSession(params.get('code')!)
+     if(e)throw e
+     window.history.replaceState({},'',window.location.pathname)
+    }else if(params.has('token_hash')){
+     const {error:e}=await client.auth.verifyOtp({token_hash:params.get('token_hash')!,type:'invite'})
      if(e)throw e
      window.history.replaceState({},'',window.location.pathname)
     }
