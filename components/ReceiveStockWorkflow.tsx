@@ -11,7 +11,7 @@ type Warehouse={id:string;name:string}
 type Receipt={id:string;kind:'pack'|'loose';product:string;unit:string;supplier:string;destination:string;quantity:number;docket:string;created_at:string;processed_by:string|null}
 type Props={products:Product[];suppliers:Supplier[];packages:Pack[];vans:Van[];warehouses:Warehouse[];initialReceipts:Receipt[]}
 
-function labelPerson(name:string|null){return name?name+' ('+name.trim().split(/\\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
+function labelPerson(name:string|null){return name?name+' ('+name.trim().split(/\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
 export default function ReceiveStockWorkflow({products,suppliers,packages,vans,warehouses,initialReceipts}:Props){
  const available=products.filter(p=>!p.archived_at)
  const [mode,setMode]=useState<'pack'|'loose'>('pack')
