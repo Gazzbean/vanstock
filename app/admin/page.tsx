@@ -23,10 +23,25 @@ export default async function AdminPage() {
   const user = await getCurrentUserDisplay()
   if (!user) redirect('/login')
   if (user.role !== 'manager' && user.role !== 'admin') {
-    return (
-      <div>
-        <div className="topbar"><h1 className="topbar-title">Admin</h1></div>
-        <div className="p-5">
+    return <div><div className="topbar"><h1 className="topbar-title">Admin</h1></div>
+      <div className="p-5"><div className="card"><h2 className="text-sm font-medium">Manager access required</h2>
+      <p className="text-sm text-gray-500 mt-2">You do not have permission to access administration.</p></div></div></div>
+  }
+  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments] = await Promise.all([
+    getAdminProducts(),
+    getAdminData(),
+    user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
+    getPhase1CatalogueSettings(),
+    getPhase1BSupplierData(),
+    getVanStockStandardsAdmin(),
+    getFleetStockOverview(),
+    getConsumablesAssignments(),
+  ])
+  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
+  return (
+    <div>
+      <div className="topbar"><h1 className="topbar-title">Admin</h1></div>
+      <div className="p-5">
         <AdminTabbedSections
           catalogue={<><div className="space-y-4">
   <div className="grid grid-cols-1 gap-4">          {/* Product catalogue */}
