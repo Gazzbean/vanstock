@@ -2,7 +2,7 @@
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import AddUserInvite from './AddUserInvite'
-import {saveStaffInitials,saveUserStatusAndAdmin,saveUserAccessCapabilities} from '@/lib/actions'
+import {saveStaffInitials,saveUserStatusAndAdmin,saveUserAccessCapabilities,sendExistingUserSetupLink} from '@/lib/actions'
 
 type Van={id:string;van_number:string}
 type User={id:string;full_name:string;initials:string|null;role:string;is_active:boolean;van_number:string|null}
@@ -21,6 +21,16 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
  function update(id:string,key:keyof Fields,value:string|boolean){
   setDraft(old=>({...old,[id]:{...old[id],[key]:value}}))
   setMessages(old=>({...old,[id]:''}))
+ }
+ function sendSetup(user:User){
+  if(!window.confirm('Send a new account setup email for '+user.full_name+'? This does not change their permissions or password.'))return
+  setMessages(m=>({...m,[user.id]:''}))
+  start(async()=>{
+   try{
+    const result=await sendExistingUserSetupLink(user.id)
+    setMessages(m=>({...m,[user.id]:result.error??'Setup email sent. Ask the recipient to use the latest link.'}))
+   }catch{setMessages(m=>({...m,[user.id]:'Could not confirm email delivery. Check before sending again.'}))}
+  })
  }
  function save(user:User){
   const v=draft[user.id]
@@ -68,7 +78,10 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
      </td>)}
      <td className="table-cell whitespace-nowrap text-gray-600">{u.van_number??'None'}</td>
      {canEdit&&<td className="table-cell">
-      <button className="btn btn-sm" type="button" disabled={pending||!(/^[A-Z]{2,5}$/.test(v.initials))} onClick={()=>save(u)}>Save</button>
+      <div className="flex flex-wrap gap-2">
+       <button className="btn btn-sm" type="button" disabled={pending||!(/^[A-Z]{2,5}$/.test(v.initials))} onClick={()=>save(u)}>Save</button>
+       <button className="btn btn-sm" type="button" disabled={pending||!v.active} onClick={()=>sendSetup(u)}>Send setup link</button>
+      </div>
       {messages[u.id]&&<p role="status" className="text-xs mt-1">{messages[u.id]}</p>}
      </td>}
     </tr>
