@@ -104,23 +104,38 @@ export async function getDashboardStats() {
 
 // ── STOCK ──────────────────────────────────────────────────
 
-export async function getMyStock() {
+export async function getWorkingVans(selectedVanId?:string){
+ const profile=await getCurrentProfile()
+ if(!(await accessFor(profile)).technician_access)return {vans:[] as {id:string;van_number:string}[],selectedId:null as string|null,defaultId:null as string|null}
+ const db=createServerClient()
+ const {data:assignments,error}=await db.from('user_authorized_vans').select('van_id').eq('user_id',profile.id).eq('company_id',profile.company_id)
+ if(error)throw new Error('Could not read authorised vans')
+ const ids=(assignments??[]).map(v=>v.van_id)
+ if(!ids.length)return {vans:[] as {id:string;van_number:string}[],selectedId:null as string|null,defaultId:profile.van_id as string|null}
+ const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',profile.company_id).in('id',ids).order('van_number')
+ if(vanError)throw new Error(vanError.message)
+ if(selectedVanId&&!ids.includes(selectedVanId))throw new Error('You are not authorised to access that van')
+ return {vans:vans??[],selectedId:selectedVanId||profile.van_id||null,defaultId:profile.van_id as string|null}
+}
+export async function getMyStock(selectedVanId?:string) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) return []
+  const working=await getWorkingVans(selectedVanId)
+  if (!working.selectedId) return []
 
   const db = createServerClient()
   const { data, error } = await db
     .from('stock')
     .select('*, product:products(*)')
-    .eq('van_id', profile.van_id)
+    .eq('van_id', working.selectedId)
 
   if (error) throw new Error(error.message)
   return data ?? []
 }
 
-export async function adjustStock(payload: AdjustPayload) {
+export async function adjustStock(payload: AdjustPayload,selectedVanId?:string) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) return { error: 'No van assigned' }
+  const working=await getWorkingVans(selectedVanId)
+  if (!working.selectedId) return {error:'Choose an authorised working van'}
   if (!['add', 'remove', 'set'].includes(payload.action)) return { error: 'Invalid adjustment' }
   if (!Number.isFinite(payload.quantity) || payload.quantity < 0 ||
       (payload.quantity === 0 && payload.action !== 'set')) {
@@ -137,6 +152,7 @@ export async function adjustStock(payload: AdjustPayload) {
     p_quantity: payload.quantity,
     p_reference: payload.reason.trim(),
     p_notes: '',
+    p_selected_van_id:working.selectedId,
   })
   if (error) return { error: error.message }
   revalidatePath('/stock')
@@ -147,9 +163,10 @@ export async function adjustStock(payload: AdjustPayload) {
 
 // ── TRANSFERS ──────────────────────────────────────────────
 
-export async function recordTransfer(payload: TransferPayload) {
+export async function recordTransfer(payload: TransferPayload,selectedVanId?:string) {
   const profile = await getCurrentProfile()
-  if (!profile.van_id) return { error: 'No van assigned' }
+  const working=await getWorkingVans(selectedVanId)
+  if (!working.selectedId) return {error:'Choose an authorised working van'}
   // Never pretend to transfer stock to a second location by merely debiting
   // the source van. Dedicated two-sided RPCs will handle those movements.
   if (payload.type === 'van-to-van' || payload.type === 'depot') {
@@ -169,6 +186,7 @@ export async function recordTransfer(payload: TransferPayload) {
     p_quantity: payload.quantity,
     p_reference: payload.reference.trim(),
     p_notes: payload.notes ?? '',
+    p_selected_van_id:working.selectedId,
   })
   if (error) return { error: error.message }
 
@@ -875,9 +893,10 @@ export async function assignProductConsumablesGroup(productId:string,groupId:str
  revalidatePath('/admin');revalidatePath('/stock')
  return {success:true}
 }
-export async function issueEstimatedConsumable(productId:string,groupId:string,quantity:number,jobRef:string){
+export async function issueEstimatedConsumable(productId:string,groupId:string,quantity:number,jobRef:string,selectedVanId?:string){
  const p=await getCurrentProfile()
- if(!p.van_id)return {error:'Assigned van required'}
+ const working=await getWorkingVans(selectedVanId)
+ if(!working.selectedId)return {error:'Choose an authorised working van'}
  if(typeof jobRef!=='string'||!jobRef.trim()||jobRef.trim().length>120)
   return {error:'Enter a job reference (synthetic references only during testing)'}
  const session=await createSessionClient()
@@ -896,7 +915,7 @@ export async function issueEstimatedConsumable(productId:string,groupId:string,q
   return {error:'Select one of the four configured quantities'}
  const {error}=await session.rpc('apply_van_stock_action',{
   p_product_id:productId,p_operation:'issue',p_quantity:quantity,
-  p_reference:jobRef.trim(),p_notes:'Estimated consumables usage; no ServiceM8 charge posted.',
+  p_reference:jobRef.trim(),p_notes:'Estimated consumables usage; no ServiceM8 charge posted.',p_selected_van_id:working.selectedId,
  })
  if(error)return {error:error.message}
  for(const path of ['/stock','/dashboard','/logs','/admin'])revalidatePath(path)
@@ -1136,4 +1155,24 @@ export async function getReceivingSetup(){
  return {products:products.data??[],suppliers:suppliers.data??[],options:options.data??[],
   vans:cap.office_access?vans.data??[]:(vans.data??[]).filter(v=>v.id===p.van_id),
   warehouses:cap.office_access?warehouses.data??[]:[]}
+}
+
+export async function getUserAuthorizedVans(){
+ const profile=await getCurrentProfile()
+ if(profile.role!=='admin'&&profile.role!=='manager')throw new Error('Manager required')
+ const db=createServerClient()
+ const {data,error}=await db.from('user_authorized_vans').select('user_id,van_id').eq('company_id',profile.company_id)
+ if(error)throw new Error(error.message)
+ return data??[]
+}
+export async function saveUserVanAssignments(userId:string,vanIds:string[],defaultVanId:string|null){
+ const profile=await getCurrentProfile()
+ if(profile.role!=='admin')return {error:'Administrator required'}
+ if(!userId||!Array.isArray(vanIds)||vanIds.some(id=>typeof id!=='string')||
+   (defaultVanId!==null&&typeof defaultVanId!=='string'))return {error:'Invalid van selections'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('configure_user_vans',{p_user_id:userId,p_van_ids:vanIds,p_default_van:defaultVanId})
+ if(error)return {error:error.message}
+ revalidatePath('/admin');revalidatePath('/stock');revalidatePath('/transfer')
+ return {success:true}
 }
