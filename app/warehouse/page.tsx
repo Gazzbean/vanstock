@@ -19,7 +19,7 @@ export default async function WarehousePage() {
 
   const canManage = user.role === 'admin' || user.role === 'manager'
   const [overview, adminData, products] = await Promise.all([
-    getWarehouseOverview(), getAdminData(), getProducts(),
+    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),
   ])
   const writesEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false' && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
@@ -103,7 +103,7 @@ export default async function WarehousePage() {
         <WarehouseReplenishmentDraft
           enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
-          vans={adminData.vans.map(v => ({ id: v.id, van_number: v.van_number }))}
+          vans={(adminData?.vans??[]).map(v => ({ id: v.id, van_number: v.van_number }))}
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
         />
