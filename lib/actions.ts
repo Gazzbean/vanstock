@@ -1071,3 +1071,33 @@ export async function saveStaffInitials(userId:string,initials:string){
  revalidatePath('/admin');revalidatePath('/logs');revalidatePath('/receive');revalidatePath('/transfer')
  return {success:true}
 }
+
+
+// Phase 3B: permission planning register. Existing stock mutation RPCs
+// continue to enforce the original role/van restrictions until migrated.
+export async function getUserAccessCapabilities(){
+ const profile=await getCurrentProfile()
+ if(!['admin','manager'].includes(profile.role))throw new Error('Manager access required')
+ const db=createServerClient()
+ const {data,error}=await db.from('user_access_capabilities')
+  .select('user_id,office_access,technician_access,receive_stock,manage_catalogue,manage_users')
+  .eq('company_id',profile.company_id)
+ if(error)throw new Error(error.message)
+ return data??[]
+}
+export async function saveUserAccessCapabilities(
+ userId:string,perms:{office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean}
+){
+ const profile=await getCurrentProfile()
+ if(profile.role!=='admin')return {error:'Administrator access required'}
+ if(!userId||Object.values(perms).some(v=>typeof v!=='boolean'))return {error:'Invalid permission settings'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('set_user_access_capabilities',{
+  p_user_id:userId,p_office_access:perms.office_access,
+  p_technician_access:perms.technician_access,p_receive_stock:perms.receive_stock,
+  p_manage_catalogue:perms.manage_catalogue,
+ })
+ if(error)return {error:error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
