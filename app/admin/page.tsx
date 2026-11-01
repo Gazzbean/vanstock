@@ -98,7 +98,7 @@ export default async function AdminPage() {
           </>}
           consumables={<ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />}
           access={<><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">          <div className="space-y-4">
-            <UsersAccessPanel canEdit={user.role === 'admin'} capabilities={capabilities} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,is_active:p.is_active!==false,van_number:p.van?.van_number??null}))} />
+            <UsersAccessPanel canEdit={user.role === 'admin'} vans={vans.map((v:any)=>({id:v.id,van_number:v.van_number}))} capabilities={capabilities} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,is_active:p.is_active!==false,van_number:p.van?.van_number??null}))} />
             <AuthorizedVansPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,van_id:p.van_id??null}))} vans={vans.map((v:any)=>({id:v.id,van_number:v.van_number}))} initial={userVans} />
             {/* Summary stats */}
             <div className="card">
