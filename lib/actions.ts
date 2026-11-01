@@ -26,21 +26,12 @@ async function getCurrentProfile() {
   const sessionClient = await createSessionClient()
   const { data: { user }, error: authError } = await sessionClient.auth.getUser()
   if (authError || !user) throw new Error('Not logged in')
-
-  // Use the authenticated session, not a separate service-role client.
-  // The profiles policy restricts this read to the user's company.
-  const { data: profile, error } = await sessionClient
-    .from('profiles')
-    .select('*, van:vans(van_number)')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (error) {
-    console.error('Profile lookup failed', { code: error.code, message: error.message })
-    throw new Error('Could not load your profile. Contact the administrator (profile lookup error).')
+  const {data: profile,error} = await sessionClient.rpc('vanstock_my_profile')
+  if(error){
+    console.error('Secure profile lookup failed', {code:error.code,message:error.message})
+    throw new Error('Could not load your VanStock profile.')
   }
-  if (!profile) throw new Error('The signed-in account has no accessible VanStock profile.')
-  if (profile.is_active === false) throw new Error('Account inactive — contact your administrator')
+  if(!profile || profile.id!==user.id)throw new Error('Authenticated profile not available')
   return profile
 }
 
@@ -69,16 +60,15 @@ export async function signIn(email: string, password: string) {
   if (!data.user) return { error: 'Could not confirm sign-in account.' }
   // Use the user returned by sign-in directly. Re-reading auth cookies in the
   // same server action can incorrectly report a missing profile.
-  const { data: profile, error: profileError } = await sessionClient.from('profiles')
-    .select('id,is_active').eq('id', data.user.id).maybeSingle()
-  if (profileError) {
-    console.error('Login profile lookup failed', { code: profileError.code, message: profileError.message })
-    return { error: 'Sign-in succeeded but the profile could not be loaded. Please contact the administrator.' }
-  }
-  if (!profile) return { error: 'This account does not have an accessible VanStock profile.' }
-  if (profile.is_active === false) {
+  const {data:profile,error:profileError}=await sessionClient.rpc('vanstock_my_profile')
+  if(profileError){
+    console.error('Sign-in profile check failed', {code:profileError.code,message:profileError.message})
     await sessionClient.auth.signOut()
-    return { error: 'Account inactive — contact your administrator.' }
+    return {error:'The account signed in, but its VanStock profile could not be verified.'}
+  }
+  if(!profile || profile.id!==data.user.id){
+    await sessionClient.auth.signOut()
+    return {error:'This account does not have an accessible VanStock profile.'}
   }
   revalidatePath('/')
   return { success: true }
