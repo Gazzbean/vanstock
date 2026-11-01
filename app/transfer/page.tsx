@@ -23,7 +23,7 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
   const [stockItems, products, todayLogs] = await Promise.all([
     getMyStock(working.selectedId??undefined),
     getProducts(),
-    getActivityLog(),
+    getActivityLog(undefined,working.selectedId??undefined),
   ])
 
   // Filter to just today
