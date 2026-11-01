@@ -25,17 +25,21 @@ import type { TransferPayload, AdjustPayload } from '@/types'
 async function getCurrentProfile() {
   const sessionClient = await createSessionClient()
   const { data: { user }, error: authError } = await sessionClient.auth.getUser()
-
   if (authError || !user) throw new Error('Not logged in')
 
-  const db = createServerClient()
-  const { data: profile, error } = await db
+  // Use the authenticated session, not a separate service-role client.
+  // The profiles policy restricts this read to the user's company.
+  const { data: profile, error } = await sessionClient
     .from('profiles')
     .select('*, van:vans(van_number)')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  if (error || !profile) throw new Error('Profile not found — check your profiles table has a row for this user')
+  if (error) {
+    console.error('Profile lookup failed', { code: error.code, message: error.message })
+    throw new Error('Could not load your profile. Contact the administrator (profile lookup error).')
+  }
+  if (!profile) throw new Error('The signed-in account has no accessible VanStock profile.')
   if (profile.is_active === false) throw new Error('Account inactive — contact your administrator')
   return profile
 }
@@ -60,9 +64,22 @@ export async function signIn(email: string, password: string) {
     return { error: 'Enter your email address and password.' }
   }
   const sessionClient = await createSessionClient()
-  const { error } = await sessionClient.auth.signInWithPassword({ email: email.trim(), password })
+  const { data, error } = await sessionClient.auth.signInWithPassword({ email: email.trim(), password })
   if (error) return { error: error.message }
-  try { await getCurrentProfile() } catch (e) { await sessionClient.auth.signOut(); return {error:e instanceof Error?e.message:'Account unavailable'} }
+  if (!data.user) return { error: 'Could not confirm sign-in account.' }
+  // Use the user returned by sign-in directly. Re-reading auth cookies in the
+  // same server action can incorrectly report a missing profile.
+  const { data: profile, error: profileError } = await sessionClient.from('profiles')
+    .select('id,is_active').eq('id', data.user.id).maybeSingle()
+  if (profileError) {
+    console.error('Login profile lookup failed', { code: profileError.code, message: profileError.message })
+    return { error: 'Sign-in succeeded but the profile could not be loaded. Please contact the administrator.' }
+  }
+  if (!profile) return { error: 'This account does not have an accessible VanStock profile.' }
+  if (profile.is_active === false) {
+    await sessionClient.auth.signOut()
+    return { error: 'Account inactive — contact your administrator.' }
+  }
   revalidatePath('/')
   return { success: true }
 }
