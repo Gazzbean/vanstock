@@ -1,10 +1,11 @@
+import { redirect } from 'next/navigation'
 // ============================================================
 // app/stock/page.tsx
 // Shows every item on the current user's van with quantities,
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans } from '@/lib/actions'
+import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getCurrentUserDisplay } from '@/lib/actions'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import AdjustStockModal from '@/components/AdjustStockModal'
 import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
@@ -16,6 +17,9 @@ function stockStatus(qty: number, min: number) {
 }
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
+  const user=await getCurrentUserDisplay()
+  if(!user)redirect('/login')
+  if(!user.access?.technician_access)redirect('/dashboard')
   const working=await getWorkingVans(searchParams?.van)
   const [stockItems, products, consumables] = await Promise.all([getMyStock(working.selectedId??undefined), getProducts(), getConsumablesAssignments()])
 
