@@ -36,6 +36,7 @@ async function getCurrentProfile() {
     .single()
 
   if (error || !profile) throw new Error('Profile not found — check your profiles table has a row for this user')
+  if (profile.is_active === false) throw new Error('Account inactive — contact your administrator')
   return profile
 }
 
@@ -58,6 +59,7 @@ export async function signIn(email: string, password: string) {
   const sessionClient = await createSessionClient()
   const { error } = await sessionClient.auth.signInWithPassword({ email, password })
   if (error) return { error: error.message }
+  try { await getCurrentProfile() } catch (e) { await sessionClient.auth.signOut(); return {error:e instanceof Error?e.message:'Account unavailable'} }
   revalidatePath('/')
   return { success: true }
 }
@@ -1174,5 +1176,16 @@ export async function saveUserVanAssignments(userId:string,vanIds:string[],defau
  const {error}=await session.rpc('configure_user_vans',{p_user_id:userId,p_van_ids:vanIds,p_default_van:defaultVanId})
  if(error)return {error:error.message}
  revalidatePath('/admin');revalidatePath('/stock');revalidatePath('/transfer')
+ return {success:true}
+}
+
+export async function saveUserStatusAndAdmin(userId:string,isActive:boolean,isAdmin:boolean){
+ const profile=await getCurrentProfile()
+ if(profile.role!=='admin')return {error:'Administrator required'}
+ if(!userId||typeof isActive!=='boolean'||typeof isAdmin!=='boolean')return {error:'Invalid account settings'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('configure_user_status_and_admin',{p_user_id:userId,p_is_active:isActive,p_is_admin:isAdmin})
+ if(error)return {error:error.message}
+ revalidatePath('/admin');revalidatePath('/logs')
  return {success:true}
 }
