@@ -1261,3 +1261,29 @@ export async function inviteVanStockUser(details:{
  revalidatePath('/admin')
  return {success:true}
 }
+
+
+// Send a new password-setup email to an EXISTING VanStock staff account.
+// Reuses the same Supabase Auth identity and preserves role, vans and audit.
+export async function sendExistingUserSetupLink(userId:string):Promise<{success?:true;error?:string}>{
+ const actor=await getCurrentProfile()
+ if(actor.role!=='admin')return {error:'Administrator access required'}
+ if(typeof userId!=='string'||!(/^[0-9a-f-]{36}$/i.test(userId)))
+  return {error:'Invalid staff account'}
+ if(userId===actor.id)return {error:'Use your personal password reset process for your own account'}
+ const db=createServerClient()
+ const {data:staff,error:staffError}=await db.from('profiles')
+  .select('id,full_name,company_id,is_active').eq('id',userId).eq('company_id',actor.company_id).maybeSingle()
+ if(staffError||!staff)return {error:'Staff member not found in your company'}
+ if(!staff.is_active)return {error:'The account is disabled. Enable it before sending a setup link.'}
+ const {data:identity,error:identityError}=await db.auth.admin.getUserById(userId)
+ if(identityError||!identity.user?.email)return {error:'No email address is registered for this account'}
+ const email=identity.user.email
+ // Supabase emails a fresh one-time recovery link. It cannot alter the
+ // password until the recipient follows the link and completes verification.
+ const {error}=await db.auth.resetPasswordForEmail(email,{
+  redirectTo:'https://vanstock-alpha.vercel.app/auth/accept-invite',
+ })
+ if(error)return {error:'Could not send setup email: '+error.message}
+ return {success:true}
+}
