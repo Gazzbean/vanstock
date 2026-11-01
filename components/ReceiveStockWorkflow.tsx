@@ -8,9 +8,10 @@ type Supplier={id:string;name:string;active?:boolean}
 type Pack={id:string;product_id:string;supplier_id:string;package_label:string;purchase_unit:string;units_per_package:number}
 type Van={id:string;van_number:string}
 type Warehouse={id:string;name:string}
-type Receipt={id:string;kind:'pack'|'loose';product:string;unit:string;supplier:string;destination:string;quantity:number;docket:string;created_at:string}
+type Receipt={id:string;kind:'pack'|'loose';product:string;unit:string;supplier:string;destination:string;quantity:number;docket:string;created_at:string;processed_by:string|null}
 type Props={products:Product[];suppliers:Supplier[];packages:Pack[];vans:Van[];warehouses:Warehouse[];initialReceipts:Receipt[]}
 
+function labelPerson(name:string|null){return name?name+' ('+name.trim().split(/\\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
 export default function ReceiveStockWorkflow({products,suppliers,packages,vans,warehouses,initialReceipts}:Props){
  const available=products.filter(p=>!p.archived_at)
  const [mode,setMode]=useState<'pack'|'loose'>('pack')
@@ -195,7 +196,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
   </section>
   <section className="card mt-4">
    <div className="flex items-center justify-between gap-3 mb-3"><h2 className="font-semibold text-base text-gray-900">Recent receipts</h2><span className="text-xs text-gray-500">Latest 10, packs and loose items</span></div>
-   {receipts.length===0?<p className="text-sm text-gray-500">No receipts recorded yet.</p>:<div className="overflow-x-auto"><table className="w-full"><thead><tr>{['Date (Perth)','Product','Supplier','Type','Quantity','Destination','Reference'].map(h=><th key={h} className="table-header">{h}</th>)}</tr></thead><tbody>{receipts.map(r=><tr key={r.kind+':'+r.id}><td className="table-cell whitespace-nowrap text-xs">{new Date(r.created_at).toLocaleString('en-AU',{timeZone:'Australia/Perth',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td className="table-cell">{r.product}</td><td className="table-cell">{r.supplier}</td><td className="table-cell">{r.kind==='pack'?'Pack':'Loose'}</td><td className="table-cell whitespace-nowrap">{r.quantity.toLocaleString('en-AU')} {r.unit}</td><td className="table-cell">{r.destination}</td><td className="table-cell">{r.docket}</td></tr>)}</tbody></table></div>}
+   {receipts.length===0?<p className="text-sm text-gray-500">No receipts recorded yet.</p>:<div className="overflow-x-auto"><table className="w-full"><thead><tr>{['Date (Perth)','Product','Supplier','Type','Quantity','Destination','Processed by','Reference'].map(h=><th key={h} className="table-header">{h}</th>)}</tr></thead><tbody>{receipts.map(r=><tr key={r.kind+':'+r.id}><td className="table-cell whitespace-nowrap text-xs">{new Date(r.created_at).toLocaleString('en-AU',{timeZone:'Australia/Perth',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td className="table-cell">{r.product}</td><td className="table-cell">{r.supplier}</td><td className="table-cell">{r.kind==='pack'?'Pack':'Loose'}</td><td className="table-cell whitespace-nowrap">{r.quantity.toLocaleString('en-AU')} {r.unit}</td><td className="table-cell">{r.destination}</td><td className="table-cell whitespace-nowrap">{labelPerson(r.processed_by)}</td><td className="table-cell">{r.docket}</td></tr>)}</tbody></table></div>}
   </section>
  </div>
 }
