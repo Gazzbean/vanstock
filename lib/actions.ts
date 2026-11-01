@@ -183,6 +183,8 @@ export async function recordTransfer(payload: TransferPayload) {
 
 export async function getActivityLog(filterType?: string) {
   const profile = await getCurrentProfile()
+  const access = await accessFor(profile)
+  if (!access.office_access && !access.technician_access) throw new Error('Activity access required')
   const db = createServerClient()
 
   let query = db
@@ -194,7 +196,7 @@ export async function getActivityLog(filterType?: string) {
 
   // Fail closed: an unassigned technician must never receive company-wide
   // logs through the service-role query.
-  if (profile.role === 'technician') {
+  if (!access.office_access) {
     if (!profile.van_id) return []
     query = query.eq('van_id', profile.van_id)
   }
@@ -412,9 +414,8 @@ export async function saveWarehousePermissions(
 // Never return cross-company warehouse records.
 export async function getWarehouseOverview() {
   const profile = await getCurrentProfile()
-  const allowedRoles = ['admin', 'manager']
-  if (!allowedRoles.includes(profile.role)) {
-    throw new Error('Warehouse management access required')
+  if (!(await accessFor(profile)).office_access) {
+    throw new Error('Office access required')
   }
 
   const db = createServerClient()
@@ -1017,8 +1018,9 @@ export async function getRecentStockReceipts(){
 // All date and type filters execute in PostgreSQL before the result cap.
 export async function getTransactionHistory(startDate?:string,endDate?:string,typeFilter?:string){
  const profile=await getCurrentProfile()
- const manager=profile.role==='admin'||profile.role==='manager'
- if(!manager&&profile.role!=='technician')throw new Error('Not authorised')
+ const access=await accessFor(profile)
+ const manager=access.office_access
+ if(!access.office_access&&!access.technician_access)throw new Error('Not authorised')
  if(!manager&&!profile.van_id)return {entries:[],capped:false}
  const validDate=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v
  if(startDate&&!validDate(startDate))throw new Error('Invalid start date')
