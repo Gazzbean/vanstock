@@ -1068,7 +1068,7 @@ export async function getTransactionHistory(startDate?:string,endDate?:string,ty
   c.order('created_at',{ascending:false}).limit(cap+1),
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
-  db.from('profiles').select('id,full_name').eq('company_id',profile.company_id),
+  db.from('profiles').select('id,full_name,initials').eq('company_id',profile.company_id),
   db.from('vans').select('id,van_number').eq('company_id',profile.company_id),
   db.from('warehouses').select('id,name').eq('company_id',profile.company_id),
  ])
