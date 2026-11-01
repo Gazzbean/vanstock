@@ -10,21 +10,32 @@ import { signIn } from '@/lib/actions'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
+    // Read the native form values, including browser/password-manager autofill.
+    const form = new FormData(e.currentTarget)
+    const email = String(form.get('email') ?? '').trim()
+    const password = String(form.get('password') ?? '')
+    if (!email || !password) {
+      setError('Enter your email address and password.')
+      return
+    }
     startTransition(async () => {
-      const result = await signIn(email, password)
-      if (result?.error) {
-        setError(result.error)
-      } else {
-        router.push('/dashboard')
+      try {
+        const result = await signIn(email, password)
+        if (result?.error) {
+          setError(result.error)
+        } else {
+          router.push('/dashboard')
+          router.refresh()
+        }
+      } catch {
+        setError('Sign-in could not be completed. Please try again.')
       }
     })
   }
@@ -51,8 +62,7 @@ export default function LoginPage() {
               <input
                 className="form-input"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                name="email"
                 placeholder="you@example.com"
                 required
                 autoComplete="email"
@@ -64,8 +74,7 @@ export default function LoginPage() {
               <input
                 className="form-input"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="password"
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
