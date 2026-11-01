@@ -1,12 +1,14 @@
 'use client'
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
+import AddUserInvite from './AddUserInvite'
 import {saveStaffInitials,saveUserStatusAndAdmin,saveUserAccessCapabilities} from '@/lib/actions'
 
+type Van={id:string;van_number:string}
 type User={id:string;full_name:string;initials:string|null;role:string;is_active:boolean;van_number:string|null}
 type Cap={user_id:string;office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean;manage_users:boolean}
 type Fields={initials:string;active:boolean;tech:boolean;office:boolean;admin:boolean}
-export default function UsersAccessPanel({users,capabilities,canEdit}:{users:User[];capabilities:Cap[];canEdit:boolean}){
+export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{users:User[];capabilities:Cap[];canEdit:boolean;vans:Van[]}){
  const router=useRouter()
  const defaults:Record<string,Fields>=Object.fromEntries(users.map(u=>{
   const cap=capabilities.find(c=>c.user_id===u.id)
@@ -49,7 +51,7 @@ export default function UsersAccessPanel({users,capabilities,canEdit}:{users:Use
   })
  }
  return <section className="card">
-  <h2 className="text-sm font-semibold mb-1">Users & Access</h2>
+  <div className="flex items-center justify-between gap-3 mb-1"><h2 className="text-sm font-semibold">Users & Access</h2>{canEdit&&<AddUserInvite vans={vans}/>}</div>
   <p className="text-xs text-gray-500 mb-3">Tick multiple responsibilities for one person. Active controls application access. Default and authorised vans are managed below. Initials appear in transaction history.</p>
   <div className="overflow-x-auto"><table className="w-full">
    <thead><tr>
