@@ -58,7 +58,7 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
           if (item.href === '/receive' && !user?.access?.receive_stock) return null
           if (item.href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return null
           if (item.href === '/warehouse' && !user?.access?.office_access) return null
-          if (item.href === '/stock' && !user?.access?.technician_access) return null
+          if ((item.href === '/stock' || item.href === '/transfer') && !user?.access?.technician_access) return null
           const isActive = pathname.startsWith(item.href)
           return (
             <Link
