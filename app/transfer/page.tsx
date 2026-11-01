@@ -66,7 +66,7 @@ export default async function TransferPage() {
                       <div className="text-xs text-gray-400 mt-0.5">
                         {new Date(log.created_at).toLocaleTimeString('en-AU', {
                           hour: '2-digit', minute: '2-digit'
-                        })} · {log.reference ?? '—'} · Processed by {processorLabel((log.profile as any)?.full_name)}
+                        })} · {log.reference ?? '—'} · Processed by {((log.profile as any)?.initials ?? processorLabel((log.profile as any)?.full_name).split('(').pop()?.replace(')',''))}
                       </div>
                     </div>
                   </div>
