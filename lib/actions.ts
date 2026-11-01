@@ -39,6 +39,17 @@ async function getCurrentProfile() {
   return profile
 }
 
+// Read capability settings from the company-scoped register.
+// Never infer permissions from client-supplied roles or flags.
+async function accessFor(profile:any){
+ const db=createServerClient()
+ const {data,error}=await db.from('user_access_capabilities')
+  .select('office_access,technician_access,receive_stock,manage_catalogue,manage_users')
+  .eq('user_id',profile.id).eq('company_id',profile.company_id).maybeSingle()
+ if(error)throw new Error('Could not verify user access')
+ return data??{office_access:false,technician_access:false,receive_stock:false,manage_catalogue:false,manage_users:false}
+}
+
 // ── AUTH ───────────────────────────────────────────────────
 
 // Log in with email and password — uses the session client so the
@@ -338,6 +349,7 @@ export async function getCurrentUserDisplay() {
     return {
       full_name: profile.full_name,
       role: profile.role,
+      access: await accessFor(profile),
       van_number: (profile.van as any)?.van_number ?? null,
     }
   } catch {
@@ -897,7 +909,7 @@ export async function receiveSupplierPack(
  destinationType:'van'|'warehouse',destinationId:string,
 ){
  const p=await getCurrentProfile()
- if(!['admin','manager','technician'].includes(p.role))return {error:'Not authorised'}
+ if(!(await accessFor(p)).receive_stock)return {error:'Receiving access required'}
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receiptId)
  || !optionId||!destinationId||!['van','warehouse'].includes(destinationType)
  || !Number.isFinite(packs)||packs<=0||packs>=1000000000
@@ -921,7 +933,7 @@ export async function receiveLooseItem(
  destinationType:'van'|'warehouse',destinationId:string
 ){
  const p=await getCurrentProfile()
- if(!['admin','manager','technician'].includes(p.role))return {error:'Not authorised'}
+ if(!(await accessFor(p)).receive_stock)return {error:'Receiving access required'}
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receiptId)
  || !productId||!supplierId||!destinationId||!['van','warehouse'].includes(destinationType)
  || !Number.isFinite(quantity)||quantity<=0||quantity>=1000000000
@@ -943,7 +955,7 @@ export async function receiveLooseItem(
 // Read-only manager view; company scope is derived from the session profile.
 export async function getReceiveStockBalance(productId:string,destinationType:'van'|'warehouse',destinationId:string){
  const profile=await getCurrentProfile()
- if(!['admin','manager'].includes(profile.role))throw new Error('Manager access required')
+ if(!(await accessFor(profile)).receive_stock)throw new Error('Receiving access required')
  if(!productId||!destinationId||!['van','warehouse'].includes(destinationType))throw new Error('Invalid stock location')
  const db=createServerClient()
  const [product,location]=await Promise.all([
@@ -963,7 +975,7 @@ export async function getReceiveStockBalance(productId:string,destinationType:'v
 
 export async function getRecentStockReceipts(){
  const profile=await getCurrentProfile()
- if(!['admin','manager'].includes(profile.role))throw new Error('Manager access required')
+ if(!(await accessFor(profile)).receive_stock)throw new Error('Receiving access required')
  const db=createServerClient()
  const [packs,loose,products,suppliers,locations,people]=await Promise.all([
   db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
@@ -1100,4 +1112,22 @@ export async function saveUserAccessCapabilities(
  if(error)return {error:error.message}
  revalidatePath('/admin')
  return {success:true}
+}
+
+export async function getReceivingSetup(){
+ const p=await getCurrentProfile()
+ if(!(await accessFor(p)).receive_stock)throw new Error('Receiving access required')
+ const db=createServerClient()
+ const [products,suppliers,options,vans,warehouses]=await Promise.all([
+  db.from('products').select('id,name,stock_unit,archived_at').eq('company_id',p.company_id).is('archived_at',null).order('name'),
+  db.from('suppliers').select('id,name,active').eq('company_id',p.company_id).eq('active',true).order('name'),
+  db.from('supplier_product_options').select('id,product_id,supplier_id,package_label,purchase_unit,units_per_package').eq('company_id',p.company_id),
+  db.from('vans').select('id,van_number').eq('company_id',p.company_id),
+  db.from('warehouses').select('id,name').eq('company_id',p.company_id),
+ ])
+ for(const result of [products,suppliers,options,vans,warehouses])if(result.error)throw new Error(result.error.message)
+ const cap=await accessFor(p)
+ return {products:products.data??[],suppliers:suppliers.data??[],options:options.data??[],
+  vans:cap.office_access?vans.data??[]:(vans.data??[]).filter(v=>v.id===p.van_id),
+  warehouses:cap.office_access?warehouses.data??[]:[]}
 }
