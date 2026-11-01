@@ -7,6 +7,8 @@
 
 import { getActivityLog } from '@/lib/actions'
 
+function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
+
 const typeLabels: Record<string, string> = {
   issue:        'Issue',
   return:       'Return',
@@ -62,7 +64,7 @@ export default async function LogsPage({
                 <th className="table-header">Qty</th>
                 <th className="table-header">Reference</th>
                 <th className="table-header">Van</th>
-                <th className="table-header">User</th>
+                <th className="table-header">Processed by</th>
               </tr>
             </thead>
             <tbody>
@@ -85,7 +87,7 @@ export default async function LogsPage({
                   <td className="table-cell font-medium">{log.quantity}</td>
                   <td className="table-cell text-gray-500">{log.reference ?? '—'}</td>
                   <td className="table-cell text-gray-400">{(log.van as any)?.van_number ?? '—'}</td>
-                  <td className="table-cell text-gray-500">{(log.profile as any)?.full_name ?? '—'}</td>
+                  <td className="table-cell text-gray-500">{processorLabel((log.profile as any)?.full_name)}</td>
                 </tr>
               ))}
               {logs.length === 0 && (
