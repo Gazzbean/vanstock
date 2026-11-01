@@ -23,23 +23,23 @@ export default function AccessCapabilitiesPanel({staff,initial,canEdit}:{staff:S
     if(result.error){setNotice(result.error);return}
     setRecords(old=>[...old.filter(c=>c.user_id!==user.id),{user_id:user.id,...values,manage_users:current?.manage_users??false}])
     setDraft(old=>({...old,[user.id]:{}}))
-    setNotice('Capability plan saved. Existing access enforcement is unchanged.')
+    setNotice('Capabilities saved. Receiving and van-stock access use these settings immediately; administrator-only pages still require an administrator role.')
    }catch{setNotice('Unable to save capability plan.')}
   })
  }
  return <section className="card mt-4">
-  <h2 className="text-sm font-semibold mb-1">Access capability planning</h2>
-  <p className="text-xs text-gray-600 mb-3">Define future combined responsibilities independently of van allocation. <strong>Planning only:</strong> changing these selections does not yet grant or revoke live access. Current database roles and existing transaction rules remain authoritative until the next security migration.</p>
+  <h2 className="text-sm font-semibold mb-1">Access capabilities</h2>
+  <p className="text-xs text-gray-600 mb-3">Receiving and technician functions are enforced in the database. Office access controls whether receiving can include warehouses and other vans. Catalogue and system administration still require the existing administrator or manager role; changing their capability setting alone does not grant administrator access.</p>
   <div className="max-w-lg space-y-3">
    <div><label htmlFor="cap-user" className="form-label">Staff member</label>
     <select id="cap-user" className="form-input" value={selected} onChange={e=>{setSelected(e.target.value);setNotice('')}}>{staff.map(s=><option key={s.id} value={s.id}>{s.full_name} ({s.initials??'—'})</option>)}</select></div>
-   {user&&<p className="text-xs text-gray-500">Current live access: {user.role}. Van: {user.van_number??'Not assigned'}. Future capabilities below are separate from this assignment.</p>}
+   {user&&<p className="text-xs text-gray-500">Current live access: {user.role}. Van: {user.van_number??'Not assigned'}. Capabilities below are separate from this assignment.</p>}
    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
     {keys.map(k=><label key={k} className="flex gap-2 items-center text-sm">
      <input type="checkbox" checked={values[k]} onChange={e=>change(k,e.target.checked)} disabled={!canEdit}/>{labels[k]}
     </label>)}
    </div>
-   {canEdit&&<button type="button" className="btn btn-primary" disabled={pending||!user} onClick={submit}>{pending?'Saving…':'Save capability plan'}</button>}
+   {canEdit&&<button type="button" className="btn btn-primary" disabled={pending||!user} onClick={submit}>{pending?'Saving…':'Save access capabilities'}</button>}
    {notice&&<p role="status" className="text-xs text-gray-600">{notice}</p>}
   </div>
  </section>
