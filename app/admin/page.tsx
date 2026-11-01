@@ -16,6 +16,7 @@ import ConsumablesAssignmentsPanel from '@/components/ConsumablesAssignmentsPane
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 import AdminTabbedSections from '@/components/AdminTabbedSections'
+import UsersAccessPanel from '@/components/UsersAccessPanel'
 
 export default async function AdminPage() {
   const user = await getCurrentUserDisplay()
@@ -94,42 +95,7 @@ export default async function AdminPage() {
           </>}
           consumables={<ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />}
           access={<><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">          <div className="space-y-4">
-            {/* Vans & users */}
-            <div className="card">
-              <h2 className="text-sm font-medium mb-3">Vans & users</h2>
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    <th className="table-header">Van</th>
-                    <th className="table-header">Technician</th>
-                    <th className="table-header">Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profiles.map((p: any) => (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="table-cell text-gray-500">
-                        {p.van?.van_number ?? 'Unassigned'}
-                      </td>
-                      <td className="table-cell font-medium">{p.full_name}</td>
-                      <td className="table-cell">
-                        <span className={`badge ${p.role === 'manager' || p.role === 'admin' ? 'badge-blue' : 'badge-gray'}`}>
-                          {p.role}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {profiles.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="table-cell text-center text-gray-400 py-4">
-                        No users yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
+            <UsersAccessPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,van_number:p.van?.van_number??null}))} />
             {/* Summary stats */}
             <div className="card">
               <h2 className="text-sm font-medium mb-3">System summary</h2>
