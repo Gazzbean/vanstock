@@ -994,3 +994,64 @@ export async function getRecentStockReceipts(){
     quantity:Number(r.quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')??null})),
  ].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,10)
 }
+
+
+// ── TRANSACTION HISTORY: OPERATIONS + SUPPLIER RECEIPTS ─────────────
+// Both dates are interpreted as full local calendar days in Perth (UTC+08).
+// All date and type filters execute in PostgreSQL before the result cap.
+export async function getTransactionHistory(startDate?:string,endDate?:string,typeFilter?:string){
+ const profile=await getCurrentProfile()
+ const manager=profile.role==='admin'||profile.role==='manager'
+ if(!manager&&profile.role!=='technician')throw new Error('Not authorised')
+ if(!manager&&!profile.van_id)return {entries:[],capped:false}
+ const validDate=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v
+ if(startDate&&!validDate(startDate))throw new Error('Invalid start date')
+ if(endDate&&!validDate(endDate))throw new Error('Invalid end date')
+ if(startDate&&endDate&&startDate>endDate)throw new Error('Start date must be on or before end date')
+ const start=startDate?startDate+'T00:00:00+08:00':null
+ const nextDay=endDate?new Date(Date.parse(endDate+'T00:00:00Z')+86400000).toISOString().slice(0,10)+'T00:00:00+08:00':null
+ const db=createServerClient()
+ const cap=500
+ let a=db.from('activity_log').select('id,created_at,type,product_name,quantity,reference,notes,van_id,user_id').eq('company_id',profile.company_id)
+ let b=db.from('pack_receipts').select('id,created_at,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,received_by').eq('company_id',profile.company_id)
+ let c=db.from('loose_item_receipts').select('id,created_at,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,received_by').eq('company_id',profile.company_id)
+ if(!manager){a=a.eq('van_id',profile.van_id);b=b.eq('van_id',profile.van_id);c=c.eq('van_id',profile.van_id)}
+ if(start){a=a.gte('created_at',start);b=b.gte('created_at',start);c=c.gte('created_at',start)}
+ if(nextDay){a=a.lt('created_at',nextDay);b=b.lt('created_at',nextDay);c=c.lt('created_at',nextDay)}
+ const filter=typeFilter??'all'
+ if(filter==='receipt-pack'){a=a.eq('type','__not_a_transaction_type__');c=c.eq('id','00000000-0000-0000-0000-000000000000')}
+ else if(filter==='receipt-loose'){a=a.eq('type','__not_a_transaction_type__');b=b.eq('id','00000000-0000-0000-0000-000000000000')}
+ else if(filter!=='all'){a=a.eq('type',filter);b=b.eq('id','00000000-0000-0000-0000-000000000000');c=c.eq('id','00000000-0000-0000-0000-000000000000')}
+ const [activities,packs,loose,products,suppliers,people,vans,warehouses]=await Promise.all([
+  a.order('created_at',{ascending:false}).limit(cap+1),
+  b.order('created_at',{ascending:false}).limit(cap+1),
+  c.order('created_at',{ascending:false}).limit(cap+1),
+  db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
+  db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
+  db.from('profiles').select('id,full_name').eq('company_id',profile.company_id),
+  db.from('vans').select('id,van_number').eq('company_id',profile.company_id),
+  db.from('warehouses').select('id,name').eq('company_id',profile.company_id),
+ ])
+ const error=activities.error||packs.error||loose.error||products.error||suppliers.error||people.error||vans.error||warehouses.error
+ if(error)throw new Error(error.message)
+ const pmap=new Map((products.data??[]).map(p=>[p.id,p]))
+ const smap=new Map((suppliers.data??[]).map(s=>[s.id,s.name]))
+ const umap=new Map((people.data??[]).map(p=>[p.id,p.full_name]))
+ const locmap=new Map([
+  ...(vans.data??[]).map(v=>[v.id,v.van_number] as const),
+  ...(warehouses.data??[]).map(w=>[w.id,w.name] as const),
+ ])
+ const entries=[
+  ...(activities.data??[]).map(r=>({id:'activity:'+r.id,date:r.created_at,type:r.type,product:r.product_name,quantity:Number(r.quantity),
+   unit:null as string|null,location:locmap.get(r.van_id??'')??'—',reference:r.reference??'',processedBy:umap.get(r.user_id??'')??null,notes:r.notes??''})),
+  ...(packs.data??[]).map(r=>({id:'pack:'+r.id,date:r.created_at,type:'receipt-pack',product:pmap.get(r.product_id)?.name??'Unknown product',
+   quantity:Number(r.stock_quantity),unit:pmap.get(r.product_id)?.stock_unit??'ea',
+   location:locmap.get(r.van_id??r.warehouse_id??'')??'—',reference:r.docket,processedBy:umap.get(r.received_by??'')??null,
+   notes:'Supplier: '+(smap.get(r.supplier_id)??'Unknown supplier')})),
+  ...(loose.data??[]).map(r=>({id:'loose:'+r.id,date:r.created_at,type:'receipt-loose',product:pmap.get(r.product_id)?.name??'Unknown product',
+   quantity:Number(r.quantity),unit:pmap.get(r.product_id)?.stock_unit??'ea',
+   location:locmap.get(r.van_id??r.warehouse_id??'')??'—',reference:r.docket,processedBy:umap.get(r.received_by??'')??null,
+   notes:'Supplier: '+(smap.get(r.supplier_id)??'Unknown supplier')})),
+ ].sort((x,y)=>y.date.localeCompare(x.date))
+ return {entries:entries.slice(0,cap),capped:entries.length>cap}
+}
