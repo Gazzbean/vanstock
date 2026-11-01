@@ -13,6 +13,7 @@ import type { Product } from '@/types'
 
 interface Props {
   products: Product[]
+  selectedVanId?: string
   preselectedProductId?: string
   buttonLabel?: string
   buttonSmall?: boolean
@@ -20,6 +21,7 @@ interface Props {
 
 export default function AdjustStockModal({
   products,
+  selectedVanId,
   preselectedProductId,
   buttonLabel = '+ Adjust stock',
   buttonSmall = false,
@@ -46,7 +48,7 @@ export default function AdjustStockModal({
       return
     }
     startTransition(async () => {
-      const result = await adjustStock({ product_id: productId, action, quantity, reason })
+      const result = await adjustStock({ product_id: productId, action, quantity, reason },selectedVanId)
       if (result?.error) {
         setError(result.error)
       } else {
