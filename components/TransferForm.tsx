@@ -13,6 +13,7 @@ import type { Product, StockItem, TransferType } from '@/types'
 interface Props {
   products: Product[]
   stockItems: StockItem[]
+  selectedVanId:string
 }
 
 const destLabels: Record<string, string> = {
@@ -22,7 +23,7 @@ const destLabels: Record<string, string> = {
   depot:        'Depot name',
 }
 
-export default function TransferForm({ products, stockItems }: Props) {
+export default function TransferForm({ products, stockItems,selectedVanId }: Props) {
   const [type, setType] = useState<TransferType>('issue')
   const [productId, setProductId] = useState(products[0]?.id ?? '')
   const [qty, setQty] = useState('1')
@@ -56,7 +57,7 @@ export default function TransferForm({ products, stockItems }: Props) {
     }
 
     startTransition(async () => {
-      const result = await recordTransfer({ type, product_id: productId, quantity, reference, notes })
+      const result = await recordTransfer({ type, product_id: productId, quantity, reference, notes },selectedVanId)
       if (result?.error) {
         setError(result.error)
       } else {
