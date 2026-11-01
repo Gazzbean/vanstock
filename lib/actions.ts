@@ -201,7 +201,7 @@ export async function recordTransfer(payload: TransferPayload,selectedVanId?:str
 
 // ── ACTIVITY LOG ───────────────────────────────────────────
 
-export async function getActivityLog(filterType?: string) {
+export async function getActivityLog(filterType?: string, selectedVanId?:string) {
   const profile = await getCurrentProfile()
   const access = await accessFor(profile)
   if (!access.office_access && !access.technician_access) throw new Error('Activity access required')
@@ -217,8 +217,9 @@ export async function getActivityLog(filterType?: string) {
   // Fail closed: an unassigned technician must never receive company-wide
   // logs through the service-role query.
   if (!access.office_access) {
-    if (!profile.van_id) return []
-    query = query.eq('van_id', profile.van_id)
+    const working=await getWorkingVans(selectedVanId)
+    if (!working.selectedId) return []
+    query = query.eq('van_id', working.selectedId)
   }
 
   if (filterType && filterType !== 'all') {
