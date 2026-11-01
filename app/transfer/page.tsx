@@ -1,10 +1,11 @@
+import { redirect } from 'next/navigation'
 // ============================================================
 // app/transfer/page.tsx
 // Record any stock movement — issue, return, van-to-van, depot.
 // The form is a Client Component; the page shell is a Server Component.
 // ============================================================
 
-import { getMyStock, getProducts, getActivityLog, getWorkingVans } from '@/lib/actions'
+import { getMyStock, getProducts, getActivityLog, getWorkingVans, getCurrentUserDisplay } from '@/lib/actions'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import TransferForm from '@/components/TransferForm'
 
@@ -19,6 +20,9 @@ const typeLabels: Record<string, string> = {
 }
 
 export default async function TransferPage({searchParams}:{searchParams:{van?:string}}) {
+  const user=await getCurrentUserDisplay()
+  if(!user)redirect('/login')
+  if(!user.access?.technician_access)redirect('/dashboard')
   const working=await getWorkingVans(searchParams?.van)
   const [stockItems, products, todayLogs] = await Promise.all([
     getMyStock(working.selectedId??undefined),
