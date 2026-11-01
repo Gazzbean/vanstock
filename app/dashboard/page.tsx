@@ -26,11 +26,41 @@ const typeLabels: Record<string, string> = {
 }
 
 export default async function DashboardPage() {
-  const [stats, stockItems, recentLogs, user] = await Promise.all([
+  const user = await getCurrentUserDisplay()
+  // An office-only user has no working van: present an office dashboard
+  // rather than zero van balances and an unusable Adjust Stock action.
+  if(user?.access?.office_access && !user.access.technician_access){
+    const recentLogs=await getActivityLog()
+    return <div>
+      <div className="topbar"><h1 className="topbar-title">Office Dashboard</h1></div>
+      <div className="p-5 space-y-4">
+        <div className="card">
+          <h2 className="text-sm font-semibold">Office stock management</h2>
+          <p className="text-sm text-gray-600 mt-2">You can view warehouse balances, receive supplier stock and review transaction history. No service van is assigned to this account.</p>
+          <div className="flex flex-wrap gap-3 mt-4">
+            <a className="btn btn-primary" href="/receive">Receive Stock</a>
+            <a className="btn" href="/warehouse">Warehouse</a>
+            <a className="btn" href="/logs">Transaction History</a>
+          </div>
+        </div>
+        <div className="card">
+          <h2 className="text-sm font-semibold mb-3">Recent company stock activity</h2>
+          {recentLogs.length===0 ? <p className="text-sm text-gray-500">No transactions recorded.</p> :
+          <div className="space-y-2">{recentLogs.slice(0,8).map(log=>
+            <div className="border-b border-gray-100 py-2 text-sm" key={log.id}>
+              <span className="font-medium">{typeLabels[log.type]??log.type}</span>
+              {' — '}{log.quantity} {log.product_name}
+              <p className="text-xs text-gray-500">{log.reference??'No reference'}</p>
+            </div>
+          )}</div>}
+        </div>
+      </div>
+    </div>
+  }
+  const [stats, stockItems, recentLogs] = await Promise.all([
     getDashboardStats(),
     getMyStock(),
     getActivityLog(),
-    getCurrentUserDisplay(),
   ])
 
   const lowItems = stockItems.filter(
