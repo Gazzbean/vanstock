@@ -4,7 +4,8 @@
 // The form is a Client Component; the page shell is a Server Component.
 // ============================================================
 
-import { getMyStock, getProducts, getActivityLog } from '@/lib/actions'
+import { getMyStock, getProducts, getActivityLog, getWorkingVans } from '@/lib/actions'
+import WorkingVanSelector from '@/components/WorkingVanSelector'
 import TransferForm from '@/components/TransferForm'
 
 function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
@@ -17,9 +18,10 @@ const typeLabels: Record<string, string> = {
   adjust:       'Adjusted',
 }
 
-export default async function TransferPage() {
+export default async function TransferPage({searchParams}:{searchParams:{van?:string}}) {
+  const working=await getWorkingVans(searchParams?.van)
   const [stockItems, products, todayLogs] = await Promise.all([
-    getMyStock(),
+    getMyStock(working.selectedId??undefined),
     getProducts(),
     getActivityLog(),
   ])
@@ -28,7 +30,7 @@ export default async function TransferPage() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const todayEntries = todayLogs.filter(
-    (l) => new Date(l.created_at) >= today
+    (l) => new Date(l.created_at) >= today && l.van_id === working.selectedId
   )
 
   return (
@@ -38,13 +40,14 @@ export default async function TransferPage() {
       </div>
 
       <div className="p-5">
+        <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
         <div className="alert alert-info">
           ℹ️ All transfers are logged and visible to your manager. Changes take effect immediately.
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Transfer form — Client Component */}
-          <TransferForm products={products} stockItems={stockItems} />
+          {working.selectedId&&<TransferForm selectedVanId={working.selectedId} products={products} stockItems={stockItems} />}
 
           {/* Today's transfers */}
           <div className="card">
