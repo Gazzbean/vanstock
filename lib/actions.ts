@@ -965,16 +965,18 @@ export async function getRecentStockReceipts(){
  const profile=await getCurrentProfile()
  if(!['admin','manager'].includes(profile.role))throw new Error('Manager access required')
  const db=createServerClient()
- const [packs,loose,products,suppliers,locations]=await Promise.all([
-  db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
-  db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
+ const [packs,loose,products,suppliers,locations,people]=await Promise.all([
+  db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
+  db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
   Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
+  db.from('profiles').select('id,full_name').eq('company_id',profile.company_id),
  ])
  const [vans,warehouses]=locations
- const error=packs.error||loose.error||products.error||suppliers.error||vans.error||warehouses.error
+ const error=packs.error||loose.error||products.error||suppliers.error||vans.error||warehouses.error||people.error
  if(error)throw new Error(error.message)
+ const peopleMap=new Map((people.data??[]).map(p=>[p.id,p.full_name]))
  const productMap=new Map((products.data??[]).map(p=>[p.id,p]))
  const supplierMap=new Map((suppliers.data??[]).map(s=>[s.id,s.name]))
  const locationMap=new Map([
@@ -985,10 +987,10 @@ export async function getRecentStockReceipts(){
   ...(packs.data??[]).map(r=>({id:r.id,kind:'pack' as const,product:productMap.get(r.product_id)?.name??'Unknown product',
     unit:productMap.get(r.product_id)?.stock_unit??'ea',supplier:supplierMap.get(r.supplier_id)??'Unknown supplier',
     destination:locationMap.get(r.van_id??r.warehouse_id??'')??'Unknown location',
-    quantity:Number(r.stock_quantity),docket:r.docket,created_at:r.created_at})),
+    quantity:Number(r.stock_quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')??null})),
   ...(loose.data??[]).map(r=>({id:r.id,kind:'loose' as const,product:productMap.get(r.product_id)?.name??'Unknown product',
     unit:productMap.get(r.product_id)?.stock_unit??'ea',supplier:supplierMap.get(r.supplier_id)??'Unknown supplier',
     destination:locationMap.get(r.van_id??r.warehouse_id??'')??'Unknown location',
-    quantity:Number(r.quantity),docket:r.docket,created_at:r.created_at})),
+    quantity:Number(r.quantity),docket:r.docket,created_at:r.created_at,processed_by:peopleMap.get(r.received_by??'')??null})),
  ].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,10)
 }
