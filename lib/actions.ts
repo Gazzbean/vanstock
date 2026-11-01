@@ -1204,3 +1204,60 @@ export async function saveUserStatusAndAdmin(userId:string,isActive:boolean,isAd
  revalidatePath('/admin');revalidatePath('/logs')
  return {success:true}
 }
+
+
+// ── STAFF INVITATIONS ──────────────────────────────────────────
+// Only authenticated active administrators can initiate an invitation.
+// The invitation email is sent by Supabase, never by a browser-held secret.
+export async function inviteVanStockUser(details:{
+ full_name:string;email:string;initials:string;
+ is_active:boolean;technician:boolean;office:boolean;admin:boolean;
+ van_ids:string[];default_van_id:string|null;
+}):Promise<{success?:true;error?:string}>{
+ const actor=await getCurrentProfile()
+ if(actor.role!=='admin')return {error:'Administrator access required'}
+ if(!details||typeof details!=='object')return {error:'Invalid invitation details'}
+ const name=typeof details.full_name==='string'?details.full_name.trim().replace(/\\s+/g,' '):''
+ const email=typeof details.email==='string'?details.email.trim().toLowerCase():''
+ const initials=typeof details.initials==='string'?details.initials.trim().toUpperCase():''
+ if(name.length<3||name.length>120||!name.includes(' ')||!(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))||
+    !(/^[A-Z]{2,5}$/.test(initials)))return {error:'Enter a full name, valid email and 2–5 letter initials'}
+ if([details.is_active,details.technician,details.office,details.admin].some(v=>typeof v!=='boolean'))
+  return {error:'Invalid access settings'}
+ const ids=details.van_ids
+ if(!Array.isArray(ids)||ids.length!==new Set(ids).size||ids.some(v=>typeof v!=='string'||!(/^[0-9a-f-]{36}$/i.test(v))))
+  return {error:'Invalid authorised van selection'}
+ if(details.default_van_id!==null&&
+    (typeof details.default_van_id!=='string'||!ids.includes(details.default_van_id)))
+  return {error:'The default van must be an authorised van'}
+ if(!details.technician&&ids.length)return {error:'Tick Technician before assigning a van'}
+ const db=createServerClient()
+ const [{data:existingInitials,error:initialsError},{data:vans,error:vansError}]=await Promise.all([
+  db.from('profiles').select('id').eq('company_id',actor.company_id).eq('initials',initials).limit(1),
+  ids.length?db.from('vans').select('id').eq('company_id',actor.company_id).in('id',ids):Promise.resolve({data:[],error:null}),
+ ])
+ if(initialsError||vansError)return {error:'Could not validate the invitation; please retry'}
+ if(existingInitials?.length)return {error:'Initials already assigned to another user'}
+ if((vans??[]).length!==ids.length)return {error:'An authorised van does not belong to your company'}
+
+ // Supabase sends the email. Its redirect URL must be allowed in Auth settings.
+ const {data:invited,error:inviteError}=await db.auth.admin.inviteUserByEmail(email,{
+  redirectTo:'https://vanstock-alpha.vercel.app/auth/accept-invite',
+  data:{full_name:name},
+ })
+ if(inviteError)return {error:'Invitation could not be sent: '+inviteError.message}
+ if(!invited.user?.id)return {error:'Supabase did not return the invited account. Check Auth users before retrying.'}
+ const session=await createSessionClient()
+ const {error:setupError}=await session.rpc('vanstock_setup_invited_user',{
+  p_user_id:invited.user.id,p_full_name:name,p_initials:initials,p_email:email,
+  p_active:details.is_active,p_technician:details.technician,
+  p_office:details.office,p_admin:details.admin,
+  p_van_ids:ids,p_default_van:details.default_van_id,
+ })
+ if(setupError){
+  console.error('Invited user profile setup failed',{code:setupError.code,message:setupError.message})
+  return {error:'Invitation was issued, but user setup could not be completed. Do not send another invitation; contact the administrator to finish setup.'}
+ }
+ revalidatePath('/admin')
+ return {success:true}
+}
