@@ -955,7 +955,9 @@ export async function receiveLooseItem(
 // Read-only manager view; company scope is derived from the session profile.
 export async function getReceiveStockBalance(productId:string,destinationType:'van'|'warehouse',destinationId:string){
  const profile=await getCurrentProfile()
- if(!(await accessFor(profile)).receive_stock)throw new Error('Receiving access required')
+ const permissions=await accessFor(profile)
+ if(!permissions.receive_stock)throw new Error('Receiving access required')
+ if(!permissions.office_access && (destinationType!=='van'||destinationId!==profile.van_id))throw new Error('Only your assigned van is available')
  if(!productId||!destinationId||!['van','warehouse'].includes(destinationType))throw new Error('Invalid stock location')
  const db=createServerClient()
  const [product,location]=await Promise.all([
@@ -975,11 +977,13 @@ export async function getReceiveStockBalance(productId:string,destinationType:'v
 
 export async function getRecentStockReceipts(){
  const profile=await getCurrentProfile()
- if(!(await accessFor(profile)).receive_stock)throw new Error('Receiving access required')
+ const permissions=await accessFor(profile)
+ if(!permissions.receive_stock)throw new Error('Receiving access required')
+ if(!permissions.office_access&&!profile.van_id)return []
  const db=createServerClient()
  const [packs,loose,products,suppliers,locations,people]=await Promise.all([
-  db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
-  db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(15),
+  (permissions.office_access?db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id):db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id).eq('van_id',profile.van_id)).order('created_at',{ascending:false}).limit(15),
+  (permissions.office_access?db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id):db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id).eq('van_id',profile.van_id)).order('created_at',{ascending:false}).limit(15),
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
   Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
