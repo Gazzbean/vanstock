@@ -110,7 +110,7 @@ export default async function AdminPage() {
                 </div>
                 <div className="metric-card">
                   <div className="metric-label">Active users</div>
-                  <div className="metric-value">{profiles.length}</div>
+                  <div className="metric-value">{profiles.filter((p:any)=>p.is_active!==false).length}</div>
                 </div>
                 <div className="metric-card">
                   <div className="metric-label">Product types</div>
@@ -126,7 +126,7 @@ export default async function AdminPage() {
 
 </div>
 {user.role === 'admin' && warehousePermissions && (
-  <div className="mt-4"><WarehousePermissionsPanel users={profiles.filter((p: any) => p.role === 'technician').map((p: any) => ({ id: p.id, full_name: p.full_name, role: p.role, van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} /></div>
+  <div className="mt-4"><WarehousePermissionsPanel users={profiles.map((p: any) => ({ id: p.id, full_name: p.full_name, initials: p.initials??null, is_active: p.is_active!==false, office_access: capabilities.some((a:any)=>a.user_id===p.id && a.office_access), technician_access: capabilities.some((a:any)=>a.user_id===p.id && a.technician_access), admin_access: p.role==='admin', van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} /></div>
 )}</>}
         />
       </div>
