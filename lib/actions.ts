@@ -176,7 +176,7 @@ export async function getActivityLog(filterType?: string) {
 
   let query = db
     .from('activity_log')
-    .select('*, profile:profiles(full_name), van:vans(van_number)')
+    .select('*, profile:profiles(full_name,initials), van:vans(van_number)')
     .eq('company_id', profile.company_id)
     .order('created_at', { ascending: false })
     .limit(100)
