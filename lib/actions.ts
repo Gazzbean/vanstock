@@ -349,19 +349,23 @@ export async function removeProduct(productId: string) {
 
 export async function getAdminData() {
   const profile = await getCurrentProfile()
-
   if (!['manager', 'admin'].includes(profile.role)) {
-    return { vans: [], profiles: [] }
+    throw new Error('Manager access required')
   }
 
+  const session = await createSessionClient()
   const db = createServerClient()
-
-  const [{ data: vans }, { data: profiles }] = await Promise.all([
-    db.from('vans').select('*').eq('company_id', profile.company_id),
-    db.from('profiles').select('*, van:vans(van_number)').eq('company_id', profile.company_id),
+  const [{data: profiles,error: profilesError},{data: vans,error: vansError}] = await Promise.all([
+    session.rpc('vanstock_company_staff'),
+    db.from('vans').select('*').eq('company_id',profile.company_id).order('van_number'),
   ])
-
-  return { vans: vans ?? [], profiles: profiles ?? [] }
+  if(profilesError){
+    console.error('User directory load failed',{code:profilesError.code,message:profilesError.message})
+    throw new Error('Could not load staff accounts. Please retry or contact the administrator.')
+  }
+  if(vansError)throw new Error('Could not load service vans: '+vansError.message)
+  if(!Array.isArray(profiles))throw new Error('Unexpected staff directory response')
+  return {vans:vans??[],profiles}
 }
 // ============================================================
 // ADD THIS FUNCTION to your existing lib/actions.ts file
