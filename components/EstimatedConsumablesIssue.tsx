@@ -6,8 +6,8 @@ type Product={id:string;name:string;stock_unit:string|null}
 type Stock={product_id:string;quantity:number}
 type Group={id:string;name:string;unit:string;quick_1:number;quick_2:number;quick_3:number;quick_4:number}
 type Assignment={product_id:string;group_id:string}
-export default function EstimatedConsumablesIssue({products,stock,groups,assignments}:{
- products:Product[];stock:Stock[];groups:Group[];assignments:Assignment[]
+export default function EstimatedConsumablesIssue({products,stock,groups,assignments,selectedVanId}:{
+ products:Product[];stock:Stock[];groups:Group[];assignments:Assignment[];selectedVanId:string
 }){
  const eligible=products.filter(p=>assignments.some(a=>a.product_id===p.id))
  const [productId,setProductId]=useState(eligible[0]?.id??'')
@@ -27,7 +27,7 @@ export default function EstimatedConsumablesIssue({products,stock,groups,assignm
   if(quantity>balance){setError('Insufficient stock. Receive the item into this van before recording usage.');return}
   start(async()=>{
    try{
-    const r=await issueEstimatedConsumable(productId,groupId,quantity,job.trim())
+    const r=await issueEstimatedConsumable(productId,groupId,quantity,job.trim(),selectedVanId)
     if(r.error){setError(r.error);return}
     setBalances(prev=>[...prev.filter(x=>x.product_id!==productId),{product_id:productId,quantity:balance-quantity}])
     setMessage(quantity+' '+(product?.stock_unit||'ea')+' estimated usage recorded against '+job.trim()+'. ServiceM8 billing unchanged.')
