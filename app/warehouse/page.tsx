@@ -8,15 +8,16 @@ import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts 
 export default async function WarehousePage() {
   const user = await getCurrentUserDisplay()
   if (!user) redirect('/login')
-  if (user.role !== 'admin' && user.role !== 'manager') {
+  if (!user.access?.office_access) {
     return (
       <div className="p-5">
         <h1 className="text-lg font-semibold">Warehouse</h1>
-        <p className="text-sm text-gray-600 mt-2">Warehouse management access required.</p>
+        <p className="text-sm text-gray-600 mt-2">Office access required.</p>
       </div>
     )
   }
 
+  const canManage = user.role === 'admin' || user.role === 'manager'
   const [overview, adminData, products] = await Promise.all([
     getWarehouseOverview(), getAdminData(), getProducts(),
   ])
@@ -98,6 +99,7 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
+        {canManage ? <>
         <WarehouseReplenishmentDraft
           enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
@@ -118,6 +120,7 @@ export default async function WarehousePage() {
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
         />
+        </> : <p className="text-xs text-gray-500 mt-4">Office stock overview is read-only. Transfers, adjustments and stocktakes require warehouse-management authorisation.</p>}
       </div>
     </div>
   )
