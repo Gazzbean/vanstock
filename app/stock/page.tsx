@@ -5,11 +5,9 @@ import { redirect } from 'next/navigation'
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseOperationLocations } from '@/lib/actions'
+import { getMyStock, getProducts, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseOperationLocations } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
-import AdjustStockModal from '@/components/AdjustStockModal'
-import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
@@ -19,8 +17,8 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
   if(!user)redirect('/login')
   if(!user.access?.technician_access)redirect('/dashboard')
   const working=await getWorkingVans(searchParams?.van)
-  const [stockItems, products, consumables, standards] = await Promise.all([
-    getMyStock(working.selectedId??undefined), getProducts(), getConsumablesAssignments(),
+  const [stockItems, products, standards] = await Promise.all([
+    getMyStock(working.selectedId??undefined), getProducts(),
     getWorkingVanStandards(working.selectedId??undefined),
   ])
   const displayRows = buildStockDisplayRows(products, stockItems, standards)
@@ -35,8 +33,6 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
     <div>
       <div className="topbar">
         <h1 className="topbar-title">My Van Stock</h1>
-        {/* AdjustStockModal is a Client Component (needs user interaction) */}
-        {working.selectedId&&<AdjustStockModal products={products} selectedVanId={working.selectedId} buttonLabel="+ Adjust quantity" />}
       </div>
 
       <div className="p-5">
@@ -79,15 +75,7 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
                         />
                       </div>
                     </td>
-                    <td className="table-cell">
-                      <AdjustStockModal
-                        products={products}
-                        selectedVanId={working.selectedId??undefined}
-                        preselectedProductId={s.product_id}
-                        buttonLabel="Edit"
-                        buttonSmall
-                      />
-                    </td>
+                    <td className="table-cell text-xs text-gray-500">View only</td>
                   </tr>
                 )
               })}
@@ -101,7 +89,6 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
             </tbody>
           </table>
         </div>
-        {working.selectedId&&<EstimatedConsumablesIssue key={working.selectedId} selectedVanId={working.selectedId} products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />}
         {warehouseRights.canRequest&&working.selectedId&&<>
           <WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId}/>
           <WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={false}/>
