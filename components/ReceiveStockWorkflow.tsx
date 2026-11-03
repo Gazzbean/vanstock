@@ -9,10 +9,10 @@ type Pack={id:string;product_id:string;supplier_id:string;package_label:string;p
 type Van={id:string;van_number:string}
 type Warehouse={id:string;name:string}
 type Receipt={id:string;kind:'pack'|'loose';product:string;unit:string;supplier:string;destination:string;quantity:number;docket:string;created_at:string;processed_by:string|null;processor_initials:string|null}
-type Props={products:Product[];suppliers:Supplier[];packages:Pack[];vans:Van[];warehouses:Warehouse[];initialReceipts:Receipt[]}
+type Props={products:Product[];suppliers:Supplier[];packages:Pack[];vans:Van[];warehouses:Warehouse[];initialReceipts:Receipt[];selectedVanId?:string}
 
 function labelPerson(name:string|null){return name?name+' ('+name.trim().split(/\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
-export default function ReceiveStockWorkflow({products,suppliers,packages,vans,warehouses,initialReceipts}:Props){
+export default function ReceiveStockWorkflow({products,suppliers,packages,vans,warehouses,initialReceipts,selectedVanId}:Props){
  const available=products.filter(p=>!p.archived_at)
  const [mode,setMode]=useState<'pack'|'loose'>('pack')
  const [productId,setProductId]=useState('')
@@ -93,7 +93,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
        setLastReceipt({quantity:Number(r.quantity),unit,destination:place?.name??'',newBalance})
        setSuccess('Receipt recorded successfully.')
        setConfirm(false);setDocket('');setReceiptId('');setAmount('1')
-       try{setReceipts(await getRecentStockReceipts())}catch{/* Receipt saved; history refresh can be retried by reloading. */}
+        try{setReceipts(await getRecentStockReceipts(selectedVanId))}catch{/* Receipt saved; history refresh can be retried by reloading. */}
      }catch{
        setError('Receipt status could not be confirmed. Do not change the details. Retry the confirmation using the same reference.')
      }

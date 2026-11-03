@@ -144,6 +144,19 @@ export async function getMyStock(selectedVanId?:string) {
   return data ?? []
 }
 
+// Load van-specific stocking requirements for exactly the authorised working van.
+export async function getWorkingVanStandards(selectedVanId?:string) {
+  const profile = await getCurrentProfile()
+  const working = await getWorkingVans(selectedVanId)
+  if (!working.selectedId) return []
+  const db = createServerClient()
+  const {data,error} = await db.from('van_stock_standards')
+    .select('product_id,classification,min_quantity,target_quantity')
+    .eq('company_id',profile.company_id).eq('van_id',working.selectedId)
+  if (error) throw new Error('Could not load van stock standards: '+error.message)
+  return data??[]
+}
+
 export async function adjustStock(payload: AdjustPayload,selectedVanId?:string) {
   const profile = await getCurrentProfile()
   const working=await getWorkingVans(selectedVanId)
@@ -763,7 +776,7 @@ export async function getPhase1BSupplierData(){
  const db=createServerClient()
  const [suppliers,options,bins,vans,warehouses]=await Promise.all([
    db.from('suppliers').select('id,name,account_number,active').eq('company_id',p.company_id).order('name'),
-   db.from('supplier_product_options').select('id,product_id,supplier_id,supplier_code,package_label,purchase_unit,units_per_package,preferred').eq('company_id',p.company_id),
+    db.from('supplier_product_options').select('id,product_id,supplier_id,supplier_code,package_label,purchase_unit,units_per_package,preferred,active').eq('company_id',p.company_id),
    db.from('product_bins').select('id,product_id,van_id,warehouse_id,bin_label').eq('company_id',p.company_id),
    db.from('vans').select('id,van_number').eq('company_id',p.company_id).order('van_number'),
    db.from('warehouses').select('id,name').eq('company_id',p.company_id).order('name'),
@@ -798,6 +811,18 @@ export async function addSupplierPackage(productId:string,supplierId:string,supp
  })
  if(error)return {error:error.code==='23505'?'This supplier package already exists':error.message}
  revalidatePath('/admin')
+ return {success:true}
+}
+export async function setSupplierPackageActive(optionId:string,active:boolean){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!optionId||typeof active!=='boolean')return {error:'Invalid package selection'}
+ const session=await createSessionClient()
+ const {data,error}=await session.from('supplier_product_options')
+  .update({active}).eq('id',optionId).eq('company_id',p.company_id).select('id')
+ if(error)return {error:error.message}
+ if(!data?.length)return {error:'Purchase option not found or not authorised'}
+ revalidatePath('/admin');revalidatePath('/receive')
  return {success:true}
 }
 export async function saveProductBin(productId:string,locationType:'van'|'warehouse',locationId:string,binLabel:string){
@@ -994,7 +1019,11 @@ export async function getReceiveStockBalance(productId:string,destinationType:'v
  const profile=await getCurrentProfile()
  const permissions=await accessFor(profile)
  if(!permissions.receive_stock)throw new Error('Receiving access required')
- if(!permissions.office_access && (destinationType!=='van'||destinationId!==profile.van_id))throw new Error('Only your assigned van is available')
+ if(!permissions.office_access){
+  if(destinationType!=='van')throw new Error('Technician receiving is limited to authorised vans')
+  const working=await getWorkingVans(destinationId)
+  if(working.selectedId!==destinationId)throw new Error('Only an authorised working van is available')
+ }
  if(!productId||!destinationId||!['van','warehouse'].includes(destinationType))throw new Error('Invalid stock location')
  const db=createServerClient()
  const [product,location]=await Promise.all([
@@ -1012,15 +1041,17 @@ export async function getReceiveStockBalance(productId:string,destinationType:'v
  return Number(data?.quantity??0)
 }
 
-export async function getRecentStockReceipts(){
+export async function getRecentStockReceipts(selectedVanId?:string){
  const profile=await getCurrentProfile()
  const permissions=await accessFor(profile)
  if(!permissions.receive_stock)throw new Error('Receiving access required')
- if(!permissions.office_access&&!profile.van_id)return []
+ const working=permissions.office_access?null:await getWorkingVans(selectedVanId)
+ if(!permissions.office_access&&!working?.selectedId)return []
+ const viewVan=working?.selectedId??null
  const db=createServerClient()
  const [packs,loose,products,suppliers,locations,people]=await Promise.all([
-  (permissions.office_access?db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id):db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id).eq('van_id',profile.van_id)).order('created_at',{ascending:false}).limit(15),
-  (permissions.office_access?db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id):db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id).eq('van_id',profile.van_id)).order('created_at',{ascending:false}).limit(15),
+   (permissions.office_access?db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id):db.from('pack_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,created_at,packs,units_per_package,received_by').eq('company_id',profile.company_id).eq('van_id',viewVan)).order('created_at',{ascending:false}).limit(15),
+   (permissions.office_access?db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id):db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id).eq('van_id',viewVan)).order('created_at',{ascending:false}).limit(15),
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
   Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
@@ -1052,12 +1083,13 @@ export async function getRecentStockReceipts(){
 // ── TRANSACTION HISTORY: OPERATIONS + SUPPLIER RECEIPTS ─────────────
 // Both dates are interpreted as full local calendar days in Perth (UTC+08).
 // All date and type filters execute in PostgreSQL before the result cap.
-export async function getTransactionHistory(startDate?:string,endDate?:string,typeFilter?:string){
+export async function getTransactionHistory(startDate?:string,endDate?:string,typeFilter?:string,selectedVanId?:string){
  const profile=await getCurrentProfile()
  const access=await accessFor(profile)
  const manager=access.office_access
  if(!access.office_access&&!access.technician_access)throw new Error('Not authorised')
- if(!manager&&!profile.van_id)return {entries:[],capped:false}
+ const working=manager?null:await getWorkingVans(selectedVanId)
+ if(!manager&&!working?.selectedId)return {entries:[],capped:false}
  const validDate=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v
  if(startDate&&!validDate(startDate))throw new Error('Invalid start date')
  if(endDate&&!validDate(endDate))throw new Error('Invalid end date')
@@ -1069,7 +1101,7 @@ export async function getTransactionHistory(startDate?:string,endDate?:string,ty
  let a=db.from('activity_log').select('id,created_at,type,product_name,quantity,reference,notes,van_id,user_id').eq('company_id',profile.company_id)
  let b=db.from('pack_receipts').select('id,created_at,product_id,supplier_id,destination_type,van_id,warehouse_id,stock_quantity,docket,received_by').eq('company_id',profile.company_id)
  let c=db.from('loose_item_receipts').select('id,created_at,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,received_by').eq('company_id',profile.company_id)
- if(!manager){a=a.eq('van_id',profile.van_id);b=b.eq('van_id',profile.van_id);c=c.eq('van_id',profile.van_id)}
+ if(!manager){a=a.eq('van_id',working!.selectedId);b=b.eq('van_id',working!.selectedId);c=c.eq('van_id',working!.selectedId)}
  if(start){a=a.gte('created_at',start);b=b.gte('created_at',start);c=c.gte('created_at',start)}
  if(nextDay){a=a.lt('created_at',nextDay);b=b.lt('created_at',nextDay);c=c.lt('created_at',nextDay)}
  const filter=typeFilter??'all'
@@ -1156,21 +1188,22 @@ export async function saveUserAccessCapabilities(
  return {success:true}
 }
 
-export async function getReceivingSetup(){
+export async function getReceivingSetup(selectedVanId?:string){
  const p=await getCurrentProfile()
  if(!(await accessFor(p)).receive_stock)throw new Error('Receiving access required')
  const db=createServerClient()
  const [products,suppliers,options,vans,warehouses]=await Promise.all([
   db.from('products').select('id,name,stock_unit,archived_at').eq('company_id',p.company_id).is('archived_at',null).order('name'),
   db.from('suppliers').select('id,name,active').eq('company_id',p.company_id).eq('active',true).order('name'),
-  db.from('supplier_product_options').select('id,product_id,supplier_id,package_label,purchase_unit,units_per_package').eq('company_id',p.company_id),
+    db.from('supplier_product_options').select('id,product_id,supplier_id,package_label,purchase_unit,units_per_package').eq('company_id',p.company_id).eq('active',true),
   db.from('vans').select('id,van_number').eq('company_id',p.company_id),
   db.from('warehouses').select('id,name').eq('company_id',p.company_id),
  ])
  for(const result of [products,suppliers,options,vans,warehouses])if(result.error)throw new Error(result.error.message)
  const cap=await accessFor(p)
+ const working=cap.office_access?null:await getWorkingVans(selectedVanId)
  return {products:products.data??[],suppliers:suppliers.data??[],options:options.data??[],
-  vans:cap.office_access?vans.data??[]:(vans.data??[]).filter(v=>v.id===p.van_id),
+   vans:cap.office_access?vans.data??[]:(vans.data??[]).filter(v=>v.id===working?.selectedId),
   warehouses:cap.office_access?warehouses.data??[]:[]}
 }
 

@@ -9,13 +9,8 @@
 //    but made it larger/clearer there too.
 // ============================================================
 
-import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay } from '@/lib/actions'
-
-function stockStatus(qty: number, min: number) {
-  if (qty <= 0)   return { label: 'Critical', cls: 'badge-critical' }
-  if (qty < min)  return { label: 'Low',      cls: 'badge-low'      }
-  return               { label: 'OK',        cls: 'badge-ok'       }
-}
+import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay, getProducts, getWorkingVanStandards } from '@/lib/actions'
+import { buildStockDisplayRows } from '@/lib/stock-standards'
 
 const typeLabels: Record<string, string> = {
   issue:       'Issued to customer',
@@ -57,15 +52,15 @@ export default async function DashboardPage() {
       </div>
     </div>
   }
-  const [stats, stockItems, recentLogs] = await Promise.all([
+  const [stats, stockItems, recentLogs, products, standards] = await Promise.all([
     getDashboardStats(),
     getMyStock(),
     getActivityLog(),
+    getProducts(),
+    getWorkingVanStandards(),
   ])
-
-  const lowItems = stockItems.filter(
-    (s) => s.quantity < (s.product?.min_stock ?? 0)
-  )
+  const displayRows = buildStockDisplayRows(products, stockItems, standards)
+  const lowItems = displayRows.filter(s => s.status === 'Critical' || s.status === 'Low')
 
   return (
     <div>
@@ -96,12 +91,12 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-4 gap-3 mb-5">
           <div className="metric-card">
             <div className="metric-label">Stock product types</div>
-            <div className="metric-value">{stats?.totalItems ?? 0}</div>
+            <div className="metric-value">{displayRows.filter(s => s.quantity > 0).length}</div>
             <div className="metric-sub">with a positive balance</div>
           </div>
           <div className="metric-card">
             <div className="metric-label">Low stock alerts</div>
-            <div className="metric-value text-amber-600">{stats?.lowStockCount ?? 0}</div>
+            <div className="metric-value text-amber-600">{lowItems.length}</div>
             <div className="metric-sub">need restocking soon</div>
           </div>
           <div className="metric-card">
@@ -134,14 +129,14 @@ export default async function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {stockItems.map((s) => {
-                  const st = stockStatus(s.quantity, s.product?.min_stock ?? 0)
+                {displayRows.map((s) => {
+                  const st = s.status
                   return (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="table-cell font-medium">{s.product?.name}</td>
                       <td className="table-cell">{s.quantity} {s.product?.stock_unit ?? 'ea'}</td>
                       <td className="table-cell">
-                        <span className={`badge ${st.cls}`}>{st.label}</span>
+                        <span className={`badge ${st === 'Critical' ? 'badge-critical' : st === 'Low' ? 'badge-low' : 'badge-ok'}`}>{st}</span>
                       </td>
                     </tr>
                   )

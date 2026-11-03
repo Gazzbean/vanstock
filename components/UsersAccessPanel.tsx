@@ -65,15 +65,17 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
   <p className="text-xs text-gray-500 mb-3">Tick multiple responsibilities for one person. Active controls application access. Default and authorised vans are managed below. Initials appear in transaction history.</p>
   <div className="overflow-x-auto"><table className="w-full">
    <thead><tr>
-    {['Full name','Initials','Active','Technician','Office','Admin','Default van',...(canEdit?['Action']:[])].map(t=><th key={t} className="table-header">{t}</th>)}
+    {['Full name','Active','Initials','Technician','Office','Admin','Default van',...(canEdit?['Action']:[])].map(t=><th key={t} className="table-header">{t}</th>)}
    </tr></thead>
    <tbody>{users.map(u=>{
     const v=draft[u.id]??defaults[u.id]
     return <tr key={u.id}>
      <td className="table-cell whitespace-nowrap font-medium">{u.full_name}</td>
+     <td className="table-cell text-center"><input type="checkbox" aria-label={'active for '+u.full_name}
+      checked={v.active} disabled={!canEdit||pending} onChange={e=>update(u.id,'active',e.target.checked)}/></td>
      <td className="table-cell">{canEdit?<input aria-label={'Initials for '+u.full_name} className="form-input w-20 uppercase" maxLength={5}
        value={v.initials} onChange={e=>update(u.id,'initials',e.target.value.toUpperCase())}/>:<strong>{v.initials}</strong>}</td>
-     {(['active','tech','office','admin'] as const).map(k=><td key={k} className="table-cell text-center">
+     {(['tech','office','admin'] as const).map(k=><td key={k} className="table-cell text-center">
       <input type="checkbox" aria-label={k+' for '+u.full_name} checked={v[k]} disabled={!canEdit||pending} onChange={e=>update(u.id,k,e.target.checked)}/>
      </td>)}
      <td className="table-cell whitespace-nowrap text-gray-600">{u.van_number??'None'}</td>

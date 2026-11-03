@@ -1,16 +1,18 @@
 'use client'
 import {useState,useTransition} from 'react'
-import {addCatalogueSupplier,addSupplierPackage,saveProductBin} from '@/lib/actions'
+import {useRouter} from 'next/navigation'
+import {addCatalogueSupplier,addSupplierPackage,setSupplierPackageActive,saveProductBin} from '@/lib/actions'
 
 type Product={id:string;name:string;stock_unit:string|null}
 type Supplier={id:string;name:string;account_number:string|null;active:boolean}
-type Option={id:string;product_id:string;supplier_id:string;supplier_code:string|null;package_label:string;purchase_unit:string;units_per_package:number;preferred:boolean}
+type Option={id:string;product_id:string;supplier_id:string;supplier_code:string|null;package_label:string;purchase_unit:string;units_per_package:number;preferred:boolean;active:boolean}
 type Bin={id:string;product_id:string;van_id:string|null;warehouse_id:string|null;bin_label:string}
 type Location={id:string;name:string}
 export default function SupplierAndBinsPanel({products,suppliers,options,bins,vans,warehouses}:{
  products:Product[];suppliers:Supplier[];options:Option[];bins:Bin[];
  vans:{id:string;van_number:string}[];warehouses:Location[]
 }){
+ const router=useRouter()
  const [name,setName]=useState('')
  const [account,setAccount]=useState('')
  const [supplierId,setSupplierId]=useState(suppliers[0]?.id??'')
@@ -39,6 +41,19 @@ export default function SupplierAndBinsPanel({products,suppliers,options,bins,va
  function savePackage(){
   setPackageStatus('')
   startPackage(async()=>{try{const r=await addSupplierPackage(productId,supplierId,supplierCode,packageLabel,purchaseUnit,Number(conversion));setPackageStatus(r.error||'Purchase option saved. No stock was received.');if(!r.error){setPackageLabel('');setSupplierCode('')}}catch{setPackageStatus('Could not confirm package. Refresh before retrying.')}})
+ }
+ function togglePackage(option:Option){
+  const label=option.active?'retire':'reactivate'
+  if(!window.confirm(`Are you sure you want to ${label} ${option.package_label}? Historical receipts will remain unchanged.`))return
+  setPackageStatus('')
+  startPackage(async()=>{
+   try{
+    const result=await setSupplierPackageActive(option.id,!option.active)
+    if(result.error){setPackageStatus(result.error);return}
+    setPackageStatus(`Purchase option ${option.active?'retired':'reactivated'}. Historical receipts were preserved.`)
+    router.refresh()
+   }catch{setPackageStatus('Could not confirm package status. Refresh before retrying.')}
+  })
  }
  function saveBin(){
   setBinStatus('')
@@ -85,7 +100,10 @@ export default function SupplierAndBinsPanel({products,suppliers,options,bins,va
      <p className="text-xs text-gray-500">Conversion is in {products.find(p=>p.id===productId)?.stock_unit||'ea'} per purchase unit.</p>
      <button type="button" className="btn btn-primary" disabled={packageBusy||!productId||!supplierId||!packageLabel.trim()} onClick={savePackage}>{packageBusy?'Saving package…':'Add purchase option'}</button>
      {packageStatus&&<p role="status" className="text-xs mt-2">{packageStatus}</p>}
-     {supplierOptions.length>0&&<ul className="text-xs text-gray-600 space-y-1 mt-2">{supplierOptions.map(x=><li key={x.id}>{suppliers.find(s=>s.id===x.supplier_id)?.name}: {x.package_label} = {x.units_per_package} {products.find(p=>p.id===productId)?.stock_unit||'ea'}</li>)}</ul>}
+     {supplierOptions.length>0&&<ul className="text-xs text-gray-600 space-y-2 mt-2">{supplierOptions.map(x=><li key={x.id} className="flex items-center justify-between gap-2">
+      <span>{suppliers.find(s=>s.id===x.supplier_id)?.name}: {x.package_label} = {x.units_per_package} {products.find(p=>p.id===productId)?.stock_unit||'ea'} per {x.purchase_unit} {x.active?'':'(retired)'}</span>
+      <button type="button" className="btn btn-sm" disabled={packageBusy} onClick={()=>togglePackage(x)}>{x.active?'Retire':'Reactivate'}</button>
+     </li>)}</ul>}
     </div>
     <div className="space-y-2">
      <h3 className="font-medium text-sm">Storage bin</h3>

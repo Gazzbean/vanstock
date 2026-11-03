@@ -1,6 +1,7 @@
 // Company-wide history for managers; technicians see only their assigned van.
 // Includes supplier receipts as well as operational activity.
-import {getTransactionHistory} from '@/lib/actions'
+import {getTransactionHistory,getWorkingVans,getCurrentUserDisplay} from '@/lib/actions'
+import WorkingVanSelector from '@/components/WorkingVanSelector'
 
 const typeLabels:Record<string,string>={
  'issue':'Issue / consumables',
@@ -19,24 +20,29 @@ function processorLabel(name:string|null){return name?name+' ('+name.trim().spli
 function safeString(value:unknown){return typeof value==='string'?value:''}
 
 export default async function LogsPage({searchParams}:{
- searchParams:{from?:string;to?:string;type?:string}
+ searchParams:{from?:string;to?:string;type?:string;van?:string}
 }){
  const start=safeString(searchParams?.from)
  const end=safeString(searchParams?.to)
  const requestedType=safeString(searchParams?.type)||'all'
  const selected=types.some(t=>t.value===requestedType)?requestedType:'all'
+ const user=await getCurrentUserDisplay()
+ const working=user?.access?.technician_access&&!user.access.office_access
+  ?await getWorkingVans(searchParams?.van):null
  let history:Awaited<ReturnType<typeof getTransactionHistory>>|null=null
  let error=''
- try{history=await getTransactionHistory(start,end,selected)}
+ try{history=await getTransactionHistory(start,end,selected,working?.selectedId??undefined)}
  catch(e){error=e instanceof Error?e.message:'Could not load transaction history'}
  const entries=history?.entries??[]
  return <div>
   <div className="topbar"><h1 className="topbar-title">Transaction History</h1></div>
   <div className="p-5 space-y-4">
+   {working&&<WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId}/>}
    <section className="card">
     <h2 className="font-semibold text-sm mb-1">Find past stock transactions</h2>
     <p className="text-xs text-gray-500 mb-4">Includes recorded stock activity, supplier pack receipts and loose-item receipts. Dates include the entire calendar day in Perth (AWST).</p>
     <form method="get" action="/logs" className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+     {working?.selectedId&&<input type="hidden" name="van" value={working.selectedId}/>}
      <div><label htmlFor="history-from" className="form-label">From date</label>
       <input type="date" id="history-from" name="from" defaultValue={start} className="form-input"/></div>
      <div><label htmlFor="history-to" className="form-label">To date</label>

@@ -5,23 +5,22 @@ import { redirect } from 'next/navigation'
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getCurrentUserDisplay } from '@/lib/actions'
+import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay } from '@/lib/actions'
+import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import AdjustStockModal from '@/components/AdjustStockModal'
 import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
-
-function stockStatus(qty: number, min: number) {
-  if (qty <= 0)   return { label: 'Critical', cls: 'badge-critical', pct: 0,   color: '#ef4444' }
-  if (qty < min)  return { label: 'Low',      cls: 'badge-low',      pct: qty / (min * 2), color: '#f59e0b' }
-  return               { label: 'OK',        cls: 'badge-ok',       pct: Math.min(qty / (min * 2), 1), color: '#22c55e' }
-}
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
   const user=await getCurrentUserDisplay()
   if(!user)redirect('/login')
   if(!user.access?.technician_access)redirect('/dashboard')
   const working=await getWorkingVans(searchParams?.van)
-  const [stockItems, products, consumables] = await Promise.all([getMyStock(working.selectedId??undefined), getProducts(), getConsumablesAssignments()])
+  const [stockItems, products, consumables, standards] = await Promise.all([
+    getMyStock(working.selectedId??undefined), getProducts(), getConsumablesAssignments(),
+    getWorkingVanStandards(working.selectedId??undefined),
+  ])
+  const displayRows = buildStockDisplayRows(products, stockItems, standards)
 
   return (
     <div>
@@ -41,15 +40,16 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
                 <th className="table-header">Category</th>
                 <th className="table-header">Qty</th>
                 <th className="table-header">Min</th>
+                <th className="table-header">Target</th>
                 <th className="table-header">Status</th>
                 <th className="table-header w-28">Level</th>
                 <th className="table-header w-16"></th>
               </tr>
             </thead>
             <tbody>
-              {stockItems.map((s) => {
-                const st = stockStatus(s.quantity, s.product?.min_stock ?? 0)
-                const pctPx = Math.round(st.pct * 100)
+              {displayRows.map((s) => {
+                const st = s.status
+                const pctPx = Math.round(s.fill * 100)
                 return (
                   <tr key={s.id} className="hover:bg-gray-50">
                     <td className="table-cell font-medium">{s.product?.name}</td>
@@ -57,15 +57,16 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
                       <span className="badge badge-gray">{s.product?.category}</span>
                     </td>
                     <td className="table-cell font-medium">{s.quantity} {s.product?.stock_unit ?? 'ea'}</td>
-                    <td className="table-cell text-gray-400">{s.product?.min_stock} {s.product?.stock_unit ?? 'ea'}</td>
+                    <td className="table-cell text-gray-400">{s.minimum} {s.product?.stock_unit ?? 'ea'}</td>
+                    <td className="table-cell text-gray-400">{s.target === null ? '—' : `${s.target} ${s.product?.stock_unit ?? 'ea'}`}</td>
                     <td className="table-cell">
-                      <span className={`badge ${st.cls}`}>{st.label}</span>
+                      <span className={`badge ${st === 'Critical' ? 'badge-critical' : st === 'Low' ? 'badge-low' : 'badge-ok'}`}>{st}</span>
                     </td>
                     <td className="table-cell">
                       <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden w-24">
                         <div
                           className="h-full rounded-full transition-all"
-                          style={{ width: `${pctPx}%`, background: st.color }}
+                          style={{ width: `${pctPx}%`, background: st === 'Critical' ? '#ef4444' : st === 'Low' ? '#f59e0b' : '#22c55e' }}
                         />
                       </div>
                     </td>
@@ -81,9 +82,9 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
                   </tr>
                 )
               })}
-              {stockItems.length === 0 && (
+              {displayRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="table-cell text-center text-gray-400 py-6">
+                  <td colSpan={8} className="table-cell text-center text-gray-400 py-6">
                     No stock items found. Ask your manager to add products.
                   </td>
                 </tr>
@@ -91,7 +92,7 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
             </tbody>
           </table>
         </div>
-        {working.selectedId&&<EstimatedConsumablesIssue selectedVanId={working.selectedId} products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />}
+        {working.selectedId&&<EstimatedConsumablesIssue key={working.selectedId} selectedVanId={working.selectedId} products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />}
       </div>
     </div>
   )
