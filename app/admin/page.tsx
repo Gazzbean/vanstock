@@ -91,7 +91,7 @@ export default async function AdminPage() {
   <CatalogueSettingsPanel products={products.map(p=>({id:p.id,name:p.name}))} settings={phase1.settings} groups={phase1.groups} />
   <CatalogueImport />
 </div></>}
-          suppliers={<SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} />}
+          suppliers={<SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} usageGroups={consumablesAssignments.groups} usageAssignments={consumablesAssignments.assignments} />}
           standards={<>
             <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
             <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />

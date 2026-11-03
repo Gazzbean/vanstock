@@ -15,6 +15,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerClient, createSessionClient } from './supabase'
+import { isValidPackageConversion } from './package-conversion'
 import type { TransferPayload, AdjustPayload } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────
@@ -803,6 +804,12 @@ export async function addSupplierPackage(productId:string,supplierId:string,supp
  !Number.isFinite(unitsPerPackage)||unitsPerPackage<=0||unitsPerPackage>=1000000000||
  Math.abs(unitsPerPackage*100-Math.round(unitsPerPackage*100))>1e-7)
  return {error:'Invalid supplier package. Use a positive quantity with at most two decimals.'}
+ const db=createServerClient()
+ const {data:product,error:productError}=await db.from('products')
+  .select('stock_unit').eq('id',productId).eq('company_id',p.company_id).maybeSingle()
+ if(productError||!product)return {error:'Product not found in your company'}
+ if(!isValidPackageConversion(unitsPerPackage,product.stock_unit))
+  return {error:'Invalid conversion: individually counted stock requires whole-number units per package.'}
  const session=await createSessionClient()
  const {error}=await session.from('supplier_product_options').insert({
    company_id:p.company_id,product_id:productId,supplier_id:supplierId,
