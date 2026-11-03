@@ -16,7 +16,10 @@ const typeLabels:Record<string,string>={
  'receipt-loose':'Loose item receipt',
 }
 const types=[{value:'all',label:'All transactions'},...Object.entries(typeLabels).map(([value,label])=>({value,label}))]
-function processorLabel(name:string|null){return name?name+' ('+name.trim().split(/\s+/).map(part=>part.charAt(0).toUpperCase()).join('')+')':'Unknown user'}
+function processorLabel(name:string|null,initials:string|null){
+ if(name)return initials?`${name} (${initials})`:name
+ return initials??'Unknown user'
+}
 function safeString(value:unknown){return typeof value==='string'?value:''}
 
 export default async function LogsPage({searchParams}:{
@@ -51,7 +54,7 @@ export default async function LogsPage({searchParams}:{
       <select id="history-type" name="type" defaultValue={selected} className="form-input">{types.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
      <div className="flex items-center flex-wrap gap-2">
       <button type="submit" className="btn btn-primary">Apply filters</button>
-      <a href="/logs" className="btn">Clear</a>
+      <a href={working?.selectedId?'/logs?van='+encodeURIComponent(working.selectedId):'/logs'} className="btn">Clear</a>
      </div>
     </form>
    </section>
@@ -75,7 +78,7 @@ export default async function LogsPage({searchParams}:{
        <td className="table-cell whitespace-nowrap">{r.quantity.toLocaleString('en-AU')}{r.unit?' '+r.unit:''}</td>
        <td className="table-cell">{r.location}</td>
        <td className="table-cell">{r.reference||'—'}</td>
-       <td className="table-cell whitespace-nowrap">{r.processorInitials??(r.processedBy?processorLabel(r.processedBy).split('(').pop()?.replace(')',''):'—')}</td>
+       <td className="table-cell whitespace-nowrap">{processorLabel(r.processedBy,r.processorInitials)}</td>
        <td className="table-cell text-xs text-gray-500">{r.notes||'—'}</td>
       </tr>)}</tbody>
      </table>

@@ -9,8 +9,9 @@
 //    but made it larger/clearer there too.
 // ============================================================
 
-import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay, getProducts, getWorkingVanStandards } from '@/lib/actions'
+import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay, getProducts, getWorkingVanStandards, getWorkingVans } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
+import WorkingVanSelector from '@/components/WorkingVanSelector'
 
 const typeLabels: Record<string, string> = {
   issue:       'Issued to customer',
@@ -20,7 +21,7 @@ const typeLabels: Record<string, string> = {
   adjust:      'Stock adjustment',
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({searchParams}:{searchParams:{van?:string}}) {
   const user = await getCurrentUserDisplay()
   // An office-only user has no working van: present an office dashboard
   // rather than zero van balances and an unusable Adjust Stock action.
@@ -52,12 +53,14 @@ export default async function DashboardPage() {
       </div>
     </div>
   }
+  const working=await getWorkingVans(searchParams?.van)
+  const workingVanNumber=working.vans.find(v=>v.id===working.selectedId)?.van_number??null
   const [stats, stockItems, recentLogs, products, standards] = await Promise.all([
-    getDashboardStats(),
-    getMyStock(),
-    getActivityLog(),
+    getDashboardStats(working.selectedId??undefined),
+    getMyStock(working.selectedId??undefined),
+    getActivityLog(undefined,working.selectedId??undefined),
     getProducts(),
-    getWorkingVanStandards(),
+    getWorkingVanStandards(working.selectedId??undefined),
   ])
   const displayRows = buildStockDisplayRows(products, stockItems, standards)
   const lowItems = displayRows.filter(s => s.status === 'Critical' || s.status === 'Low')
@@ -68,9 +71,9 @@ export default async function DashboardPage() {
       <div className="topbar">
         <div className="flex items-center gap-3">
           <h1 className="topbar-title">Dashboard</h1>
-          {user?.van_number && (
+          {workingVanNumber && (
             <span className="badge badge-blue text-sm font-semibold px-3 py-1">
-              🚐 {user.van_number}
+              🚐 {workingVanNumber}
             </span>
           )}
         </div>
@@ -80,6 +83,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="p-5">
+        <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId}/>
 
         {lowItems.length > 0 && (
           <div className="alert alert-warning">
@@ -116,8 +120,8 @@ export default async function DashboardPage() {
           <div className="card">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-medium">Stock overview</h2>
-              {user?.van_number && (
-                <span className="badge badge-blue font-semibold">{user.van_number}</span>
+              {workingVanNumber && (
+                <span className="badge badge-blue font-semibold">{workingVanNumber}</span>
               )}
             </div>
             <table className="w-full">

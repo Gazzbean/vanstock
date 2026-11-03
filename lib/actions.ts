@@ -14,9 +14,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { createServerClient, createSessionClient } from './supabase'
 import { isValidPackageConversion } from './package-conversion'
 import { validQuickUseOptions } from './consumable-presets'
+import { resolveWorkingVanId } from './working-van'
 import type { TransferPayload, AdjustPayload } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────
@@ -49,6 +51,7 @@ async function accessFor(profile:any){
 }
 
 // ── AUTH ───────────────────────────────────────────────────
+const workingVanCookie='vanstock-working-van'
 
 // Log in with email and password — uses the session client so the
 // resulting login is remembered via cookies on future requests.
@@ -72,6 +75,7 @@ export async function signIn(email: string, password: string) {
     await sessionClient.auth.signOut()
     return {error:'This account does not have an accessible VanStock profile.'}
   }
+  cookies().delete(workingVanCookie)
   revalidatePath('/')
   return { success: true }
 }
@@ -80,21 +84,22 @@ export async function signIn(email: string, password: string) {
 export async function signOut() {
   const sessionClient = await createSessionClient()
   await sessionClient.auth.signOut()
+  cookies().delete(workingVanCookie)
   revalidatePath('/')
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────
 
-export async function getDashboardStats() {
-  const profile = await getCurrentProfile()
-  if (!profile.van_id) return null
+export async function getDashboardStats(selectedVanId?:string) {
+  const working=await getWorkingVans(selectedVanId)
+  if (!working.selectedId) return null
 
   const db = createServerClient()
 
   const { data: stockItems } = await db
     .from('stock')
     .select('quantity, product:products(name, min_stock)')
-    .eq('van_id', profile.van_id)
+    .eq('van_id', working.selectedId)
 
   const totalItems = stockItems?.filter(s => s.quantity > 0).length ?? 0
   const lowStockCount = stockItems?.filter(
@@ -107,7 +112,7 @@ export async function getDashboardStats() {
   const { data: todayLogs } = await db
     .from('activity_log')
     .select('type, quantity')
-    .eq('van_id', profile.van_id)
+    .eq('van_id', working.selectedId)
     .gte('created_at', today.toISOString())
 
   const transfersToday = todayLogs?.length ?? 0
@@ -125,11 +130,36 @@ export async function getWorkingVans(selectedVanId?:string){
  const {data:assignments,error}=await db.from('user_authorized_vans').select('van_id').eq('user_id',profile.id).eq('company_id',profile.company_id)
  if(error)throw new Error('Could not read authorised vans')
  const ids=(assignments??[]).map(v=>v.van_id)
- if(!ids.length)return {vans:[] as {id:string;van_number:string}[],selectedId:null as string|null,defaultId:profile.van_id as string|null}
+ if(!ids.length){
+  if(selectedVanId)throw new Error('You are not authorised to access that van')
+  return {vans:[] as {id:string;van_number:string}[],selectedId:null as string|null,defaultId:null as string|null}
+ }
  const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',profile.company_id).in('id',ids).order('van_number')
  if(vanError)throw new Error(vanError.message)
- if(selectedVanId&&!ids.includes(selectedVanId))throw new Error('You are not authorised to access that van')
- return {vans:vans??[],selectedId:selectedVanId||profile.van_id||null,defaultId:profile.van_id as string|null}
+ const authorised=(vans??[]).map(v=>v.id)
+ const rawSaved=cookies().get(workingVanCookie)?.value??''
+ const savedId=rawSaved.startsWith(profile.id+':')?rawSaved.slice(profile.id.length+1):null
+ const selectedId=resolveWorkingVanId(authorised,selectedVanId,savedId,profile.van_id)
+ return {vans:vans??[],selectedId,defaultId:authorised.includes(profile.van_id)?profile.van_id as string:null}
+}
+
+export async function setWorkingVanSelection(vanId:string){
+ const profile=await getCurrentProfile()
+ if(!(await accessFor(profile)).technician_access)return {error:'Technician access required'}
+ if(typeof vanId!=='string')return {error:'Choose an authorised working van'}
+ if(vanId){
+  try{
+   const working=await getWorkingVans(vanId)
+   if(working.selectedId!==vanId)return {error:'This van is not authorised for your account'}
+  }catch{return {error:'This van is not authorised for your account'}}
+  cookies().set(workingVanCookie,profile.id+':'+vanId,{
+   httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',path:'/',
+  })
+ }else{
+  cookies().delete(workingVanCookie)
+ }
+ for(const path of ['/dashboard','/stock','/receive','/transfer','/logs'])revalidatePath(path)
+ return {success:true}
 }
 export async function getMyStock(selectedVanId?:string) {
   const profile = await getCurrentProfile()
@@ -245,6 +275,8 @@ export async function getActivityLog(filterType?: string, selectedVanId?:string)
     const working=await getWorkingVans(selectedVanId)
     if (!working.selectedId) return []
     query = query.eq('van_id', working.selectedId)
+  }else if(selectedVanId){
+    query=query.eq('van_id',selectedVanId)
   }
 
   if (filterType && filterType !== 'all') {
