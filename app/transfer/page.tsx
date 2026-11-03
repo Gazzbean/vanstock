@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 // The form is a Client Component; the page shell is a Server Component.
 // ============================================================
 
-import { getMyStock, getProducts, getActivityLog, getWorkingVans, getCurrentUserDisplay } from '@/lib/actions'
+import { getMyStock, getProducts, getActivityLog, getWorkingVans, getCurrentUserDisplay, getConsumablesAssignments, getJobMaterialAllocations } from '@/lib/actions'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import TransferForm from '@/components/TransferForm'
 
@@ -24,10 +24,12 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
   if(!user)redirect('/login')
   if(!user.access?.technician_access)redirect('/dashboard')
   const working=await getWorkingVans(searchParams?.van)
-  const [stockItems, products, todayLogs] = await Promise.all([
+  const [stockItems, products, todayLogs, consumables, allocations] = await Promise.all([
     getMyStock(working.selectedId??undefined),
     getProducts(),
     getActivityLog(undefined,working.selectedId??undefined),
+    getConsumablesAssignments(),
+    getJobMaterialAllocations(working.selectedId??undefined),
   ])
 
   // Filter to just today
@@ -40,22 +42,22 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
   return (
     <div>
       <div className="topbar">
-        <h1 className="topbar-title">Transfer Stock</h1>
+        <h1 className="topbar-title">Materials Used</h1>
       </div>
 
       <div className="p-5">
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
         <div className="alert alert-info">
-          ℹ️ All transfers are logged and visible to your manager. Changes take effect immediately.
+          ℹ️ Record parts and consumables used on jobs here. Materials left on site stay allocated until used or returned.
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Transfer form — Client Component */}
-          {working.selectedId&&<TransferForm selectedVanId={working.selectedId} products={products} stockItems={stockItems} />}
+          {working.selectedId&&<TransferForm selectedVanId={working.selectedId} products={products} stockItems={stockItems} consumables={consumables} allocations={allocations} />}
 
           {/* Today's transfers */}
           <div className="card">
-            <h2 className="text-sm font-medium mb-3">Today's transfers</h2>
+            <h2 className="text-sm font-medium mb-3">Today's stock movements</h2>
             {todayEntries.length === 0 ? (
               <p className="text-sm text-gray-400">No transfers recorded today yet.</p>
             ) : (

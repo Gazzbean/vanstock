@@ -280,6 +280,52 @@ export async function adjustStock(payload: AdjustPayload,selectedVanId?:string) 
 
 // ── TRANSFERS ──────────────────────────────────────────────
 
+export async function recordJobMaterials(payload:{vanId:string;jobReference:string;mode:'used'|'allocated';siteLocation?:string;reason?:string;items:{product_id:string;quantity:number}[]}){
+ const working=await getWorkingVans(payload.vanId)
+ if(!working.selectedId||working.selectedId!==payload.vanId)return {error:'Choose an authorised Working Van'}
+ if(!payload.jobReference?.trim()||payload.jobReference.length>120)return {error:'Job or project reference required'}
+ if(!Array.isArray(payload.items)||payload.items.length<1||payload.items.length>50)return {error:'Add at least one material'}
+ if(payload.items.some(x=>!x.product_id||!Number.isFinite(x.quantity)||x.quantity<=0||x.quantity>=1000000000))return {error:'Invalid material quantity'}
+ if(payload.mode==='allocated'&&(!payload.siteLocation?.trim()||!payload.reason?.trim()))return {error:'Site location and reason are required for allocated materials'}
+ if(payload.mode!=='used'&&payload.mode!=='allocated')return {error:'Invalid action'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('record_job_materials',{
+  p_van_id:working.selectedId,p_job_reference:payload.jobReference.trim(),p_items:payload.items,
+  p_mode:payload.mode,p_site_location:payload.siteLocation?.trim()??null,p_reason:payload.reason?.trim()??null,
+ })
+ if(error)return {error:error.message}
+ for(const path of ['/transfer','/stock','/dashboard','/logs'])revalidatePath(path)
+ return {success:true}
+}
+
+export async function getJobMaterialAllocations(selectedVanId?:string){
+ const profile=await getCurrentProfile()
+ const access=await accessFor(profile)
+ if(!access.technician_access&&!access.office_access)return []
+ const db=createServerClient()
+ let query=db.from('job_material_allocations')
+  .select('id,van_id,product_id,quantity,job_reference,site_location,reason,created_at,status')
+  .eq('company_id',profile.company_id).eq('status','on_site').order('created_at',{ascending:false}).limit(100)
+ if(!access.office_access){
+  const working=await getWorkingVans(selectedVanId)
+  if(!working.selectedId)return []
+  query=query.eq('van_id',working.selectedId)
+ }
+ const {data,error}=await query
+ if(error)throw new Error('Could not load site allocations: '+error.message)
+ return data??[]
+}
+
+export async function resolveJobMaterialAllocation(allocationId:string,resolution:'used'|'returned'){
+ if(!allocationId||!['used','returned'].includes(resolution))return {error:'Invalid allocation resolution'}
+ await getCurrentProfile()
+ const session=await createSessionClient()
+ const {error}=await session.rpc('resolve_job_material_allocation',{p_allocation_id:allocationId,p_resolution:resolution})
+ if(error)return {error:error.message}
+ for(const path of ['/transfer','/stock','/dashboard','/logs'])revalidatePath(path)
+ return {success:true}
+}
+
 export async function recordTransfer(payload: TransferPayload,selectedVanId?:string) {
   const profile = await getCurrentProfile()
   const working=await getWorkingVans(selectedVanId)

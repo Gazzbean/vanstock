@@ -18,7 +18,7 @@ const navItems = [
   { href: '/stock',     label: 'My Van Stock',   icon: '📦' },
   { href: '/fleet',     label: 'Fleet Stock',    icon: '🚐' },
   { href: '/receive',   label: 'Receive Stock',   icon: '↓'  },
-  { href: '/transfer',  label: 'Transfer Stock',  icon: '⇄'  },
+  { href: '/transfer',  label: 'Materials Used',  icon: '⇄'  },
   { href: '/logs',      label: 'Transaction History',   icon: '☰'  },
   { href: '/warehouse', label: 'Warehouse', icon: '▣' },
   { href: '/admin',     label: 'Admin',          icon: '⚙'  },
