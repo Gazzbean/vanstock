@@ -1,9 +1,9 @@
 'use client'
 import {useState,useTransition} from 'react'
-import {useRouter,usePathname,useSearchParams} from 'next/navigation'
+import {usePathname,useSearchParams} from 'next/navigation'
 import {setWorkingVanSelection} from '@/lib/actions'
 export default function WorkingVanSelector({vans,selectedId,defaultId}:{vans:{id:string;van_number:string}[];selectedId:string|null;defaultId:string|null}){
- const router=useRouter(),path=usePathname(),params=useSearchParams()
+ const path=usePathname(),params=useSearchParams()
  const [pending,start]=useTransition()
  const [error,setError]=useState('')
  return <section className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-4">
@@ -18,8 +18,15 @@ export default function WorkingVanSelector({vans,selectedId,defaultId}:{vans:{id
       if(result.error){setError(result.error);return}
       const q=new URLSearchParams(params.toString())
       q.delete('van')
-      router.replace(path+(q.size?'?'+q.toString():''))
-      router.refresh()
+      // A complete navigation is deliberate: every server-rendered stock
+      // quantity and client-side entry must reload for the newly selected van.
+      // A replace + refresh in one React transition can reuse old form props.
+      const next=path+(q.size?'?'+q.toString():'')
+      if(next===window.location.pathname+window.location.search){
+       window.location.reload()
+      }else{
+       window.location.replace(next)
+      }
      }catch{setError('Could not change Working Van. Please retry.')}
     })
    }}>

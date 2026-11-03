@@ -8,8 +8,8 @@ import type {Product,StockItem} from '@/types'
 type Line={product_id:string;quantity:string}
 type Group={id:string;name:string;quick_1:number;quick_2:number;quick_3:number;quick_4:number}
 type Allocation={id:string;van_id:string;product_id:string;quantity:number;job_reference:string;site_location:string;reason:string;created_at:string;status:string}
-export default function TransferForm({products,stockItems,selectedVanId,consumables,allocations}:{
- products:Product[];stockItems:StockItem[];selectedVanId:string;
+export default function TransferForm({products,stockItems,selectedVanId,selectedVanNumber,consumables,allocations}:{
+ products:Product[];stockItems:StockItem[];selectedVanId:string;selectedVanNumber:string;
  consumables:{assignments:{product_id:string;group_id:string}[];groups:Group[]};allocations:Allocation[];
 }){
  const router=useRouter()
@@ -62,7 +62,7 @@ export default function TransferForm({products,stockItems,selectedVanId,consumab
  }
  return <div className="space-y-4">
   <section className="card">
-   <h2 className="text-sm font-semibold mb-1">Record job materials</h2>
+   <h2 className="text-sm font-semibold mb-1">Record job materials — {selectedVanNumber}</h2>
    <p className="text-xs text-gray-500 mb-3">Choose what happened to the materials. The office handles customer charging and project costs.</p>
    {error&&<div role="alert" className="alert alert-danger mb-3">{error}</div>}
    {message&&<div role="status" className="alert alert-success mb-3">{message}</div>}
