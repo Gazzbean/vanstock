@@ -11,22 +11,23 @@ type Bin={id:string;product_id:string;van_id:string|null;warehouse_id:string|nul
 type Location={id:string;name:string}
 type UsageGroup={id:string;name:string;unit:string;quick_1:number;quick_2:number;quick_3:number;quick_4:number}
 type UsageAssignment={product_id:string;group_id:string}
+type Hint={product_id:string;supplier_name:string;supplier_part_number:string|null}
 const purchaseUnits=[
   {value:'ea',label:'Each'}, {value:'pack',label:'Pack'}, {value:'box',label:'Box'},
   {value:'roll',label:'Roll'}, {value:'container',label:'Container'},
   {value:'cylinder',label:'Cylinder'}, {value:'kg',label:'Kilogram'}, {value:'m',label:'Metre'},
 ]
-export default function SupplierAndBinsPanel({products,suppliers,options,bins,vans,warehouses,usageGroups,usageAssignments}:{
+export default function SupplierAndBinsPanel({products,suppliers,options,bins,vans,warehouses,hints,usageGroups,usageAssignments}:{
  products:Product[];suppliers:Supplier[];options:Option[];bins:Bin[];
- vans:{id:string;van_number:string}[];warehouses:Location[];
+ vans:{id:string;van_number:string}[];warehouses:Location[];hints:Hint[];
  usageGroups:UsageGroup[];usageAssignments:UsageAssignment[]
 }){
  const router=useRouter()
- const [name,setName]=useState('')
+ const [name,setName]=useState(hints.find(h=>h.product_id===products[0]?.id)?.supplier_name??'')
  const [account,setAccount]=useState('')
- const [supplierId,setSupplierId]=useState(suppliers[0]?.id??'')
+ const [supplierId,setSupplierId]=useState(options.find(x=>x.product_id===products[0]?.id && x.preferred && x.active)?.supplier_id??options.find(x=>x.product_id===products[0]?.id && x.active)?.supplier_id??suppliers.find(s=>s.name.trim().toLowerCase()===hints.find(h=>h.product_id===products[0]?.id)?.supplier_name.trim().toLowerCase())?.id??suppliers[0]?.id??'')
  const [productId,setProductId]=useState(products[0]?.id??'')
- const [supplierCode,setSupplierCode]=useState('')
+ const [supplierCode,setSupplierCode]=useState(hints.find(h=>h.product_id===products[0]?.id)?.supplier_part_number??'')
  const [packageLabel,setPackageLabel]=useState('')
  const [purchaseUnit,setPurchaseUnit]=useState('pack')
  const [conversion,setConversion]=useState('')
@@ -39,6 +40,7 @@ export default function SupplierAndBinsPanel({products,suppliers,options,bins,va
  const [packageBusy,startPackage]=useTransition()
  const [binBusy,startBin]=useTransition()
  const supplierOptions=options.filter(x=>x.product_id===productId)
+ const supplierHint=hints.find(h=>h.product_id===productId)
  const selectedProduct=products.find(p=>p.id===productId)
  const stockUnit=selectedProduct?.stock_unit??'ea'
  const validConversion=conversion.trim()!==''&&isValidPackageConversion(Number(conversion),stockUnit)
@@ -49,6 +51,12 @@ export default function SupplierAndBinsPanel({products,suppliers,options,bins,va
  function chooseProduct(id:string){
   setProductId(id);chooseLocation(loc,id);setPackageStatus('')
   setPackageLabel('');setSupplierCode('');setConversion(purchaseUnit==='ea'?'1':'')
+  const preferred=options.find(x=>x.product_id===id && x.preferred && x.active)??options.find(x=>x.product_id===id && x.active)
+  const hint=hints.find(h=>h.product_id===id)
+  const match=suppliers.find(s=>s.name.trim().toLowerCase()===hint?.supplier_name.trim().toLowerCase())
+  if(preferred)setSupplierId(preferred.supplier_id)
+  else if(match)setSupplierId(match.id)
+  if(hint){setSupplierCode(hint.supplier_part_number??'');setName(hint.supplier_name)}
  }
  function saveSupplier(){
   setSupplierStatus('')
@@ -97,6 +105,8 @@ export default function SupplierAndBinsPanel({products,suppliers,options,bins,va
       {products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
      </select>
      <label className="form-label" htmlFor="package-supplier">Supplier</label>
+     <p className="text-xs text-gray-500 mb-1">The existing preferred supplier is selected when one is recorded. Otherwise, choose a supplier to configure a new purchasing option.</p>
+     {supplierHint&&<p className="text-xs text-blue-700 mb-1">Imported supplier: {supplierHint.supplier_name}. Confirm or add this supplier before creating a purchase package.</p>}
      <select id="package-supplier" className="form-input" value={supplierId} onChange={e=>setSupplierId(e.target.value)}>
       {suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
      </select>

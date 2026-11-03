@@ -85,7 +85,7 @@ export default function AddProductModal() {
                 </div>
               </div>
               <div>
-                <label className="form-label">Minimum stock ({stockUnit})</label>
+                <label className="form-label">Default van minimum ({stockUnit})</label>
                 <input className="form-input" type="number" min="0"
                   step={stockUnit === 'kg' || stockUnit === 'm' ? '0.01' : '1'}
                   value={minStock} onChange={e => setMinStock(e.target.value)} />

@@ -3,7 +3,7 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities, getUserAuthorizedVans } from '@/lib/actions'
+import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities, getUserAuthorizedVans, getWarehouseStockStandards } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import EditProductModal from '@/components/EditProductModal'
@@ -18,6 +18,9 @@ import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
 import AdminTabbedSections from '@/components/AdminTabbedSections'
 import UsersAccessPanel from '@/components/UsersAccessPanel'
 import AuthorizedVansPanel from '@/components/AuthorizedVansPanel'
+import ProductCatalogueTable from '@/components/ProductCatalogueTable'
+import VehicleRegisterPanel from '@/components/VehicleRegisterPanel'
+import WarehouseStandardsPanel from '@/components/WarehouseStandardsPanel'
 
 export default async function AdminPage() {
   const user = await getCurrentUserDisplay()
@@ -27,7 +30,7 @@ export default async function AdminPage() {
       <div className="p-5"><div className="card"><h2 className="text-sm font-medium">Manager access required</h2>
       <p className="text-sm text-gray-500 mt-2">You do not have permission to access administration.</p></div></div></div>
   }
-  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities, userVans] = await Promise.all([
+  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities, userVans, warehouseStandards] = await Promise.all([
     getAdminProducts(),
     getAdminData(),
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
@@ -38,6 +41,7 @@ export default async function AdminPage() {
     getConsumablesAssignments(),
     getUserAccessCapabilities(),
     getUserAuthorizedVans(),
+    getWarehouseStockStandards(),
   ])
   const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED === 'true'
   return (
@@ -52,54 +56,24 @@ export default async function AdminPage() {
               <h2 className="text-sm font-medium">Product catalogue</h2>
               <AddProductModal />
             </div>
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className="table-header">Name</th>
-                  <th className="table-header">Category</th>
-                  <th className="table-header">Unit</th>
-                  <th className="table-header">Min</th>
-                  <th className="table-header w-12"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="table-cell font-medium">{p.name}{p.archived_at && <span className="text-xs text-gray-500 ml-2">(Archived)</span>}</td>
-                    <td className="table-cell">
-                      <span className="badge badge-gray">{p.category}</span>
-                    </td>
-                    <td className="table-cell text-gray-500">{p.stock_unit ?? "ea"}</td>
-                    <td className="table-cell text-gray-400">{p.min_stock}</td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-2"><EditProductModal product={p} /><RemoveProductButton productId={p.id} archived={!!p.archived_at} enabled={archiveEnabled} /></div>
-                    </td>
-                  </tr>
-                ))}
-                {products.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="table-cell text-center text-gray-400 py-4">
-                      No products yet. Add one above.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <ProductCatalogueTable products={products} archiveEnabled={archiveEnabled}/>
           </div>
 
 </div>
   <CatalogueSettingsPanel products={products.map(p=>({id:p.id,name:p.name}))} settings={phase1.settings} groups={phase1.groups} />
   <CatalogueImport />
 </div></>}
-          suppliers={<SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} usageGroups={consumablesAssignments.groups} usageAssignments={consumablesAssignments.assignments} />}
+          suppliers={<SupplierAndBinsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} suppliers={phase1b.suppliers} options={phase1b.options} bins={phase1b.bins} vans={phase1b.vans} warehouses={phase1b.warehouses} hints={phase1b.hints} usageGroups={consumablesAssignments.groups} usageAssignments={consumablesAssignments.assignments} />}
           standards={<>
             <VanStockStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} />
+            <WarehouseStandardsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} warehouses={phase1b.warehouses} standards={warehouseStandards}/>
             <FleetStandardsOverview products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} vans={phase1b.vans} standards={vanStandards} balances={fleetBalances} />
           </>}
           consumables={<ConsumablesAssignmentsPanel products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit,archived_at:p.archived_at}))} groups={consumablesAssignments.groups} assignments={consumablesAssignments.assignments} />}
           access={<><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">          <div className="space-y-4">
-            <UsersAccessPanel canEdit={user.role === 'admin'} vans={vans.map((v:any)=>({id:v.id,van_number:v.van_number}))} capabilities={capabilities} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,is_active:p.is_active!==false,van_number:p.van?.van_number??null}))} />
-            <AuthorizedVansPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,van_id:p.van_id??null}))} vans={vans.map((v:any)=>({id:v.id,van_number:v.van_number}))} initial={userVans} />
+            <UsersAccessPanel canEdit={user.role === 'admin'} vans={vans.filter((v:any)=>v.active!==false).map((v:any)=>({id:v.id,van_number:v.van_number}))} capabilities={capabilities} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,is_active:p.is_active!==false,van_number:p.van?.van_number??null}))} />
+            <AuthorizedVansPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,van_id:p.van_id??null}))} vans={vans.filter((v:any)=>v.active!==false).map((v:any)=>({id:v.id,van_number:v.van_number}))} initial={userVans} />
+            <VehicleRegisterPanel canEdit={user.role === 'admin'} vans={vans} />
             {/* Summary stats */}
             <div className="card">
               <h2 className="text-sm font-medium mb-3">System summary</h2>

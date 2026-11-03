@@ -129,7 +129,7 @@ export async function getWorkingVans(selectedVanId?:string){
   if(selectedVanId)throw new Error('You are not authorised to access that van')
   return {vans:[] as {id:string;van_number:string}[],selectedId:null as string|null,defaultId:null as string|null}
  }
- const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',profile.company_id).in('id',ids).order('van_number')
+ const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',profile.company_id).eq('active',true).in('id',ids).order('van_number')
  if(vanError)throw new Error(vanError.message)
  const authorised=(vans??[]).map(v=>v.id)
  const rawSaved=cookies().get(workingVanCookie)?.value??''
@@ -408,6 +408,95 @@ export async function getAdminData() {
   if(vansError)throw new Error('Could not load service vans: '+vansError.message)
   if(!Array.isArray(profiles))throw new Error('Unexpected staff directory response')
   return {vans:vans??[],profiles}
+}
+
+type VehicleInput = {van_number:string;registration:string;make:string;model:string;colour:string;fuel_type:string}
+export async function getWarehouseStockStandards(){
+  const actor=await getCurrentProfile()
+  if(!['admin','manager'].includes(actor.role)&&!(await accessFor(actor)).office_access)
+    throw new Error('Office access required')
+  const db=createServerClient()
+  const {data,error}=await db.from('warehouse_stock_standards')
+    .select('warehouse_id,product_id,min_quantity,target_quantity').eq('company_id',actor.company_id)
+  if(error)throw new Error('Could not load warehouse stock thresholds: '+error.message)
+  return data??[]
+}
+export async function saveWarehouseStockStandard(warehouseId:string,productId:string,minimum:number,target:number){
+  const actor=await getCurrentProfile()
+  if(!['admin','manager'].includes(actor.role))return {error:'Manager access required'}
+  if(!Number.isFinite(minimum)||!Number.isFinite(target)||minimum<0||target<minimum||target>=1000000000||
+    Math.abs(minimum*100-Math.round(minimum*100))>1e-7||Math.abs(target*100-Math.round(target*100))>1e-7)
+    return {error:'Enter a valid warehouse minimum and target.'}
+  const session=await createSessionClient()
+  const [warehouse,product]=await Promise.all([
+    session.from('warehouses').select('id').eq('company_id',actor.company_id).eq('id',warehouseId).maybeSingle(),
+    session.from('products').select('stock_unit,archived_at').eq('company_id',actor.company_id).eq('id',productId).maybeSingle(),
+  ])
+  if(warehouse.error||product.error||!warehouse.data||!product.data||product.data.archived_at)
+    return {error:'Select an active product and a valid warehouse.'}
+  if(!['kg','m'].includes(product.data.stock_unit??'ea')&&(!Number.isSafeInteger(minimum)||!Number.isSafeInteger(target)))
+    return {error:'Counted stock requires whole-number thresholds.'}
+  const {error}=await session.from('warehouse_stock_standards').upsert({
+    company_id:actor.company_id,warehouse_id:warehouseId,product_id:productId,
+    min_quantity:minimum,target_quantity:target,updated_at:new Date().toISOString(),
+  },{onConflict:'warehouse_id,product_id'})
+  if(error)return {error:error.message}
+  revalidatePath('/admin');revalidatePath('/warehouse')
+  return {success:true}
+}
+const vehicleFuels=['diesel','petrol','hybrid','electric','lpg','other']
+export async function saveVehicle(id:string|null,input:VehicleInput):Promise<{error?:string;success?:true}> {
+  const actor=await getCurrentProfile()
+  if(actor.role!=='admin')return {error:'Administrator access required.'}
+  if(!input||typeof input!=='object')return {error:'Invalid vehicle details.'}
+  const fields=['van_number','registration','make','model','colour','fuel_type'] as const
+  if(fields.some(f=>typeof input[f]!=='string'))return {error:'Invalid vehicle details.'}
+  const van_number=input.van_number.trim(),registration=input.registration.trim().toUpperCase()
+  const make=input.make.trim(),model=input.model.trim(),colour=input.colour.trim(),fuel_type=input.fuel_type
+  if(!van_number||van_number.length>40||registration.length>20||make.length>80||model.length>80||colour.length>40||
+    (fuel_type&&!vehicleFuels.includes(fuel_type)))return {error:'Check vehicle name, registration and other fields.'}
+  const db=createServerClient()
+  const values={van_number,registration:registration||null,make:make||null,model:model||null,colour:colour||null,fuel_type:fuel_type||null}
+  if(id){
+    const {data,error}=await db.from('vans').update(values).eq('id',id).eq('company_id',actor.company_id).select('id').maybeSingle()
+    if(error)return {error:error.code==='23505'?'Van number or registration already exists.':error.message}
+    if(!data)return {error:'Vehicle not found in your company.'}
+  }else{
+    const {error}=await db.from('vans').insert({...values,company_id:actor.company_id})
+    if(error)return {error:error.code==='23505'?'Van number or registration already exists.':error.message}
+  }
+  revalidatePath('/admin');return {success:true}
+}
+
+// Deactivation is reversible; identifiers and historical movements are never deleted.
+export async function deactivateVehicle(id:string):Promise<{error?:string;success?:true}>{
+  const actor=await getCurrentProfile()
+  if(actor.role!=='admin')return {error:'Administrator access required.'}
+  const db=createServerClient()
+  const {data:van,error:vanError}=await db.from('vans').select('id,active').eq('id',id).eq('company_id',actor.company_id).maybeSingle()
+  if(vanError||!van)return {error:'Vehicle not found.'}
+  if(!van.active)return {success:true}
+  const [stock,profiles,assignments,requests]=await Promise.all([
+    db.from('stock').select('id').eq('van_id',id).neq('quantity',0).limit(1),
+    db.from('profiles').select('id').eq('van_id',id).limit(1),
+    db.from('user_authorized_vans').select('user_id').eq('van_id',id).limit(1),
+    db.from('warehouse_replenishment_requests').select('id').eq('van_id',id).in('status',['pending','approved']).limit(1),
+  ])
+  if(stock.error||profiles.error||assignments.error||requests.error)return {error:'Could not verify stock, requests and assignments. No changes made.'}
+  if(stock.data?.length||profiles.data?.length||assignments.data?.length||requests.data?.length)
+    return {error:'Clear remaining stock, pending replenishments and default/authorised user assignments before deactivating this van.'}
+  const {error}=await db.from('vans').update({active:false}).eq('id',id).eq('company_id',actor.company_id)
+  if(error)return {error:error.message}
+  revalidatePath('/admin');return {success:true}
+}
+export async function reactivateVehicle(id:string):Promise<{error?:string;success?:true}>{
+  const actor=await getCurrentProfile()
+  if(actor.role!=='admin')return {error:'Administrator access required.'}
+  const db=createServerClient()
+  const {data,error}=await db.from('vans').update({active:true}).eq('id',id).eq('company_id',actor.company_id).select('id').maybeSingle()
+  if(error)return {error:error.message}
+  if(!data)return {error:'Vehicle not found.'}
+  revalidatePath('/admin');return {success:true}
 }
 // ============================================================
 // ADD THIS FUNCTION to your existing lib/actions.ts file
@@ -780,6 +869,11 @@ type CatalogueImportItem = {
   category: string
   stock_unit: 'ea'|'kg'|'m'|'pack'|'container'
   min_stock: number
+  tracking_type?: 'stocked'|'bulk_consumable'|'cylinder'|'kit'|'reference_only'|'billing_only'
+  servicem8_item_number?: string
+  servicem8_material_uuid?: string
+  supplier_name?: string
+  supplier_part_number?: string
 }
 
 // One request, one database INSERT: either all validated products are created or none.
@@ -791,12 +885,19 @@ export async function importProductCatalogue(items: CatalogueImportItem[]) {
     return { error: 'Import between 1 and 200 products at a time.' }
   }
   const allowedUnits = ['ea','kg','m','pack','container']
+  const allowedTracking = ['stocked','bulk_consumable','cylinder','kit','reference_only','billing_only']
   const normalized = new Set<string>()
   for (const item of items) {
     if (typeof item?.name !== 'string' || !item.name.trim() ||
         item.name.trim().length > 200 || typeof item.category !== 'string' ||
         !item.category.trim() || item.category.trim().length > 100 ||
         !allowedUnits.includes(item.stock_unit) ||
+        (item.tracking_type!==undefined && !allowedTracking.includes(item.tracking_type)) ||
+        (item.servicem8_item_number!==undefined && (typeof item.servicem8_item_number!=='string'||item.servicem8_item_number.length>120)) ||
+        (item.servicem8_material_uuid!==undefined && (typeof item.servicem8_material_uuid!=='string'||item.servicem8_material_uuid.length>120)) ||
+        (item.supplier_name!==undefined && (typeof item.supplier_name!=='string'||item.supplier_name.length>120)) ||
+        (item.supplier_part_number!==undefined && (typeof item.supplier_part_number!=='string'||item.supplier_part_number.length>120)) ||
+        (item.supplier_part_number?.trim()&&!item.supplier_name?.trim()) ||
         !Number.isFinite(item.min_stock) || item.min_stock < 0 ||
         item.min_stock >= 1000000000 ||
         Math.abs(item.min_stock*100-Math.round(item.min_stock*100)) > 1e-7 ||
@@ -815,6 +916,14 @@ export async function importProductCatalogue(items: CatalogueImportItem[]) {
   const names = new Set((existing ?? []).map(item => item.name.trim().toLowerCase()))
   const duplicate = items.find(item => names.has(item.name.trim().toLowerCase()))
   if (duplicate) return { error: 'Already exists in catalogue (including archived items): '+duplicate.name }
+  const advanced=items.some(item=>item.tracking_type||item.servicem8_item_number||item.servicem8_material_uuid||item.supplier_name||item.supplier_part_number)
+  if(advanced){
+    const session=await createSessionClient()
+    const {data,error}=await session.rpc('vanstock_import_catalogue_metadata',{p_items:items})
+    if(error)return {error:'Extended import failed; no products should have been created. '+error.message}
+    revalidatePath('/admin');revalidatePath('/warehouse')
+    return {success:true,imported:Number(data)}
+  }
   const { error } = await db.from('products').insert(items.map(item => ({
     company_id: profile.company_id,
     name: item.name.trim(),
@@ -931,15 +1040,16 @@ export async function getPhase1BSupplierData(){
  const p=await getCurrentProfile()
  if(!['admin','manager'].includes(p.role))throw new Error('Manager access required')
  const db=createServerClient()
- const [suppliers,options,bins,vans,warehouses]=await Promise.all([
+ const [suppliers,options,bins,vans,warehouses,hints]=await Promise.all([
    db.from('suppliers').select('id,name,account_number,active').eq('company_id',p.company_id).order('name'),
     db.from('supplier_product_options').select('id,product_id,supplier_id,supplier_code,package_label,purchase_unit,units_per_package,preferred,active').eq('company_id',p.company_id),
    db.from('product_bins').select('id,product_id,van_id,warehouse_id,bin_label').eq('company_id',p.company_id),
-   db.from('vans').select('id,van_number').eq('company_id',p.company_id).order('van_number'),
+   db.from('vans').select('id,van_number').eq('company_id',p.company_id).eq('active',true).order('van_number'),
    db.from('warehouses').select('id,name').eq('company_id',p.company_id).order('name'),
+   db.from('product_import_supplier_hints').select('product_id,supplier_name,supplier_part_number').eq('company_id',p.company_id),
  ])
- for(const r of [suppliers,options,bins,vans,warehouses])if(r.error)throw new Error(r.error.message)
- return {suppliers:suppliers.data??[],options:options.data??[],bins:bins.data??[],vans:vans.data??[],warehouses:warehouses.data??[]}
+ for(const r of [suppliers,options,bins,vans,warehouses,hints])if(r.error)throw new Error(r.error.message)
+ return {suppliers:suppliers.data??[],options:options.data??[],bins:bins.data??[],vans:vans.data??[],warehouses:warehouses.data??[],hints:hints.data??[]}
 }
 export async function addCatalogueSupplier(name:string,accountNumber:string){
  const p=await getCurrentProfile()
@@ -1035,7 +1145,7 @@ export async function saveVanStockStandard(
    return {error:'Optional and Not assigned items do not have routine stock targets'}
  const session=await createSessionClient()
  const [van,product]=await Promise.all([
-   session.from('vans').select('id').eq('id',vanId).eq('company_id',p.company_id).maybeSingle(),
+   session.from('vans').select('id').eq('id',vanId).eq('company_id',p.company_id).eq('active',true).maybeSingle(),
    session.from('products').select('id,stock_unit,archived_at').eq('id',productId).eq('company_id',p.company_id).maybeSingle(),
  ])
  if(van.error||product.error)return {error:'Could not verify van or product'}
@@ -1059,7 +1169,7 @@ export async function getFleetStockOverview(){
  const p=await getCurrentProfile()
  if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
  const db=createServerClient()
- const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',p.company_id).order('van_number')
+ const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',p.company_id).eq('active',true).order('van_number')
  if(vanError)throw new Error(vanError.message)
  if(!vans?.length)return []
  const {data:rows,error}=await db.from('stock').select('van_id,product_id,quantity').in('van_id',vans.map(v=>v.id))
@@ -1192,7 +1302,7 @@ export async function getReceiveStockBalance(productId:string,destinationType:'v
  const [product,location]=await Promise.all([
   db.from('products').select('id').eq('company_id',profile.company_id).eq('id',productId).maybeSingle(),
   destinationType==='van'
-   ?db.from('vans').select('id').eq('company_id',profile.company_id).eq('id',destinationId).maybeSingle()
+   ?db.from('vans').select('id').eq('company_id',profile.company_id).eq('active',true).eq('id',destinationId).maybeSingle()
    :db.from('warehouses').select('id').eq('company_id',profile.company_id).eq('id',destinationId).maybeSingle(),
  ])
  if(product.error||location.error||!product.data||!location.data)throw new Error('Product or receiving location not found')
@@ -1217,7 +1327,7 @@ export async function getRecentStockReceipts(selectedVanId?:string){
    (permissions.office_access?db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id):db.from('loose_item_receipts').select('id,product_id,supplier_id,destination_type,van_id,warehouse_id,quantity,docket,created_at,received_by').eq('company_id',profile.company_id).eq('van_id',viewVan)).order('created_at',{ascending:false}).limit(15),
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
-  Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
+  Promise.all([db.from('vans').select('id,van_number').eq('company_id',profile.company_id).eq('active',true),db.from('warehouses').select('id,name').eq('company_id',profile.company_id)]),
   db.from('profiles').select('id,full_name,initials').eq('company_id',profile.company_id),
  ])
  const [vans,warehouses]=locations
@@ -1278,7 +1388,7 @@ export async function getTransactionHistory(startDate?:string,endDate?:string,ty
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id),
   db.from('suppliers').select('id,name').eq('company_id',profile.company_id),
   db.from('profiles').select('id,full_name,initials').eq('company_id',profile.company_id),
-  db.from('vans').select('id,van_number').eq('company_id',profile.company_id),
+  db.from('vans').select('id,van_number').eq('company_id',profile.company_id).eq('active',true),
   db.from('warehouses').select('id,name').eq('company_id',profile.company_id),
  ])
  const error=activities.error||packs.error||loose.error||products.error||suppliers.error||people.error||vans.error||warehouses.error
@@ -1359,7 +1469,7 @@ export async function getReceivingSetup(selectedVanId?:string){
   db.from('products').select('id,name,stock_unit,archived_at').eq('company_id',p.company_id).is('archived_at',null).order('name'),
   db.from('suppliers').select('id,name,active').eq('company_id',p.company_id).eq('active',true).order('name'),
     db.from('supplier_product_options').select('id,product_id,supplier_id,package_label,purchase_unit,units_per_package').eq('company_id',p.company_id).eq('active',true),
-  db.from('vans').select('id,van_number').eq('company_id',p.company_id),
+  db.from('vans').select('id,van_number').eq('company_id',p.company_id).eq('active',true),
   db.from('warehouses').select('id,name').eq('company_id',p.company_id),
  ])
  for(const result of [products,suppliers,options,vans,warehouses])if(result.error)throw new Error(result.error.message)
@@ -1430,7 +1540,7 @@ export async function inviteVanStockUser(details:{
  const db=createServerClient()
  const [{data:existingInitials,error:initialsError},{data:vans,error:vansError}]=await Promise.all([
   db.from('profiles').select('id').eq('company_id',actor.company_id).eq('initials',initials).limit(1),
-  ids.length?db.from('vans').select('id').eq('company_id',actor.company_id).in('id',ids):Promise.resolve({data:[],error:null}),
+  ids.length?db.from('vans').select('id').eq('company_id',actor.company_id).eq('active',true).in('id',ids):Promise.resolve({data:[],error:null}),
  ])
  if(initialsError||vansError)return {error:'Could not validate the invitation; please retry'}
  if(existingInitials?.length)return {error:'Initials already assigned to another user'}
