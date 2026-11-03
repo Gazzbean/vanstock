@@ -5,13 +5,14 @@ import { redirect } from 'next/navigation'
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests } from '@/lib/actions'
+import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseOperationLocations } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import AdjustStockModal from '@/components/AdjustStockModal'
 import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
+import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
   const user=await getCurrentUserDisplay()
@@ -27,6 +28,8 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
   const [requestWarehouses,requests]=warehouseRights.canRequest
     ? await Promise.all([getWarehouseRequestLocations(),getWarehouseRequests()])
     : [[],[]]
+  const movementWarehouses=(warehouseRights.canIssue||warehouseRights.canReceive)
+    ? await getWarehouseOperationLocations():[]
 
   return (
     <div>
@@ -103,6 +106,12 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
           <WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId}/>
           <WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={false}/>
         </>}
+        {(warehouseRights.canIssue||warehouseRights.canReceive)&&<TechnicianWarehouseMovement
+          warehouses={movementWarehouses}
+          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
+          defaultVanId={working.defaultId}
+          canIssue={warehouseRights.canIssue} canReceive={warehouseRights.canReceive}
+        />}
       </div>
     </div>
   )

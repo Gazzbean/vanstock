@@ -12,14 +12,16 @@
 ## Permission policy and limitation
 
 - `can_request` is enforced in the server action **and** database RPC for technicians.
-- Existing `move_warehouse_van_stock` remains the authority for physical stock transfers; managers and administrators retain their existing role-based access. Its legacy technician branch already checks `can_issue`/`can_receive` for the **default** van. The new request form uses the separately maintained authorised working-van list.
-- `can_adjust` and `can_stocktake` settings have not yet been migrated into the legacy database adjustment/opening stock functions. Do **not** describe all six tick boxes as fully implemented capabilities until that separate permission audit and migration are complete.
+- `vanstock_warehouse_move`, `vanstock_warehouse_adjust` and `vanstock_warehouse_opening_stock` are newly permission-gated entry points. The old RPCs lose direct `authenticated` execution rights. Existing stock movement and audit logic is preserved inside the legacy functions, called by the wrappers.
+- `can_issue` and `can_receive` are checked in the UI, server actions and SQL wrappers. A technician with an explicit grant can use a limited stock movement form on My Van Stock, **only for their assigned default van**. Managers and administrators retain their existing role-based warehouse authority. The request form separately supports authorised temporary working vans.
+- `can_adjust` and `can_stocktake` remain management-only. Their technician checkboxes are disabled rather than suggesting an unimplemented privilege. A technician counting/adjustment workflow needs separate design and review.
 - The existing direct warehouse-to-van form remains available to management alongside the new request queue for controlled corrections and direct wholesaler collections. Consider whether direct replenishment should require an approved request before production.
 
 ## Release checklist
 
 - Back up live Supabase and test the migration first; verify existing inventory and logged movements are unchanged.
-- Confirm the appropriate role/permission policy for manager, office and technician warehouse operations; reconcile the legacy RPCs with the permission register before enabling warehouse writes.
+- Confirm the approved policy for office-only staff and technician access to temporary vans before broadening the management-only functions.
+- Verify old direct RPCs are no longer callable as `authenticated`, while manager wrappers and approved technician issue/receive calls still succeed and preserve audit attribution.
 - Verify technician request, unauthorised-van denial, manager approval, rejection, insufficient warehouse stock, duplicate fulfilment, ledger attribution and reports in a preview environment.
 - Deploy application and migration together only after Garry's explicit review and approval. Keep `WAREHOUSE_WRITES_ENABLED=false` until fulfilment is verified.
 

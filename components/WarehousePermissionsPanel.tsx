@@ -22,8 +22,8 @@ const options: { key: keyof Permissions; label: string; description: string }[] 
   { key: 'can_request', label: 'Request replenishment', description: 'Request stock from warehouse' },
   { key: 'can_issue', label: 'Issue warehouse stock', description: 'Move stock from warehouse to a van' },
   { key: 'can_receive', label: 'Receive warehouse returns', description: 'Receive returned stock from a van' },
-  { key: 'can_adjust', label: 'Adjust warehouse balances', description: 'Correct quantities with a recorded reason' },
-  { key: 'can_stocktake', label: 'Perform warehouse stocktakes', description: 'Carry out counts and submit variances' },
+  { key: 'can_adjust', label: 'Adjust warehouse balances (reserved)', description: 'Management approval required; technician workflow not yet enabled' },
+  { key: 'can_stocktake', label: 'Perform warehouse stocktakes (reserved)', description: 'Management approval required; technician count-and-approval workflow is pending' },
 ]
 
 export default function WarehousePermissionsPanel({ users, saved }: { users: User[]; saved: Row[] }) {
@@ -52,7 +52,9 @@ export default function WarehousePermissionsPanel({ users, saved }: { users: Use
     setError('')
     startTransition(async () => {
       try {
-        const result = await saveWarehousePermissions(userId, {...permissions,can_view:effectiveView})
+        const result = await saveWarehousePermissions(userId, {
+          ...permissions,can_view:effectiveView,can_adjust:false,can_stocktake:false,
+        })
         if (result.error) setError(result.error)
         else setMessage('Warehouse permission settings saved and audited.')
       } catch {
@@ -86,9 +88,9 @@ export default function WarehousePermissionsPanel({ users, saved }: { users: Use
                   <span className="block text-sm font-medium">{label}</span>
                   <span className="block text-xs text-gray-500">{description}</span>
                 </span>
-                <input type="checkbox" checked={key==='can_view'?effectiveView:permissions[key]}
+                <input type="checkbox" checked={key==='can_view'?effectiveView:(['can_adjust','can_stocktake'].includes(key)?false:permissions[key])}
                   onChange={(e) => setPermissions((prev) => ({ ...prev, [key]: e.target.checked }))}
-                  disabled={isPending || key==='can_view'} aria-label={label} />
+                  disabled={isPending || key==='can_view' || key==='can_adjust' || key==='can_stocktake'} aria-label={label} />
               </label>
             ))}
           </div>

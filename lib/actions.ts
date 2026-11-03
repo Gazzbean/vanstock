@@ -472,8 +472,10 @@ export async function getMyWarehouseRights() {
     canRequest: manager || Boolean(data?.can_request),
     canIssue: manager || Boolean(data?.can_issue),
     canReceive: manager || Boolean(data?.can_receive),
-    canAdjust: manager || Boolean(data?.can_adjust),
-    canStocktake: manager || Boolean(data?.can_stocktake),
+    // Physical count reconciliation remains management-only until the
+    // independent technician stocktake workflow is designed and tested.
+    canAdjust: manager,
+    canStocktake: manager,
     canManageRequests: manager,
   }
 }
@@ -506,6 +508,17 @@ export async function getWarehouseRequestLocations() {
     if(error.code==='42P01'||error.code==='PGRST205')return []
     throw new Error('Could not load warehouse locations: '+error.message)
   }
+  return data??[]
+}
+
+export async function getWarehouseOperationLocations() {
+  const rights=await getMyWarehouseRights()
+  if (!rights.canIssue && !rights.canReceive) return []
+  const profile=await getCurrentProfile()
+  const db=createServerClient()
+  const {data,error}=await db.from('warehouses').select('id,name')
+    .eq('company_id',profile.company_id).order('name')
+  if (error) throw new Error('Could not load warehouse locations: '+error.message)
   return data??[]
 }
 
@@ -650,7 +663,7 @@ export async function postWarehouseOpeningStock(
     return { error: 'Complete the warehouse, product, quantity and stocktake reference.' }
   }
   const session = await createSessionClient()
-  const { error } = await session.rpc('post_warehouse_opening_stock', {
+  const { error } = await session.rpc('vanstock_warehouse_opening_stock', {
     p_warehouse_id: warehouseId,
     p_product_id: productId,
     p_count: quantity,
@@ -670,15 +683,19 @@ export async function transferWarehouseToVan(
     return { error: 'Warehouse replenishment is not yet enabled.' }
   }
   const profile = await getCurrentProfile()
-  if (!['admin', 'manager'].includes(profile.role)) {
+  const rights = await getMyWarehouseRights()
+  if (!rights.canIssue) {
     return { error: 'Warehouse issue permission required.' }
+  }
+  if (!['admin','manager'].includes(profile.role) && profile.van_id !== vanId) {
+    return { error: 'Technicians may only issue stock to their assigned default van.' }
   }
   if (!warehouseId || !vanId || !productId || !reference?.trim() ||
       !Number.isFinite(quantity) || quantity <= 0) {
     return { error: 'Complete the warehouse, receiving van, product, quantity and reference.' }
   }
   const session = await createSessionClient()
-  const { error } = await session.rpc('move_warehouse_van_stock', {
+  const { error } = await session.rpc('vanstock_warehouse_move', {
     p_warehouse_id: warehouseId,
     p_van_id: vanId,
     p_product_id: productId,
@@ -703,14 +720,18 @@ export async function returnVanStockToWarehouse(
 ) {
   if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') return { error: 'Warehouse operations disabled.' }
   const profile = await getCurrentProfile()
-  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  const rights = await getMyWarehouseRights()
+  if (!rights.canReceive) return { error: 'Warehouse receive permission required.' }
+  if (!['admin','manager'].includes(profile.role) && profile.van_id !== vanId) {
+    return { error: 'Technicians may only return stock from their assigned default van.' }
+  }
   if (!warehouseId || !vanId || !productId || !reference?.trim() ||
       !Number.isFinite(quantity) || quantity <= 0 ||
       Math.abs(quantity * 100 - Math.round(quantity * 100)) > 1e-7) {
     return { error: 'Enter a valid return quantity (up to two decimal places) and reference.' }
   }
   const session = await createSessionClient()
-  const { error } = await session.rpc('move_warehouse_van_stock', {
+  const { error } = await session.rpc('vanstock_warehouse_move', {
     p_warehouse_id: warehouseId, p_van_id: vanId,
     p_product_id: productId, p_quantity: quantity,
     p_direction: 'van-to-warehouse', p_reference: reference.trim(), p_notes: '',
@@ -734,7 +755,7 @@ export async function adjustWarehouseStock(
     return { error: 'Enter a valid adjustment quantity and reference.' }
   }
   const session = await createSessionClient()
-  const { error } = await session.rpc('adjust_warehouse_stock', {
+  const { error } = await session.rpc('vanstock_warehouse_adjust', {
     p_warehouse_id: warehouseId, p_product_id: productId,
     p_operation: operation, p_quantity: quantity, p_reference: reference.trim(),
   })
