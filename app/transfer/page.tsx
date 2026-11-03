@@ -42,7 +42,7 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
   return (
     <div>
       <div className="topbar">
-        <h1 className="topbar-title">Materials Used</h1>
+        <h1 className="topbar-title">Materials Used{working.selectedId ? ` — ${working.vans.find(v=>v.id===working.selectedId)?.van_number??'Working Van'}` : ''}</h1>
       </div>
 
       <div className="p-5">
@@ -53,7 +53,7 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
 
         <div className="grid grid-cols-2 gap-4">
           {/* Transfer form — Client Component */}
-          {working.selectedId&&<TransferForm selectedVanId={working.selectedId} products={products} stockItems={stockItems} consumables={consumables} allocations={allocations} />}
+          {working.selectedId&&<TransferForm key={working.selectedId} selectedVanId={working.selectedId} selectedVanNumber={working.vans.find(v=>v.id===working.selectedId)?.van_number??'Working Van'} products={products} stockItems={stockItems} consumables={consumables} allocations={allocations} />}
 
           {/* Today's transfers */}
           <div className="card">
