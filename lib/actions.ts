@@ -16,6 +16,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServerClient, createSessionClient } from './supabase'
 import { isValidPackageConversion } from './package-conversion'
+import { validQuickUseOptions } from './consumable-presets'
 import type { TransferPayload, AdjustPayload } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────
@@ -755,11 +756,13 @@ export async function saveCatalogueSettings(productId:string,trackingType:string
 export async function saveConsumablesGroup(groupId:string,quantities:number[]){
  const p=await getCurrentProfile()
  if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
- if(!Array.isArray(quantities)||quantities.length!==4
- || quantities.some(q=>!Number.isFinite(q)||q<=0||q>=1000000000||Math.abs(q*100-Math.round(q*100))>1e-7)
- || quantities.some((q,i)=>i>0&&q<=quantities[i-1]))
- return {error:'Exactly four increasing, positive quantities are required (maximum two decimal places).'}
  const session=await createSessionClient()
+ const {data:group,error:groupError}=await session.from('consumables_groups')
+  .select('unit').eq('id',groupId).eq('company_id',p.company_id).maybeSingle()
+ if(groupError)return {error:groupError.message}
+ if(!group)return {error:'Consumables group not found or not authorised'}
+ if(!Array.isArray(quantities)||!validQuickUseOptions(quantities,group.unit))
+  return {error:'Enter four increasing positive quantities: whole numbers for counted items, up to two decimal places for metres and kilograms.'}
  const {data,error}=await session.from('consumables_groups')
   .update({quick_1:quantities[0],quick_2:quantities[1],quick_3:quantities[2],quick_4:quantities[3],updated_at:new Date().toISOString()})
   .eq('id',groupId).eq('company_id',p.company_id).select('id')

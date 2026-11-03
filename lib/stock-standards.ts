@@ -32,6 +32,12 @@ export type StockDisplayRow = StockBalance & {
   fill: number
 }
 
+// Minimum is a replenishment trigger, so reaching it is already a low-stock condition.
+// A zero minimum means no threshold has been set.
+export function hasReachedMinimum(quantity: number, minimum: number): boolean {
+  return minimum > 0 && quantity <= minimum
+}
+
 export function buildStockDisplayRows(
   catalogue: StockProduct[],
   existingBalances: StockBalance[],
@@ -66,7 +72,7 @@ export function buildStockDisplayRows(
     const required = classification === 'mandatory' || classification === 'preferred'
     const status: StockDisplayRow['status'] = quantity <= 0 && (required || minimum > 0)
       ? 'Critical'
-      : quantity < minimum
+      : hasReachedMinimum(quantity, minimum)
         ? 'Low'
         : classification === 'optional' || classification === 'not_assigned'
           ? 'Optional'
