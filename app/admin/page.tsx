@@ -39,7 +39,7 @@ export default async function AdminPage() {
     getUserAccessCapabilities(),
     getUserAuthorizedVans(),
   ])
-  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false'
+  const archiveEnabled = process.env.WAREHOUSE_WRITES_ENABLED === 'true'
   return (
     <div>
       <div className="topbar"><h1 className="topbar-title">Admin</h1></div>

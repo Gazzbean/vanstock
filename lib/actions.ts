@@ -19,6 +19,7 @@ import { createServerClient, createSessionClient } from './supabase'
 import { isValidPackageConversion } from './package-conversion'
 import { validQuickUseOptions } from './consumable-presets'
 import { resolveWorkingVanId } from './working-van'
+import { warehouseWritesEnabled } from './warehouse-release'
 import type { TransferPayload, AdjustPayload } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────
@@ -318,7 +319,7 @@ export async function getAdminProducts() {
 }
 
 export async function setProductArchived(productId: string, archive: boolean) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') {
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) {
     return { error: 'Catalogue archiving is not enabled yet.' }
   }
   const profile = await getCurrentProfile()
@@ -547,7 +548,7 @@ export async function requestWarehouseReplenishment(
 }
 
 export async function processWarehouseRequest(id:string,action:'approve'|'reject'|'fulfil') {
-  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false' && action==='fulfil') {
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && action==='fulfil') {
     return {error:'Warehouse stock movements are disabled.'}
   }
   const rights=await getMyWarehouseRights()
@@ -647,11 +648,11 @@ export async function getWarehouseOverview() {
 
 // ── WAREHOUSE WRITE ACTIONS: RELEASE GATED ─────────────────────
 // Warehouse writes are enabled after verified production migrations.
-// Set WAREHOUSE_WRITES_ENABLED=false to disable them quickly.
+// Warehouse writes are disabled unless WAREHOUSE_WRITES_ENABLED=true.
 export async function postWarehouseOpeningStock(
   warehouseId: string, productId: string, quantity: number, stocktakeReference: string,
 ) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') {
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) {
     return { error: 'Opening stock posting is not yet enabled.' }
   }
   const profile = await getCurrentProfile()
@@ -679,7 +680,7 @@ export async function transferWarehouseToVan(
   warehouseId: string, vanId: string, productId: string, quantity: number,
   reference: string,
 ) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') {
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) {
     return { error: 'Warehouse replenishment is not yet enabled.' }
   }
   const profile = await getCurrentProfile()
@@ -718,7 +719,7 @@ export async function returnVanStockToWarehouse(
   warehouseId: string, vanId: string, productId: string,
   quantity: number, reference: string,
 ) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') return { error: 'Warehouse operations disabled.' }
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) return { error: 'Warehouse operations disabled.' }
   const profile = await getCurrentProfile()
   const rights = await getMyWarehouseRights()
   if (!rights.canReceive) return { error: 'Warehouse receive permission required.' }
@@ -745,7 +746,7 @@ export async function adjustWarehouseStock(
   warehouseId: string, productId: string, operation: 'add'|'remove'|'set',
   quantity: number, reference: string,
 ) {
-  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false') return { error: 'Warehouse operations disabled.' }
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) return { error: 'Warehouse operations disabled.' }
   const profile = await getCurrentProfile()
   if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
   if (!warehouseId || !productId || !['add','remove','set'].includes(operation) ||

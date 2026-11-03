@@ -2,6 +2,10 @@
 
 **Not approved for live deployment or migration.** Apply in a test database first.
 
+**Safety gate:** Warehouse writes and catalogue archiving now require the literal
+server-side setting `WAREHOUSE_WRITES_ENABLED=true`. An unset or misspelled value
+must leave them disabled. Approval/rejection of requests does not itself move stock.
+
 ## Behaviour
 
 1. A technician with `can_request` can request a warehouse product in stock units for an authorised van. This creates a `pending` request, not a stock transaction.
@@ -23,6 +27,7 @@
 - Confirm the approved policy for office-only staff and technician access to temporary vans before broadening the management-only functions.
 - Verify old direct RPCs are no longer callable as `authenticated`, while manager wrappers and approved technician issue/receive calls still succeed and preserve audit attribution.
 - Verify technician request, unauthorised-van denial, manager approval, rejection, insufficient warehouse stock, duplicate fulfilment, ledger attribution and reports in a preview environment.
+- Isolated PostgreSQL tests now install the request and RPC-permission migrations together. This proves the SQL paths work in that test schema, **not** that a live authenticated browser or production Supabase installation has been verified. Vercel's successful build status is not a stock-workflow acceptance test.
 - Deploy application and migration together only after Garry's explicit review and approval. Keep `WAREHOUSE_WRITES_ENABLED=false` until fulfilment is verified.
 
 ## Deferred — Users & Access nominated email

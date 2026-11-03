@@ -4,6 +4,7 @@ import test from 'node:test'
 import {PGlite} from '@electric-sql/pglite'
 
 const migration=new URL('../supabase/migrations/20261103060000_warehouse_replenishment_requests.sql',import.meta.url)
+const permissionMigration=new URL('../supabase/migrations/20261103070000_warehouse_rpc_permission_gate.sql',import.meta.url)
 const ids={
   company:'00000000-0000-4000-8000-000000000001',
   tech:'00000000-0000-4000-8000-000000000002',
@@ -27,7 +28,8 @@ test('warehouse requests: permission, review, atomic fulfilment and repeat prote
       create table vans(id uuid primary key,company_id uuid);
       create table products(id uuid primary key,company_id uuid,stock_unit text,archived_at timestamptz);
       create table user_authorized_vans(user_id uuid,van_id uuid);
-      create table user_warehouse_permissions(user_id uuid,company_id uuid,can_request boolean);
+      create table user_warehouse_permissions(user_id uuid,company_id uuid,can_request boolean,
+        can_issue boolean default false,can_receive boolean default false);
       create table warehouse_stock(warehouse_id uuid,product_id uuid,quantity numeric,
         primary key(warehouse_id,product_id));
       create table stock(van_id uuid,product_id uuid,quantity numeric,
@@ -42,6 +44,10 @@ test('warehouse requests: permission, review, atomic fulfilment and repeat prote
         insert into public.stock values ($2,$3,$4) on conflict (van_id,product_id)
           do update set quantity=public.stock.quantity+excluded.quantity;
       end;$fn$;
+      create function public.adjust_warehouse_stock(uuid,uuid,text,numeric,text)
+      returns numeric language sql as 'select 1::numeric';
+      create function public.post_warehouse_opening_stock(uuid,uuid,numeric,text)
+      returns void language plpgsql as $fn$ begin null; end;$fn$;
     `)
     await db.query('insert into companies values($1)',[ids.company])
     await db.query("insert into profiles values($1,$3,'technician',$4,true),($2,$3,'manager',null,true)",
@@ -53,6 +59,7 @@ test('warehouse requests: permission, review, atomic fulfilment and repeat prote
     await db.query('insert into user_warehouse_permissions values($1,$2,false)',[ids.tech,ids.company])
     await db.query('insert into warehouse_stock values($1,$2,500)',[ids.warehouse,ids.product])
     await db.exec(await readFile(migration,'utf8'))
+    await db.exec(await readFile(permissionMigration,'utf8'))
     await db.query("select set_config('test.user_id',$1,false)",[ids.tech])
     const request=()=>db.query('select create_warehouse_replenishment_request($1,$2,$3,10,$4) as id',
       [ids.warehouse,ids.van,ids.product,'JOB-001'])
