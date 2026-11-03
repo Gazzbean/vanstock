@@ -1,6 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
 import { saveCatalogueSettings, saveConsumablesGroup } from '@/lib/actions'
+import { validQuickUseOptions } from '@/lib/consumable-presets'
 
 type Product = { id:string; name:string }
 type Settings = { product_id:string; tracking_type:string; servicem8_material_uuid:string|null; servicem8_item_number:string|null; mapping_status:string }
@@ -21,6 +22,8 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
  const [sm8uuid,setSm8uuid]=useState(current?.servicem8_material_uuid??'')
  const [sm8code,setSm8code]=useState(current?.servicem8_item_number??'')
  const [groupId,setGroupId]=useState(groups[0]?.id??'')
+ const selectedGroup=groups.find(g=>g.id===groupId)
+ const countUnit=['ea','pack','container'].includes(selectedGroup?.unit??'ea')
  const [groupValues,setGroupValues]=useState<string[]>(groups.length? [groups[0].quick_1,groups[0].quick_2,groups[0].quick_3,groups[0].quick_4].map(String):[])
  const [productError,setProductError]=useState('')
  const [productMessage,setProductMessage]=useState('')
@@ -50,9 +53,9 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
    })
  }
  function saveGroup(){
-   const vals=groupValues.map(Number)
-   if(vals.length!==4||vals.some(x=>!Number.isFinite(x)||x<=0)||vals.some((x,i)=>i>0&&x<=vals[i-1])){
-     setGroupError('Enter four positive usage quantities in ascending order.');return
+   const vals=groupValues.map(x=>x.trim()===''?NaN:Number(x))
+   if(!validQuickUseOptions(vals,selectedGroup?.unit??'ea')){
+     setGroupError('Enter four increasing quantities: whole numbers for counted items, up to two decimals for metres and kilograms.');return
    }
    setGroupError('');setGroupMessage('')
    startGroup(async()=>{
@@ -98,7 +101,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
       <div className="grid grid-cols-4 gap-2 mb-3">
        {groupValues.map((val,i)=><div key={i}>
          <label className="form-label" htmlFor={'quick-'+i}>{i+1}</label>
-         <input className="form-input" id={'quick-'+i} type="number" step="0.01" min="0.01" value={val}
+         <input className="form-input" id={'quick-'+i} type="number" step={countUnit?'1':'0.01'} min={countUnit?'1':'0.01'} value={val}
            onChange={e=>setGroupValues(prev=>prev.map((x,j)=>j===i?e.target.value:x))}/>
        </div>)}
       </div>

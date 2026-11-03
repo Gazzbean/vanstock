@@ -82,7 +82,7 @@ export default function EditProductModal({ product }: { product: Product }) {
               </select>
             </div>
             <div>
-              <label className="form-label" htmlFor={'edit-min-'+product.id}>Minimum stock ({unit})</label>
+              <label className="form-label" htmlFor={'edit-min-'+product.id}>Default van minimum ({unit})</label>
               <input id={'edit-min-'+product.id} className="form-input" type="number" min="0"
                 step={decimal ? '0.01' : '1'} value={minimum}
                 onChange={e => setMinimum(e.target.value)} />

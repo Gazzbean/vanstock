@@ -1,6 +1,7 @@
 'use client'
 
 import {useMemo,useState} from 'react'
+import {hasReachedMinimum} from '@/lib/stock-standards'
 
 type Product={id:string;name:string;stock_unit:string|null;archived_at:string|null}
 type Van={id:string;van_number:string}
@@ -32,7 +33,7 @@ export default function FleetStandardsOverview({products,vans,standards,balances
     const min=Number(s?.min_quantity??0)
     const target=Number(s?.target_quantity??0)
     const cls=s?.classification??'unconfigured'
-    const status:OverviewRow['status']=!s?'unconfigured':cls==='optional'?'optional':cls==='not_assigned'?'not_assigned':current<min?'below_min':current<target?'below_target':'on_target'
+    const status:OverviewRow['status']=!s?'unconfigured':cls==='optional'?'optional':cls==='not_assigned'?'not_assigned':hasReachedMinimum(current,min)?'below_min':current<target?'below_target':'on_target'
     result.push({
       key,vanId:van.id,vanName:van.van_number,productName:product.name,
       unit:product.stock_unit||'ea',classification:cls,min,target,current,
@@ -57,7 +58,7 @@ export default function FleetStandardsOverview({products,vans,standards,balances
    <span className="text-xs text-gray-500">{configured.length} configured assignments · {unconfiguredTotal} not configured</span>
   </div>
   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-   <div className="metric-card"><div className="metric-label">Below minimum</div><div className="metric-value text-red-700">{count('below_min')}</div></div>
+   <div className="metric-card"><div className="metric-label">At or below minimum</div><div className="metric-value text-red-700">{count('below_min')}</div></div>
    <div className="metric-card"><div className="metric-label">Below target</div><div className="metric-value text-amber-700">{count('below_target')}</div></div>
    <div className="metric-card"><div className="metric-label">At or above target</div><div className="metric-value">{count('on_target')}</div></div>
    <div className="metric-card"><div className="metric-label">Optional / Not assigned</div><div className="metric-value">{count('optional')+count('not_assigned')}</div></div>
@@ -71,7 +72,7 @@ export default function FleetStandardsOverview({products,vans,standards,balances
    <div><label className="form-label" htmlFor="fleet-status-filter">Stock status</label>
     <select className="form-input" id="fleet-status-filter" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
      <option value="all">All statuses</option>
-     <option value="below_min">Below minimum</option><option value="below_target">Below target</option>
+     <option value="below_min">At or below minimum</option><option value="below_target">Below target</option>
      <option value="on_target">At or above target</option><option value="optional">Optional</option>
      <option value="not_assigned">Not assigned</option><option value="unconfigured">Not configured</option>
     </select>
@@ -100,7 +101,7 @@ export default function FleetStandardsOverview({products,vans,standards,balances
       <td className="table-cell">{r.status==='unconfigured'||r.status==='optional'||r.status==='not_assigned'?'—':format(r.shortfall)}</td>
       <td className="table-cell whitespace-nowrap">
        <span className={r.status==='below_min'?'text-red-700':r.status==='below_target'?'text-amber-700':'text-gray-600'}>
-        {{below_min:'Below minimum',below_target:'Below target',on_target:'At target',optional:'Optional',not_assigned:'Not assigned',unconfigured:'Not configured'}[r.status]}
+        {{below_min:'At or below minimum',below_target:'Below target',on_target:'At target',optional:'Optional',not_assigned:'Not assigned',unconfigured:'Not configured'}[r.status]}
        </span>
       </td>
      </tr>)}

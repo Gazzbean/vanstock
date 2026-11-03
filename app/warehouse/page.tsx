@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation'
 import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import WarehouseCorrections from '@/components/WarehouseCorrections'
-import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts } from '@/lib/actions'
+import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
+import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards } from '@/lib/actions'
+import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
 export default async function WarehousePage() {
   const user = await getCurrentUserDisplay()
@@ -18,14 +20,21 @@ export default async function WarehousePage() {
   }
 
   const canManage = user.role === 'admin' || user.role === 'manager'
-  const [overview, adminData, products] = await Promise.all([
-    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),
+  const [overview, adminData, products,requests,rights,thresholds] = await Promise.all([
+    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),getMyWarehouseRights(),
+    getWarehouseStockStandards(),
   ])
-  const writesEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false' && !overview.setupRequired
+  const writesEnabled = warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
   const totals = overview.warehouses.map((warehouse) => {
     const rows = overview.items.filter((item) => item.warehouse_id === warehouse.id)
-      .map(item => ({ ...item, unit: productUnits.get(item.product_id) ?? 'ea' }))
+      .map(item => {
+        const threshold=thresholds.find(s=>s.warehouse_id===warehouse.id && s.product_id===item.product_id)
+        const min=threshold?Number(threshold.min_quantity):null
+        const target=threshold?Number(threshold.target_quantity):null
+        return { ...item, unit:productUnits.get(item.product_id)??'ea',minimum:min,target,
+          status:min===null||min===0?'Not set':Number(item.quantity)<=min?'Reorder':target!==null&&Number(item.quantity)<target?'Below target':'OK' }
+      })
     return {
       id: warehouse.id,
       name: warehouse.name,
@@ -81,6 +90,9 @@ export default async function WarehousePage() {
                           <th className="table-header">Item</th>
                           <th className="table-header">Category</th>
                           <th className="table-header">Quantity</th>
+                          <th className="table-header">Warehouse min</th>
+                          <th className="table-header">Target</th>
+                          <th className="table-header">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -89,6 +101,9 @@ export default async function WarehousePage() {
                             <td className="table-cell font-medium">{row.product_name}</td>
                             <td className="table-cell">{row.category}</td>
                             <td className="table-cell">{row.quantity} {row.unit}</td>
+                            <td className="table-cell">{row.minimum===null?'—':row.minimum+' '+row.unit}</td>
+                            <td className="table-cell">{row.target===null?'—':row.target+' '+row.unit}</td>
+                            <td className="table-cell">{row.status}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -99,6 +114,12 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
+        {canManage && <WarehouseRequestQueue
+          requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
+          vans={(adminData?.vans??[]).map(v=>({id:v.id,van_number:v.van_number}))}
+          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
+          canManage={rights.canManageRequests} writesEnabled={writesEnabled}
+        />}
         {canManage ? <>
         <WarehouseReplenishmentDraft
           enabled={writesEnabled}
