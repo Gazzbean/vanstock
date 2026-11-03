@@ -5,11 +5,13 @@ import { redirect } from 'next/navigation'
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay } from '@/lib/actions'
+import { getMyStock, getProducts, getConsumablesAssignments, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import AdjustStockModal from '@/components/AdjustStockModal'
 import EstimatedConsumablesIssue from '@/components/EstimatedConsumablesIssue'
+import WarehouseRequestForm from '@/components/WarehouseRequestForm'
+import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
   const user=await getCurrentUserDisplay()
@@ -21,6 +23,10 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
     getWorkingVanStandards(working.selectedId??undefined),
   ])
   const displayRows = buildStockDisplayRows(products, stockItems, standards)
+  const warehouseRights=await getMyWarehouseRights()
+  const [requestWarehouses,requests]=warehouseRights.canRequest
+    ? await Promise.all([getWarehouseRequestLocations(),getWarehouseRequests()])
+    : [[],[]]
 
   return (
     <div>
@@ -93,6 +99,10 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
           </table>
         </div>
         {working.selectedId&&<EstimatedConsumablesIssue key={working.selectedId} selectedVanId={working.selectedId} products={products.map(p=>({id:p.id,name:p.name,stock_unit:p.stock_unit}))} stock={stockItems.map(s=>({product_id:s.product_id,quantity:s.quantity}))} groups={consumables.groups} assignments={consumables.assignments} />}
+        {warehouseRights.canRequest&&working.selectedId&&<>
+          <WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId}/>
+          <WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={false}/>
+        </>}
       </div>
     </div>
   )

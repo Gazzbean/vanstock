@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import WarehouseCorrections from '@/components/WarehouseCorrections'
-import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts } from '@/lib/actions'
+import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
+import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights } from '@/lib/actions'
 
 export default async function WarehousePage() {
   const user = await getCurrentUserDisplay()
@@ -18,8 +19,8 @@ export default async function WarehousePage() {
   }
 
   const canManage = user.role === 'admin' || user.role === 'manager'
-  const [overview, adminData, products] = await Promise.all([
-    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),
+  const [overview, adminData, products,requests,rights] = await Promise.all([
+    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),getMyWarehouseRights(),
   ])
   const writesEnabled = process.env.WAREHOUSE_WRITES_ENABLED !== 'false' && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
@@ -99,6 +100,12 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
+        {canManage && <WarehouseRequestQueue
+          requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
+          vans={(adminData?.vans??[]).map(v=>({id:v.id,van_number:v.van_number}))}
+          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
+          canManage={rights.canManageRequests} writesEnabled={writesEnabled}
+        />}
         {canManage ? <>
         <WarehouseReplenishmentDraft
           enabled={writesEnabled}

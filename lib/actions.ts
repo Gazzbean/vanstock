@@ -458,6 +458,97 @@ export async function getWarehousePermissionData() {
   return data ?? []
 }
 
+// Server-selected, company-scoped warehouse permissions. Administrators and
+// managers manage the request queue; technicians require an explicit grant.
+export async function getMyWarehouseRights() {
+  const profile = await getCurrentProfile()
+  const manager = ['admin','manager'].includes(profile.role)
+  const db = createServerClient()
+  const {data,error} = await db.from('user_warehouse_permissions')
+    .select('can_request,can_issue,can_receive,can_adjust,can_stocktake')
+    .eq('company_id',profile.company_id).eq('user_id',profile.id).maybeSingle()
+  if (error) throw new Error('Could not check warehouse permissions: '+error.message)
+  return {
+    canRequest: manager || Boolean(data?.can_request),
+    canIssue: manager || Boolean(data?.can_issue),
+    canReceive: manager || Boolean(data?.can_receive),
+    canAdjust: manager || Boolean(data?.can_adjust),
+    canStocktake: manager || Boolean(data?.can_stocktake),
+    canManageRequests: manager,
+  }
+}
+
+export async function getWarehouseRequests() {
+  const profile = await getCurrentProfile()
+  const rights = await getMyWarehouseRights()
+  if (!rights.canRequest && !rights.canManageRequests) return []
+  const db = createServerClient()
+  let query = db.from('warehouse_replenishment_requests')
+    .select('id,warehouse_id,van_id,product_id,quantity,reference,status,requested_by,reviewed_by,fulfilled_by,created_at,reviewed_at,fulfilled_at')
+    .eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(100)
+  if (!rights.canManageRequests) query = query.eq('requested_by',profile.id)
+  const {data,error} = await query
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') return []
+    throw new Error('Could not load warehouse requests: '+error.message)
+  }
+  return data??[]
+}
+
+export async function getWarehouseRequestLocations() {
+  const rights=await getMyWarehouseRights()
+  if (!rights.canRequest) return []
+  const profile=await getCurrentProfile()
+  const db=createServerClient()
+  const {data,error}=await db.from('warehouses').select('id,name')
+    .eq('company_id',profile.company_id).order('name')
+  if(error){
+    if(error.code==='42P01'||error.code==='PGRST205')return []
+    throw new Error('Could not load warehouse locations: '+error.message)
+  }
+  return data??[]
+}
+
+export async function requestWarehouseReplenishment(
+  warehouseId:string,vanId:string,productId:string,quantity:number,reference:string,
+) {
+  const rights = await getMyWarehouseRights()
+  if (!rights.canRequest) return {error:'Request replenishment permission required.'}
+  const working = rights.canManageRequests ? null : await getWorkingVans(vanId)
+  if (!rights.canManageRequests && working?.selectedId !== vanId) {
+    return {error:'You may only request stock for an authorised working van.'}
+  }
+  if (!warehouseId || !vanId || !productId || !reference?.trim() ||
+      !Number.isFinite(quantity) || quantity <= 0 || quantity >= 1000000000 ||
+      Math.abs(quantity*100-Math.round(quantity*100)) > 1e-7) {
+    return {error:'Enter a valid quantity and reference.'}
+  }
+  const session=await createSessionClient()
+  const {error}=await session.rpc('create_warehouse_replenishment_request',{
+    p_warehouse_id:warehouseId,p_van_id:vanId,p_product_id:productId,
+    p_quantity:quantity,p_reference:reference.trim(),
+  })
+  if(error)return {error:error.message}
+  revalidatePath('/stock');revalidatePath('/warehouse')
+  return {success:true}
+}
+
+export async function processWarehouseRequest(id:string,action:'approve'|'reject'|'fulfil') {
+  if (process.env.WAREHOUSE_WRITES_ENABLED === 'false' && action==='fulfil') {
+    return {error:'Warehouse stock movements are disabled.'}
+  }
+  const rights=await getMyWarehouseRights()
+  if (!rights.canManageRequests) return {error:'Manager access required.'}
+  if (!id || !['approve','reject','fulfil'].includes(action)) return {error:'Invalid request action.'}
+  const session=await createSessionClient()
+  const {error}=await session.rpc('process_warehouse_replenishment_request',{
+    p_request_id:id,p_action:action,
+  })
+  if(error)return {error:error.message}
+  for(const path of ['/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
+  return {success:true}
+}
+
 export async function saveWarehousePermissions(
   userId: string,
   permissions: {
