@@ -495,7 +495,21 @@ export async function getWarehouseRequests() {
     if (error.code === '42P01' || error.code === 'PGRST205') return []
     throw new Error('Could not load warehouse requests: '+error.message)
   }
-  return data??[]
+  if (!data?.length) return []
+  const {data:staff,error:staffError}=await db.from('profiles')
+    .select('id,full_name,initials').eq('company_id',profile.company_id)
+  if (staffError) throw new Error('Could not load request audit names: '+staffError.message)
+  const names=new Map((staff??[]).map(s=>[s.id,{name:s.full_name,initials:s.initials}]))
+  const label=(id:string|null)=>{
+    const person=id?names.get(id):null
+    return person?.name ? `${person.name}${person.initials?` (${person.initials})`:''}` : '—'
+  }
+  return data.map(row=>({
+    ...row,
+    requested_by_label:label(row.requested_by),
+    reviewed_by_label:label(row.reviewed_by),
+    fulfilled_by_label:label(row.fulfilled_by),
+  }))
 }
 
 export async function getWarehouseRequestLocations() {

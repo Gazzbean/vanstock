@@ -12,6 +12,7 @@ must leave them disabled. Approval/rejection of requests does not itself move st
 2. An administrator or manager reviews the request. Approval changes status to `approved` without modifying stock; rejection changes it to `rejected`.
 3. An administrator or manager fulfils an approved request. The database locks the request, calls the existing transactional warehouse-to-van movement function and marks the request `fulfilled` in the same transaction. Duplicate fulfilment and insufficient stock must fail without an additional transaction.
 4. Technicians see their own requests; managers see their company's queue. Request and fulfilment have separately recorded staff identities and timestamps.
+5. Queue history shows the full name and initials of requester, reviewer and fulfiller, with status filters for open, fulfilled, rejected or all requests. Successful actions refresh the page automatically.
 
 ## Permission policy and limitation
 
@@ -28,6 +29,7 @@ must leave them disabled. Approval/rejection of requests does not itself move st
 - Verify old direct RPCs are no longer callable as `authenticated`, while manager wrappers and approved technician issue/receive calls still succeed and preserve audit attribution.
 - Verify technician request, unauthorised-van denial, manager approval, rejection, insufficient warehouse stock, duplicate fulfilment, ledger attribution and reports in a preview environment.
 - Isolated PostgreSQL tests now install the request and RPC-permission migrations together. This proves the SQL paths work in that test schema, **not** that a live authenticated browser or production Supabase installation has been verified. Vercel's successful build status is not a stock-workflow acceptance test.
+- Another Supabase project is visible in the account, but its name does not identify it as a VanStock test database. Do not alter or repurpose it without confirming ownership and purpose; continue using isolated PostgreSQL until a dedicated test database is approved.
 - Deploy application and migration together only after Garry's explicit review and approval. Keep `WAREHOUSE_WRITES_ENABLED=false` until fulfilment is verified.
 
 ## Deferred — Users & Access nominated email

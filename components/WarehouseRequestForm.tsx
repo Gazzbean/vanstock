@@ -1,6 +1,7 @@
 'use client'
 
 import {useState,useTransition} from 'react'
+import {useRouter} from 'next/navigation'
 import {requestWarehouseReplenishment} from '@/lib/actions'
 
 type Option={id:string;name:string}
@@ -18,6 +19,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
   const [message,setMessage]=useState('')
   const [error,setError]=useState('')
   const [pending,start]=useTransition()
+  const router=useRouter()
   const unit=products.find(p=>p.id===product)?.unit??'ea'
   const valid=/^\d+(?:\.\d{1,2})?$/.test(quantity)&&Number(quantity)>0&&
     (['kg','m'].includes(unit)||Number.isInteger(Number(quantity)))
@@ -29,7 +31,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
       try{
         const result=await requestWarehouseReplenishment(warehouse,van,product,Number(quantity),reference)
         if(result.error)setError(result.error)
-        else{setMessage('Request submitted. Warehouse stock is unchanged until fulfilment.');setReference('')}
+        else{setMessage('Request submitted. Warehouse stock is unchanged until fulfilment.');setReference('');router.refresh()}
       }catch{setError('Could not submit request. Please retry.')}
     })
   }
