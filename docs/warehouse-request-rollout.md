@@ -24,6 +24,15 @@ must leave them disabled. Approval/rejection of requests does not itself move st
 
 ## Release checklist
 
+### Read-only production compatibility check — 3 November 2026
+
+- Confirmed VanStock production has the prerequisite `profiles`, `user_authorized_vans`, `user_warehouse_permissions`, `warehouses`, `warehouse_stock`, `products`, `vans` and `activity_log` columns used by the draft functions.
+- The new `warehouse_replenishment_requests` table and staged gated RPCs are **not present** in production. The existing `move_warehouse_van_stock`, `adjust_warehouse_stock`, and `post_warehouse_opening_stock` functions retain authenticated execution grants until an approved coordinated rollout.
+- Local Docker is unavailable in the current execution environment. A separate Supabase project exists in the account but is not identified as VanStock staging and was not modified.
+- The Transaction History screen already supports date-range filtering and full staff names/initials. Its type selector now includes `warehouse-adjust` so the existing audited corrections are easy to find.
+
+### Controlled acceptance requirements
+
 - Back up live Supabase and test the migration first; verify existing inventory and logged movements are unchanged.
 - Confirm the approved policy for office-only staff and technician access to temporary vans before broadening the management-only functions.
 - Verify old direct RPCs are no longer callable as `authenticated`, while manager wrappers and approved technician issue/receive calls still succeed and preserve audit attribution.

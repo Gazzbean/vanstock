@@ -11,6 +11,7 @@ const typeLabels:Record<string,string>={
  'warehouse-to-van':'Warehouse → van',
  'depot':'Depot return',
  'adjust':'Stock adjustment',
+ 'warehouse-adjust':'Warehouse stock adjustment',
  'opening-stock':'Opening stock',
  'receipt-pack':'Supplier pack receipt',
  'receipt-loose':'Loose item receipt',
