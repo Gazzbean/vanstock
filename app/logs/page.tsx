@@ -1,6 +1,6 @@
 // Company-wide history for managers; technicians see only their assigned van.
 // Includes supplier receipts as well as operational activity.
-import {getTransactionHistory,getWorkingVans,getCurrentUserDisplay} from '@/lib/actions'
+import {getTransactionHistory,getWorkingVans,getCurrentUserDisplay,getWorkingVanChangeHistory} from '@/lib/actions'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 
 const typeLabels:Record<string,string>={
@@ -34,8 +34,11 @@ export default async function LogsPage({searchParams}:{
  const working=user?.access?.technician_access&&!user.access.office_access
   ?await getWorkingVans(searchParams?.van):null
  let history:Awaited<ReturnType<typeof getTransactionHistory>>|null=null
+ let selectionEvents:Awaited<ReturnType<typeof getWorkingVanChangeHistory>>=[]
  let error=''
- try{history=await getTransactionHistory(start,end,selected,working?.selectedId??undefined)}
+ try{[history,selectionEvents]=await Promise.all([
+  getTransactionHistory(start,end,selected,working?.selectedId??undefined),getWorkingVanChangeHistory(start,end),
+ ])}
  catch(e){error=e instanceof Error?e.message:'Could not load transaction history'}
  const entries=history?.entries??[]
  return <div>
@@ -58,6 +61,17 @@ export default async function LogsPage({searchParams}:{
       <a href={working?.selectedId?'/logs?van='+encodeURIComponent(working.selectedId):'/logs'} className="btn">Clear</a>
      </div>
     </form>
+   </section>
+   <section className="card">
+    <h2 className="font-semibold text-sm mb-1">Working-van selection history</h2>
+    <p className="text-xs text-gray-500 mb-3">Changing a working van is an audited access event, not a stock transfer. Only deliberate selection changes appear here.</p>
+    {selectionEvents.length===0?<p className="text-xs text-gray-500">No working-van changes recorded for the selected dates.</p>:<div className="overflow-x-auto"><table className="w-full">
+      <thead><tr>{['Date / time (Perth)','User','Previous van','Selected van','Stock movement'].map(h=><th key={h} className="table-header">{h}</th>)}</tr></thead>
+      <tbody>{selectionEvents.map(e=><tr key={e.id}>
+        <td className="table-cell whitespace-nowrap text-xs">{new Date(e.date).toLocaleString('en-AU',{timeZone:'Australia/Perth',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+        <td className="table-cell">{e.user}{e.initials?` (${e.initials})`:''}</td>
+        <td className="table-cell">{e.previous}</td><td className="table-cell">{e.selected}</td><td className="table-cell">None</td>
+      </tr>)}</tbody></table></div>}
    </section>
    <section className="card">
     <div className="flex justify-between items-center gap-2 mb-3">

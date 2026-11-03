@@ -46,6 +46,16 @@ hidden from **new** assignments and transactions while remaining readable in his
 
 ## Roles and material movements
 
+Office and Admin have a separate, **read-only** Fleet Stock view of all active
+company vans, including unallocated vans. This view does not set the user's working
+van and cannot authorise stock transactions. Technicians and apprentices continue
+to see exactly one working van at a time, chosen from their authorised assignments.
+
+Every deliberate working-van change is recorded with user, previous van, selected
+van and Perth-viewable timestamp. It is a navigation/access audit event, not a
+stock movement; browsing between pages or reselecting the same van creates no
+new event. The audit table is not writable by browser clients.
+
 ```mermaid
 flowchart TD
   A["Admin: Maintain catalogue, supplier packs, vehicles and standards"] --> B["Warehouse: Receive stock and verify quantity"]

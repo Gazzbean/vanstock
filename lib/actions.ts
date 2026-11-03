@@ -142,11 +142,29 @@ export async function setWorkingVanSelection(vanId:string){
  const profile=await getCurrentProfile()
  if(!(await accessFor(profile)).technician_access)return {error:'Technician access required'}
  if(typeof vanId!=='string')return {error:'Choose an authorised working van'}
+ const previous=await getWorkingVans()
+ let targetId:string|null=null
  if(vanId){
   try{
    const working=await getWorkingVans(vanId)
    if(working.selectedId!==vanId)return {error:'This van is not authorised for your account'}
+   targetId=working.selectedId
   }catch{return {error:'This van is not authorised for your account'}}
+ }else{
+   // Clearing the selection returns to the authorised default, if any.
+   targetId=previous.defaultId
+ }
+ if(previous.selectedId!==targetId){
+   // Only this authenticated server action can read the previous selection cookie.
+   // Never expose an RPC that lets a browser invent the previous van in the audit trail.
+   const db=createServerClient()
+   const {error}=await db.from('working_van_selection_events').insert({
+     company_id:profile.company_id,user_id:profile.id,
+     previous_van_id:previous.selectedId,selected_van_id:targetId,
+   })
+   if(error)return {error:'Could not record the working-van change. Selection was not changed.'}
+ }
+ if(vanId){
   cookies().set(workingVanCookie,profile.id+':'+vanId,{
    httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',path:'/',
   })
@@ -155,6 +173,30 @@ export async function setWorkingVanSelection(vanId:string){
  }
  for(const path of ['/dashboard','/stock','/receive','/transfer','/logs'])revalidatePath(path)
  return {success:true}
+}
+
+export async function getWorkingVanChangeHistory(from?:string,to?:string){
+ const actor=await getCurrentProfile()
+ const access=await accessFor(actor)
+ if(!access.technician_access&&!access.office_access&&actor.role!=='admin')throw new Error('History access required')
+ const db=createServerClient()
+ let query=db.from('working_van_selection_events')
+  .select('id,user_id,previous_van_id,selected_van_id,created_at,profile:profiles!working_van_selection_events_user_id_fkey(full_name,initials)')
+  .eq('company_id',actor.company_id).order('created_at',{ascending:false}).limit(200)
+ if(!access.office_access&&actor.role!=='admin')query=query.eq('user_id',actor.id)
+ if(from&&/^\d{4}-\d{2}-\d{2}$/.test(from))query=query.gte('created_at',from+'T00:00:00+08:00')
+ if(to&&/^\d{4}-\d{2}-\d{2}$/.test(to))query=query.lte('created_at',to+'T23:59:59.999+08:00')
+ const [events,vans]=await Promise.all([
+   query,db.from('vans').select('id,van_number').eq('company_id',actor.company_id),
+ ])
+ if(events.error||vans.error)throw new Error('Could not load working-van change history')
+ const labels=new Map((vans.data??[]).map(v=>[v.id,v.van_number]))
+ return (events.data??[]).map((event:any)=>({
+   id:event.id,date:event.created_at,
+   user:event.profile?.full_name??'Unknown user',initials:event.profile?.initials??null,
+   previous:event.previous_van_id?labels.get(event.previous_van_id)??'Archived vehicle':'None',
+   selected:event.selected_van_id?labels.get(event.selected_van_id)??'Archived vehicle':'None',
+ }))
 }
 export async function getMyStock(selectedVanId?:string) {
   const profile = await getCurrentProfile()
@@ -169,6 +211,29 @@ export async function getMyStock(selectedVanId?:string) {
 
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+// Company-wide, strictly read-only inventory inspection. Not a working-van selector.
+export async function getFleetVanStock(viewVanId?:string){
+ const actor=await getCurrentProfile()
+ const rights=await accessFor(actor)
+ if(actor.role!=='admin'&&!rights.office_access)throw new Error('Office access required')
+ const db=createServerClient()
+ const {data:vans,error:vanError}=await db.from('vans')
+  .select('id,van_number,registration,active').eq('company_id',actor.company_id).eq('active',true).order('van_number')
+ if(vanError)throw new Error('Could not load fleet vehicles')
+ const selectedId=viewVanId??vans?.[0]?.id??null
+ if(selectedId&&!vans?.some(v=>v.id===selectedId))throw new Error('Vehicle is not available in your company')
+ if(!selectedId)return {vans:vans??[],selectedId:null,items:[],standards:[],assignedUsers:[]}
+ const [stock,standards,users]=await Promise.all([
+   db.from('stock').select('id,product_id,quantity,product:products(id,name,category,stock_unit,min_stock)')
+    .eq('van_id',selectedId),
+   db.from('van_stock_standards').select('product_id,classification,min_quantity,target_quantity')
+    .eq('company_id',actor.company_id).eq('van_id',selectedId),
+   db.from('profiles').select('full_name,initials').eq('company_id',actor.company_id).eq('van_id',selectedId).eq('is_active',true),
+ ])
+ if(stock.error||standards.error||users.error)throw new Error('Could not load fleet stock and standards')
+ return {vans:vans??[],selectedId,items:stock.data??[],standards:standards.data??[],assignedUsers:users.data??[]}
 }
 
 // Load van-specific stocking requirements for exactly the authorised working van.
