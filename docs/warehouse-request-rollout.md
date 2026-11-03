@@ -30,6 +30,7 @@ must leave them disabled. Approval/rejection of requests does not itself move st
 - The new `warehouse_replenishment_requests` table and staged gated RPCs are **not present** in production. The existing `move_warehouse_van_stock`, `adjust_warehouse_stock`, and `post_warehouse_opening_stock` functions retain authenticated execution grants until an approved coordinated rollout.
 - Local Docker is unavailable in the current execution environment. A separate Supabase project exists in the account but is not identified as VanStock staging and was not modified.
 - The Transaction History screen already supports date-range filtering and full staff names/initials. Its type selector now includes `warehouse-adjust` so the existing audited corrections are easy to find.
+- Dashboard reporting now calculates the Perth calendar-day boundary correctly and counts actual location transfers only; `issue` records (including estimated consumable usage) are shown as stock issues, not necessarily customer billings. The dashboard's legacy low-stock helper also uses the same per-van minimum/target rules as the main van stock view.
 
 ### Controlled acceptance requirements
 

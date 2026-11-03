@@ -20,6 +20,8 @@ import { isValidPackageConversion } from './package-conversion'
 import { validQuickUseOptions } from './consumable-presets'
 import { resolveWorkingVanId } from './working-van'
 import { warehouseWritesEnabled } from './warehouse-release'
+import { countTodayStockActivity, perthDayStartUtc } from './dashboard-activity'
+import {buildStockDisplayRows} from './stock-standards'
 import type { TransferPayload, AdjustPayload } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────
@@ -96,30 +98,22 @@ export async function getDashboardStats(selectedVanId?:string) {
   if (!working.selectedId) return null
 
   const db = createServerClient()
-
-  const { data: stockItems } = await db
-    .from('stock')
-    .select('quantity, product:products(name, min_stock)')
-    .eq('van_id', working.selectedId)
-
-  const totalItems = stockItems?.filter(s => s.quantity > 0).length ?? 0
-  const lowStockCount = stockItems?.filter(
-    (s) => s.quantity < (s.product as any)?.min_stock
-  ).length ?? 0
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const { data: todayLogs } = await db
+  const [logs,stockItems,products,standards]=await Promise.all([
+    db
     .from('activity_log')
-    .select('type, quantity')
+    .select('type')
+    .eq('company_id',(await getCurrentProfile()).company_id)
     .eq('van_id', working.selectedId)
-    .gte('created_at', today.toISOString())
-
-  const transfersToday = todayLogs?.length ?? 0
-  const issuedToday = todayLogs?.filter(l => l.type === 'issue').length ?? 0
-
-  return { totalItems, lowStockCount, transfersToday, issuedToday }
+    .gte('created_at',perthDayStartUtc(new Date())),
+    getMyStock(working.selectedId),getProducts(),getWorkingVanStandards(working.selectedId),
+  ])
+  if(logs.error)throw new Error('Could not load today’s stock activity: '+logs.error.message)
+  const rows=buildStockDisplayRows(products,stockItems,standards)
+  return {
+    totalItems:rows.filter(row=>row.quantity>0).length,
+    lowStockCount:rows.filter(row=>row.status==='Critical'||row.status==='Low').length,
+    ...countTodayStockActivity(logs.data??[]),
+  }
 }
 
 // ── STOCK ──────────────────────────────────────────────────

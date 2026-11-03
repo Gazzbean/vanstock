@@ -109,7 +109,7 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
             <div className="metric-sub">logged movements</div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">Customer issues today</div>
+            <div className="metric-label">Stock issues today</div>
             <div className="metric-value">{stats?.issuedToday ?? 0}</div>
             <div className="metric-sub">recorded transactions</div>
           </div>
