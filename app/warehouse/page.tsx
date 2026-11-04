@@ -124,9 +124,9 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
-        {canManage && <WarehouseRequestQueue
+        {(rights.canRequest || rights.canManageRequests) && <WarehouseRequestQueue
           requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
-          vans={(adminData?.vans??[]).map(v=>({id:v.id,van_number:v.van_number}))}
+          vans={companyVans.map(v=>({id:v.id,van_number:v.van_number}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           canManage={rights.canManageRequests} writesEnabled={writesEnabled}
         />}
