@@ -236,6 +236,20 @@ export async function getFleetVanStock(viewVanId?:string){
  return {vans:vans??[],selectedId,items:stock.data??[],standards:standards.data??[],assignedUsers:users.data??[]}
 }
 
+// Office users may identify the source van for outstanding job allocations
+// without needing manager-level access to the staff administration directory.
+export async function getCompanyVanLabels(){
+ const actor=await getCurrentProfile()
+ const rights=await accessFor(actor)
+ if(actor.role!=='admin'&&actor.role!=='manager'&&!rights.office_access)
+  throw new Error('Office access required')
+ const db=createServerClient()
+ const {data,error}=await db.from('vans').select('id,van_number')
+  .eq('company_id',actor.company_id).order('van_number')
+ if(error)throw new Error('Could not load company van numbers')
+ return data??[]
+}
+
 // Load van-specific stocking requirements for exactly the authorised working van.
 export async function getWorkingVanStandards(selectedVanId?:string) {
   const profile = await getCurrentProfile()

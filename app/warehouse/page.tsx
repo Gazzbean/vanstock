@@ -4,7 +4,7 @@ import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraf
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import WarehouseCorrections from '@/components/WarehouseCorrections'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
-import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations } from '@/lib/actions'
+import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels } from '@/lib/actions'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
 export default async function WarehousePage() {
@@ -20,9 +20,9 @@ export default async function WarehousePage() {
   }
 
   const canManage = user.role === 'admin' || user.role === 'manager'
-  const [overview, adminData, products,requests,rights,thresholds,siteAllocations] = await Promise.all([
+  const [overview, adminData, products,requests,rights,thresholds,siteAllocations,companyVans] = await Promise.all([
     getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),getMyWarehouseRights(),
-    getWarehouseStockStandards(),getJobMaterialAllocations(),
+    getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),
   ])
   const writesEnabled = warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
@@ -56,7 +56,7 @@ export default async function WarehousePage() {
             <th className="table-header">Job</th><th className="table-header">Material</th><th className="table-header">Quantity</th><th className="table-header">Van</th><th className="table-header">Location</th><th className="table-header">Reason</th><th className="table-header">Date</th>
           </tr></thead><tbody>{siteAllocations.map(a=><tr key={a.id}>
             <td className="table-cell">{a.job_reference}</td><td className="table-cell">{products.find(p=>p.id===a.product_id)?.name??'—'}</td><td className="table-cell">{a.quantity} {products.find(p=>p.id===a.product_id)?.stock_unit??'ea'}</td>
-            <td className="table-cell">{adminData?.vans?.find(v=>v.id===a.van_id)?.van_number??'See fleet'}</td><td className="table-cell">{a.site_location}</td><td className="table-cell">{a.reason}</td><td className="table-cell">{new Date(a.created_at).toLocaleDateString('en-AU',{timeZone:'Australia/Perth'})}</td>
+            <td className="table-cell">{companyVans.find(v=>v.id===a.van_id)?.van_number??'Unknown van'}</td><td className="table-cell">{a.site_location}</td><td className="table-cell">{a.reason}</td><td className="table-cell">{new Date(a.created_at).toLocaleDateString('en-AU',{timeZone:'Australia/Perth'})}</td>
           </tr>)}</tbody></table></div>}
         </section>
         <div className="alert alert-info mb-4">
