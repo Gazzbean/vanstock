@@ -11,6 +11,7 @@ import WorkingVanSelector from '@/components/WorkingVanSelector'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
+import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
   const user=await getCurrentUserDisplay()
@@ -96,8 +97,9 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
         {(warehouseRights.canIssue||warehouseRights.canReceive)&&<TechnicianWarehouseMovement
           warehouses={movementWarehouses}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
-          defaultVanId={working.defaultId}
+          defaultVanId={working.selectedId}
           canIssue={warehouseRights.canIssue} canReceive={warehouseRights.canReceive}
+          enabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)}
         />}
       </div>
     </div>
