@@ -8,7 +8,7 @@ export default function WorkingVanSelector({vans,selectedId,defaultId}:{vans:{id
  const [error,setError]=useState('')
  return <section className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-4">
   <div className="flex flex-wrap items-center gap-3">
-   <label htmlFor="working-van" className="text-sm font-semibold">Select alternate Van if listed</label>
+   <label htmlFor="working-van" className="text-sm font-semibold">Working Van</label>
    <select className="form-input max-w-xs" id="working-van" value={selectedId??''} disabled={pending} onChange={e=>{
     const id=e.target.value
     setError('')
@@ -30,7 +30,7 @@ export default function WorkingVanSelector({vans,selectedId,defaultId}:{vans:{id
      }catch{setError('Could not change Working Van. Please retry.')}
     })
    }}>
-    <option value="">Select a van…</option>
+    <option value="">Select alternate van if listed</option>
     {vans.map(v=><option value={v.id} key={v.id}>{v.van_number}{v.id===defaultId?' (Default)':''}</option>)}
    </select>
    {pending&&<span className="text-xs text-blue-800">Switching…</span>}
