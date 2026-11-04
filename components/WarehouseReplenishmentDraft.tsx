@@ -32,6 +32,8 @@ export default function WarehouseReplenishmentDraft({
   const product = products.find(p => p.id === productId)
   const available = balances.find(b => b.warehouse_id === warehouseId && b.product_id === productId)?.quantity ?? 0
   const requested = Number(quantity)
+  const insufficientStock = Boolean(warehouse && product && quantity.trim() &&
+    Number.isFinite(requested) && requested > available)
   // Validate quantities before submitting to the transactional server action.
   const supportsDecimals = product?.unit === 'kg' || product?.unit === 'm'
   const step = supportsDecimals ? '0.01' : '1'
@@ -97,12 +99,14 @@ export default function WarehouseReplenishmentDraft({
             <option value="">Select product</option>
             {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {productId && <p className="text-xs text-gray-500 mt-1">Recorded warehouse balance: {available} {product?.unit ?? 'ea'}</p>}
+          {productId && <p className={`text-xs mt-1 ${insufficientStock ? 'font-semibold text-red-700' : 'text-gray-500'}`}>
+            Recorded warehouse balance: {available} {product?.unit ?? 'ea'}
+          </p>}
         </div>
         <div>
           <label className="form-label" htmlFor="warehouse-quantity">Quantity {product ? `(${product.unit})` : ''}</label>
           <input id="warehouse-quantity" className="form-input" type="number" min={step} step={step}
-            value={quantity} onChange={e => setQuantity(e.target.value)} />
+            value={quantity} onChange={e => setQuantity(e.target.value)} aria-invalid={insufficientStock} aria-describedby={insufficientStock ? 'warehouse-insufficient-stock' : undefined} />
         </div>
         <div className="md:col-span-2">
           <label className="form-label" htmlFor="warehouse-reference">Reference / replenishment request</label>
@@ -110,9 +114,13 @@ export default function WarehouseReplenishmentDraft({
             onChange={e => setReference(e.target.value)} placeholder="Job or replenishment reference (required)" />
         </div>
       </div>
+      {insufficientStock && <p id="warehouse-insufficient-stock" role="alert" className="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-700">
+        Insufficient warehouse stock: requested {requested} {product?.unit ?? 'ea'}, but only {available} {product?.unit ?? 'ea'} is available. Reduce the quantity to continue.
+      </p>}
       <div className="mt-4 p-3 rounded bg-gray-50 text-sm">
         {valid
           ? `Preview: ${requested} ${product?.unit} of ${product?.name} from ${warehouse?.name} to ${van?.van_number}.`
+          : insufficientStock ? 'Transfer cannot proceed until the requested quantity is reduced.'
           : 'Select a warehouse, van and product with sufficient recorded stock to preview a transfer.'}
         {reference.trim() && <div className="text-xs text-gray-500 mt-1">Reference: {reference}</div>}
       </div>
