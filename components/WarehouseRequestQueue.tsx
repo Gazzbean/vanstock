@@ -31,8 +31,8 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
     })
   }
   return <section className="card mt-4">
-    <h2 className="text-sm font-medium mb-2">Warehouse replenishment requests</h2>
-    <p className="text-xs text-gray-500 mb-3">Approval does not move stock. Fulfilment transfers stock once, provided the warehouse has sufficient balance.</p>
+    <h2 className="text-sm font-medium mb-2">{canManage?'Warehouse replenishment requests':'My warehouse replenishment requests'}</h2>
+    <p className="text-xs text-gray-500 mb-3">{canManage?'Approval does not move stock. Fulfilment transfers stock once, provided the warehouse has sufficient balance.':'Track your submitted requests here. A manager approves and fulfils requests; no stock moves when a request is submitted.'}</p>
     <div className="mb-3"><label className="form-label" htmlFor="warehouse-request-filter">Show requests</label><select id="warehouse-request-filter" className="form-input max-w-xs" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="open">Pending & approved</option><option value="all">All requests</option><option value="fulfilled">Fulfilled</option><option value="rejected">Rejected</option></select></div>
     {error&&<p role="alert" className="text-sm text-red-700 mb-2">{error}</p>}
     {success&&<p role="status" className="text-sm text-green-700 mb-2">{success}</p>}
