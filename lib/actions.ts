@@ -771,9 +771,12 @@ export async function requestWarehouseReplenishment(
 ) {
   const rights = await getMyWarehouseRights()
   if (!rights.canRequest) return {error:'Request replenishment permission required.'}
-  const working = rights.canManageRequests ? null : await getWorkingVans(vanId)
-  if (!rights.canManageRequests && working?.selectedId !== vanId) {
-    return {error:'You may only request stock for an authorised working van.'}
+  const actor=await getCurrentProfile()
+  const capabilities=await accessFor(actor)
+  if (!rights.canManageRequests && !capabilities.office_access) {
+    const working=await getWorkingVans()
+    if (working.selectedId !== vanId)
+      return {error:'You may only request stock for your selected authorised working van.'}
   }
   if (!warehouseId || !vanId || !productId || !reference?.trim() ||
       !Number.isFinite(quantity) || quantity <= 0 || quantity >= 1000000000 ||
@@ -931,8 +934,11 @@ export async function transferWarehouseToVan(
   if (!rights.canIssue) {
     return { error: 'Warehouse issue permission required.' }
   }
-  if (!['admin','manager'].includes(profile.role) && profile.van_id !== vanId) {
-    return { error: 'Technicians may only issue stock to their assigned default van.' }
+  const capabilities=await accessFor(profile)
+  if (!['admin','manager'].includes(profile.role) && !capabilities.office_access) {
+    const working=await getWorkingVans()
+    if(working.selectedId!==vanId)
+      return {error:'Technicians may only issue stock to their selected authorised working van.'}
   }
   if (!warehouseId || !vanId || !productId || !reference?.trim() ||
       !Number.isFinite(quantity) || quantity <= 0) {
@@ -966,8 +972,11 @@ export async function returnVanStockToWarehouse(
   const profile = await getCurrentProfile()
   const rights = await getMyWarehouseRights()
   if (!rights.canReceive) return { error: 'Warehouse receive permission required.' }
-  if (!['admin','manager'].includes(profile.role) && profile.van_id !== vanId) {
-    return { error: 'Technicians may only return stock from their assigned default van.' }
+  const capabilities=await accessFor(profile)
+  if (!['admin','manager'].includes(profile.role) && !capabilities.office_access) {
+    const working=await getWorkingVans()
+    if(working.selectedId!==vanId)
+      return {error:'Technicians may only return stock from their selected authorised working van.'}
   }
   if (!warehouseId || !vanId || !productId || !reference?.trim() ||
       !Number.isFinite(quantity) || quantity <= 0 ||

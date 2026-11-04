@@ -5,6 +5,7 @@ import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import WarehouseCorrections from '@/components/WarehouseCorrections'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
+import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
 import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels } from '@/lib/actions'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
@@ -125,7 +126,7 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
-        {canManage && !overview.setupRequired && <WarehouseRequestForm
+        {(canManage||rights.canRequest) && !overview.setupRequired && <WarehouseRequestForm
           warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           vans={companyVans} selectedVanId={companyVans[0]?.id??null}
@@ -135,6 +136,13 @@ export default async function WarehousePage() {
           vans={companyVans.map(v=>({id:v.id,van_number:v.van_number}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           canManage={rights.canManageRequests} writesEnabled={writesEnabled}
+        />}
+        {(rights.canIssue||rights.canReceive) && <TechnicianWarehouseMovement
+          warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
+          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
+          defaultVanId={companyVans[0]?.id??null} vans={companyVans}
+          canIssue={rights.canIssue} canReceive={rights.canReceive}
+          enabled={writesEnabled}
         />}
         {canManage ? <>
         <WarehouseReplenishmentDraft
