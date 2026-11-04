@@ -236,6 +236,27 @@ export async function getFleetVanStock(viewVanId?:string){
  return {vans:vans??[],selectedId,items:stock.data??[],standards:standards.data??[],assignedUsers:users.data??[]}
 }
 
+// Fleet-wide read-only stock comparison for Office and Administration.
+// Every balance is restricted to active vans in the signed-in user's company.
+export async function getFleetStockComparison(){
+ const actor=await getCurrentProfile()
+ const rights=await accessFor(actor)
+ if(actor.role!=='admin'&&!rights.office_access)throw new Error('Office access required')
+ const db=createServerClient()
+ const {data:vans,error:vanError}=await db.from('vans')
+  .select('id,van_number').eq('company_id',actor.company_id).eq('active',true).order('van_number')
+ if(vanError)throw new Error('Could not load company vans')
+ const ids=(vans??[]).map(v=>v.id)
+ if(!ids.length)return {vans:[] as {id:string;van_number:string}[],balances:[] as {van_id:string;product_id:string;quantity:number}[],products:[] as {id:string;name:string;category:string;stock_unit:string|null}[]}
+ const [stock,products]=await Promise.all([
+  db.from('stock').select('van_id,product_id,quantity').in('van_id',ids),
+  // Retain archived products in historical balances until physically reconciled.
+  db.from('products').select('id,name,category,stock_unit').eq('company_id',actor.company_id),
+ ])
+ if(stock.error||products.error)throw new Error('Could not load fleet stock balances')
+ return {vans:vans??[],balances:stock.data??[],products:products.data??[]}
+}
+
 // Office users may identify the source van for outstanding job allocations
 // without needing manager-level access to the staff administration directory.
 export async function getCompanyVanLabels(){
