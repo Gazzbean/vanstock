@@ -15,6 +15,9 @@ function labelPerson(name:string|null,initials:string|null){
  if(name)return initials?`${name} (${initials})`:name
  return initials??'Unknown user'
 }
+function isDuplicateDocketError(message:string){
+ return /(?:pack_receipts|loose_receipts|loose_item_receipts).*docket_guard|duplicate key value.*(?:docket|receipt)|receipt reference already (?:used|recorded)/i.test(message)
+}
 export default function ReceiveStockWorkflow({products,suppliers,packages,vans,warehouses,initialReceipts,selectedVanId}:Props){
  const available=products.filter(p=>!p.archived_at)
  const [mode,setMode]=useState<'pack'|'loose'>('pack')
@@ -30,6 +33,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
  const [receiptId,setReceiptId]=useState('')
  const [pending,start]=useTransition()
  const [error,setError]=useState('')
+ const [duplicateReference,setDuplicateReference]=useState(false)
  const [success,setSuccess]=useState('')
  const [balance,setBalance]=useState<number|null>(null)
  const [balanceLoading,setBalanceLoading]=useState(false)
@@ -37,6 +41,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
  const [lastReceipt,setLastReceipt]=useState<{quantity:number;unit:string;destination:string;newBalance:number|null}|null>(null)
  const finalConfirmationRef=useRef<HTMLDivElement>(null)
  const reviewSectionRef=useRef<HTMLElement>(null)
+ const docketInputRef=useRef<HTMLInputElement>(null)
  const [reviewHighlighted,setReviewHighlighted]=useState(false)
 
  const chosenProduct=available.find(p=>p.id===productId)
@@ -80,7 +85,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
   })
   return()=>cancelAnimationFrame(frame)
  },[confirm])
- function changed(){setConfirm(false);setReviewHighlighted(false);setError('');setSuccess('');setReceiptId('');setLastReceipt(null)}
+ function changed(){setConfirm(false);setReviewHighlighted(false);setError('');setDuplicateReference(false);setSuccess('');setReceiptId('');setLastReceipt(null)}
  function continueToReview(){
   if(!valid||pending)return
   setReviewHighlighted(true)
@@ -110,7 +115,18 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
        const r=mode==='pack'
          ?await receiveSupplierPack(id,packageId,qty,docket,type as 'warehouse'|'van',locationId)
          :await receiveLooseItem(id,productId,supplierId,qty,docket,type as 'warehouse'|'van',locationId)
-       if(r.error){setError(r.error);return}
+       if(r.error){
+        if(isDuplicateDocketError(r.error)){
+         setDuplicateReference(true)
+         setConfirm(false)
+         setError(`Receipt not saved — reference ${docket.trim()} has already been used. No stock was added. Check the supplier delivery docket. If this is a different delivery, enter its correct, unique reference below.`)
+         requestAnimationFrame(()=>{
+          docketInputRef.current?.scrollIntoView({behavior:'smooth',block:'center'})
+          docketInputRef.current?.focus({preventScroll:true})
+         })
+        }else setError(r.error)
+        return
+       }
        let newBalance:number|null=null
        try{newBalance=await getReceiveStockBalance(productId,type as 'van'|'warehouse',locationId);setBalance(newBalance)}
        catch{setBalance(null)}
@@ -145,11 +161,11 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
     </button>
    </div>
   </section>
-  <section className={'card space-y-4 border-2 '+(valid?'border-green-500':'border-gray-200')}>
+  <section className={'card space-y-4 border-2 '+(duplicateReference?'border-red-500':valid?'border-green-500':'border-gray-200')}>
    <div>
     <div className="flex flex-wrap items-center justify-between gap-2">
      <h2 className="font-semibold text-base text-gray-900">B. Receipt details</h2>
-     {valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
+     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Reference already used</span>:valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
     </div>
     <p className="text-xs text-gray-500 mt-1">Choose the product first, then the supplier. Package options will be filtered automatically.</p>
    </div>
@@ -194,10 +210,15 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
    </div>
    <div>
     <label htmlFor="r-docket" className="form-label">Supplier docket / test reference <span className="text-red-600">*</span></label>
-    <input id="r-docket" type="text" className="form-input" maxLength={120} placeholder="e.g. TEST-RECEIPT-003" value={docket} onChange={e=>{setDocket(e.target.value);changed()}}/>
+    <input ref={docketInputRef} id="r-docket" type="text" className={'form-input '+(duplicateReference?'border-2 border-red-600 bg-red-50':'')} aria-invalid={duplicateReference} aria-describedby={duplicateReference?'r-docket-error':undefined} maxLength={120} placeholder="e.g. TEST-RECEIPT-003" value={docket} onChange={e=>{setDocket(e.target.value);changed()}}/>
     <p className="text-xs text-gray-500 mt-1">Use a new reference for every distinct receipt. Duplicate receipts are rejected.</p>
+    {duplicateReference&&<div id="r-docket-error" role="alert" className="mt-3 rounded-lg border-2 border-red-500 bg-red-50 p-4 text-sm text-red-900">
+     <p className="font-bold">❌ Receipt not saved — reference already used</p>
+     <p className="mt-1">The reference <strong>{docket.trim()}</strong> has already been recorded. <strong>No stock was added.</strong></p>
+     <p className="mt-1">Check the supplier delivery docket. If this is a different delivery, enter its correct, unique reference in the highlighted field above.</p>
+    </div>}
    </div>
-   {valid&&!confirm&&!success&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
+   {valid&&!confirm&&!success&&!duplicateReference&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
     <p className="text-sm font-semibold text-green-900">✓ Receipt details complete</p>
     <p className="text-sm text-green-800">All required information has been entered. Continue to <strong>C. Review and confirm</strong> to check the quantities before recording the receipt.</p>
     <button type="button" className="btn btn-primary" disabled={pending} onClick={continueToReview}>Continue to Review ↓</button>
@@ -244,7 +265,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
     <p className="text-sm font-medium text-blue-800">Reviewing only checks your receipt. No stock will be added until you confirm and save it.</p>
     <button type="button" className="btn btn-primary" disabled={!valid||pending||balanceLoading} onClick={submit}>{pending?'Checking balance…':'Review receipt — No stock changes yet'}</button>
    </div>}
-   {error&&<p className="text-sm text-red-700" role="alert">{error}</p>}
+   {error&&!duplicateReference&&<p className="text-sm text-red-700" role="alert">{error}</p>}
    {success&&<div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800" role="status"><p className="font-semibold">{success}</p>{lastReceipt&&<p className="mt-1">Added {lastReceipt.quantity.toLocaleString('en-AU')} {lastReceipt.unit} to {lastReceipt.destination}. {lastReceipt.newBalance!==null?'New balance: '+lastReceipt.newBalance.toLocaleString('en-AU')+' '+lastReceipt.unit+'.':'Refresh the page to check the updated balance.'}</p>}</div>}
   </section>
   <section className="card mt-4">
