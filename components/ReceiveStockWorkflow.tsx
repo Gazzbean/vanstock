@@ -124,27 +124,33 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
    })
  }
  return <div className="space-y-4 max-w-5xl">
-  <section className="card">
+  <section className="card border-2 border-green-500">
    <div className="mb-5">
-    <h2 className="font-semibold text-base text-gray-900">1. How are you receiving stock?</h2>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <h2 className="font-semibold text-base text-gray-900">A. How are you receiving stock?</h2>
+     <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Selected</span>
+    </div>
     <p className="text-sm text-gray-500 mt-1">Choose one method. You will only see the fields required for that transaction.</p>
    </div>
    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
     <button type="button" aria-pressed={mode==='pack'} onClick={()=>changeMode('pack')}
-     className={'rounded-lg border p-4 text-left '+(mode==='pack'?'border-blue-600 bg-blue-50':'border-gray-200 bg-white hover:bg-gray-50')}>
+     className={'rounded-lg border-2 p-4 text-left '+(mode==='pack'?'border-green-600 bg-green-50':'border-gray-200 bg-white hover:bg-gray-50')}>
      <div className="font-semibold text-sm">📦 Full packs, boxes or cartons</div>
      <p className="text-xs text-gray-600 mt-1">Example: 1 pack of 500 cable ties adds 500 ea to stock.</p>
     </button>
     <button type="button" aria-pressed={mode==='loose'} onClick={()=>changeMode('loose')}
-     className={'rounded-lg border p-4 text-left '+(mode==='loose'?'border-blue-600 bg-blue-50':'border-gray-200 bg-white hover:bg-gray-50')}>
+     className={'rounded-lg border-2 p-4 text-left '+(mode==='loose'?'border-green-600 bg-green-50':'border-gray-200 bg-white hover:bg-gray-50')}>
      <div className="font-semibold text-sm">🔩 Individual or loose items</div>
      <p className="text-xs text-gray-600 mt-1">Example: 10 loose cable ties adds 10 ea to stock.</p>
     </button>
    </div>
   </section>
-  <section className="card space-y-4">
+  <section className={'card space-y-4 border-2 '+(valid?'border-green-500':'border-gray-200')}>
    <div>
-    <h2 className="font-semibold text-base text-gray-900">2. Receipt details</h2>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <h2 className="font-semibold text-base text-gray-900">B. Receipt details</h2>
+     {valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
+    </div>
     <p className="text-xs text-gray-500 mt-1">Choose the product first, then the supplier. Package options will be filtered automatically.</p>
    </div>
    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -193,17 +199,18 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
    </div>
    {valid&&!confirm&&!success&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
     <p className="text-sm font-semibold text-green-900">✓ Receipt details complete</p>
-    <p className="text-sm text-green-800">All required information has been entered. Continue to <strong>3. Review and confirm</strong> to check the quantities before recording the receipt.</p>
+    <p className="text-sm text-green-800">All required information has been entered. Continue to <strong>C. Review and confirm</strong> to check the quantities before recording the receipt.</p>
     <button type="button" className="btn btn-primary" disabled={pending} onClick={continueToReview}>Continue to Review ↓</button>
     <p className="text-xs text-green-800">This button only moves you to the review. No stock will be saved.</p>
    </div>}
   </section>
-  <section ref={reviewSectionRef} tabIndex={-1} aria-label="Review and confirm receipt" className={'card space-y-3 scroll-mt-4 focus:outline-none '+(reviewHighlighted&&!confirm?'ring-2 ring-blue-400':'')}>
+  <section ref={reviewSectionRef} tabIndex={-1} aria-label="Review and confirm receipt" className={'card space-y-3 scroll-mt-4 focus:outline-none border-2 '+(success?'border-green-500':confirm?'border-green-500':valid?'border-amber-500':'border-gray-200')+(reviewHighlighted&&!confirm?' ring-2 ring-amber-300':'')}>
    <div className="flex flex-wrap items-center justify-between gap-2">
-    <h2 className="font-semibold text-base text-gray-900">3. Review and confirm</h2>
-    <span className={'rounded-full px-3 py-1 text-xs font-semibold '+(confirm?'bg-amber-100 text-amber-900':'bg-blue-100 text-blue-800')}>
-     {confirm?'Final confirmation required':'Review only — Not yet saved'}
-    </span>
+    <h2 className="font-semibold text-base text-gray-900">C. Review and confirm</h2>
+    {success?<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Receipt saved</span>:
+     valid?<span className={'rounded-full px-3 py-1 text-xs font-semibold '+(confirm?'bg-green-100 text-green-800':'bg-amber-100 text-amber-900')}>
+      {confirm?'Stage 2 — Ready to save':'Stage 1 — Review (not saved)'}
+     </span>:<span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">Awaiting receipt details</span>}
    </div>
    <div className="rounded-lg bg-gray-50 p-4 border border-gray-200">
     <p className="text-xs text-gray-500">Stock quantity to add</p>
@@ -222,7 +229,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
      <div className="flex gap-2 items-start">
       <span aria-hidden="true" className="text-xl">⚠️</span>
       <div>
-       <h3 className="text-base font-bold text-amber-950">Final confirmation required — receipt not yet saved</h3>
+       <h3 className="text-base font-bold text-amber-950">Stage 2 — Ready to save; receipt not yet recorded</h3>
        <p className="text-sm text-amber-900 mt-1">Your receipt has been reviewed, but stock has <strong>not</strong> been updated. One final confirmation is required.</p>
       </div>
      </div>
