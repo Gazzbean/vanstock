@@ -36,6 +36,8 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
  const [receipts,setReceipts]=useState(initialReceipts)
  const [lastReceipt,setLastReceipt]=useState<{quantity:number;unit:string;destination:string;newBalance:number|null}|null>(null)
  const finalConfirmationRef=useRef<HTMLDivElement>(null)
+ const reviewSectionRef=useRef<HTMLElement>(null)
+ const [reviewHighlighted,setReviewHighlighted]=useState(false)
 
  const chosenProduct=available.find(p=>p.id===productId)
  const chosenSupplier=suppliers.find(s=>s.id===supplierId)
@@ -78,7 +80,13 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
   })
   return()=>cancelAnimationFrame(frame)
  },[confirm])
- function changed(){setConfirm(false);setError('');setSuccess('');setReceiptId('');setLastReceipt(null)}
+ function changed(){setConfirm(false);setReviewHighlighted(false);setError('');setSuccess('');setReceiptId('');setLastReceipt(null)}
+ function continueToReview(){
+  if(!valid||pending)return
+  setReviewHighlighted(true)
+  reviewSectionRef.current?.scrollIntoView({behavior:'smooth',block:'start'})
+  reviewSectionRef.current?.focus({preventScroll:true})
+ }
  function changeMode(next:'pack'|'loose'){setMode(next);setAmount('1');changed()}
  function changeProduct(id:string){setProductId(id);setPackageId('');changed()}
  function changeSupplier(id:string){setSupplierId(id);setPackageId('');changed()}
@@ -183,12 +191,18 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
     <input id="r-docket" type="text" className="form-input" maxLength={120} placeholder="e.g. TEST-RECEIPT-003" value={docket} onChange={e=>{setDocket(e.target.value);changed()}}/>
     <p className="text-xs text-gray-500 mt-1">Use a new reference for every distinct receipt. Duplicate receipts are rejected.</p>
    </div>
+   {valid&&!confirm&&!success&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
+    <p className="text-sm font-semibold text-green-900">✓ Receipt details complete</p>
+    <p className="text-sm text-green-800">All required information has been entered. Continue to <strong>3. Review and confirm</strong> to check the quantities before recording the receipt.</p>
+    <button type="button" className="btn btn-primary" disabled={pending} onClick={continueToReview}>Continue to Review ↓</button>
+    <p className="text-xs text-green-800">This button only moves you to the review. No stock will be saved.</p>
+   </div>}
   </section>
-  <section className="card space-y-3">
+  <section ref={reviewSectionRef} tabIndex={-1} aria-label="Review and confirm receipt" className={'card space-y-3 scroll-mt-4 focus:outline-none '+(reviewHighlighted&&!confirm?'ring-2 ring-blue-400':'')}>
    <div className="flex flex-wrap items-center justify-between gap-2">
     <h2 className="font-semibold text-base text-gray-900">3. Review and confirm</h2>
     <span className={'rounded-full px-3 py-1 text-xs font-semibold '+(confirm?'bg-amber-100 text-amber-900':'bg-blue-100 text-blue-800')}>
-     {confirm?'Step 2 of 2 — Final confirmation':'Step 1 of 2 — Review only'}
+     {confirm?'Final confirmation required':'Review only — Not yet saved'}
     </span>
    </div>
    <div className="rounded-lg bg-gray-50 p-4 border border-gray-200">
@@ -208,20 +222,20 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
      <div className="flex gap-2 items-start">
       <span aria-hidden="true" className="text-xl">⚠️</span>
       <div>
-       <h3 className="text-base font-bold text-amber-950">Step 2 of 2 — Action required: receipt not yet saved</h3>
+       <h3 className="text-base font-bold text-amber-950">Final confirmation required — receipt not yet saved</h3>
        <p className="text-sm text-amber-900 mt-1">Your receipt has been reviewed, but stock has <strong>not</strong> been updated. One final confirmation is required.</p>
       </div>
      </div>
      <p className="text-sm font-semibold text-gray-900">Receive {stockQty.toLocaleString('en-AU')} {unit} of {chosenProduct?.name} into {place?.name}?</p>
      <div className="flex gap-3 flex-wrap items-center">
       <button type="button" className="btn bg-green-700 hover:bg-green-800 text-white border-green-700 focus-visible:ring-2 focus-visible:ring-green-600" disabled={!valid||pending||balanceLoading} onClick={submit}>
-       {pending?'Saving receipt…':'Step 2 of 2 — Confirm & save receipt'}
+       {pending?'Saving receipt…':'Confirm & save receipt'}
       </button>
       <button type="button" className="btn" disabled={pending} onClick={()=>setConfirm(false)}>Back to edit</button>
      </div>
    </div>:<div className="space-y-2">
-    <p className="text-sm font-medium text-blue-800">Step 1 only checks your receipt. No stock will be added until you complete Step 2.</p>
-    <button type="button" className="btn btn-primary" disabled={!valid||pending||balanceLoading} onClick={submit}>{pending?'Checking balance…':'Step 1 of 2 — Review receipt'}</button>
+    <p className="text-sm font-medium text-blue-800">Reviewing only checks your receipt. No stock will be added until you confirm and save it.</p>
+    <button type="button" className="btn btn-primary" disabled={!valid||pending||balanceLoading} onClick={submit}>{pending?'Checking balance…':'Review receipt — No stock changes yet'}</button>
    </div>}
    {error&&<p className="text-sm text-red-700" role="alert">{error}</p>}
    {success&&<div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800" role="status"><p className="font-semibold">{success}</p>{lastReceipt&&<p className="mt-1">Added {lastReceipt.quantity.toLocaleString('en-AU')} {lastReceipt.unit} to {lastReceipt.destination}. {lastReceipt.newBalance!==null?'New balance: '+lastReceipt.newBalance.toLocaleString('en-AU')+' '+lastReceipt.unit+'.':'Refresh the page to check the updated balance.'}</p>}</div>}
