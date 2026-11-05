@@ -11,7 +11,8 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { signOut } from '@/lib/actions'
+import { useState } from 'react'
+import { markWarehouseNotificationRead, signOut } from '@/lib/actions'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard',      icon: '⊞' },
@@ -31,9 +32,17 @@ interface UserDisplay {
   van_number: string | null
 }
 
-export default function SidebarNav({ user }: { user: UserDisplay | null }) {
+type WarehouseNotification = {
+  id:string;event_type:string;reference:string;status:string;created_at:string;read_at:string|null
+}
+
+export default function SidebarNav({ user, notifications=[] }: {
+  user: UserDisplay | null; notifications?:WarehouseNotification[]
+}) {
   const pathname = usePathname()
   const router = useRouter()
+  const [inboxOpen,setInboxOpen]=useState(false)
+  const unread=notifications.filter(n=>!n.read_at).length
   // Invite acceptance is a standalone auth flow, not an authenticated app screen.
   if (pathname.startsWith('/auth/accept-invite')) return null
 
@@ -58,6 +67,26 @@ export default function SidebarNav({ user }: { user: UserDisplay | null }) {
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="text-sm font-medium text-gray-900">🚐 VanStock</div>
         <div className="text-xs text-gray-400 mt-0.5">Stock Control System</div>
+        {user?.access?.office_access && <div className="mt-3">
+          <button type="button" className="btn btn-sm w-full justify-between" onClick={()=>setInboxOpen(v=>!v)}
+            aria-expanded={inboxOpen} aria-label={`Warehouse notifications, ${unread} unread`}>
+            <span>🔔 Notifications</span>
+            {unread>0&&<span className="rounded-full bg-red-600 px-2 text-xs text-white">{unread}</span>}
+          </button>
+          {inboxOpen&&<div className="mt-2 max-h-64 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+            {notifications.length===0?<p className="text-xs text-gray-500">No notifications.</p>:
+              notifications.slice(0,12).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
+                <p>{n.reference} — {n.event_type}</p>
+                <div className="mt-1 flex gap-2">
+                  <Link href="/warehouse" className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
+                  {!n.read_at&&<button type="button" className="text-blue-700 underline" onClick={async()=>{
+                    const result=await markWarehouseNotificationRead(n.id)
+                    if(result.success)router.refresh()
+                  }}>Mark read</button>}
+                </div>
+              </div>)}
+          </div>}
+        </div>}
       </div>
 
       {/* Navigation links */}

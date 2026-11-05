@@ -9,9 +9,10 @@
 //    but made it larger/clearer there too.
 // ============================================================
 
-import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay, getProducts, getWorkingVanStandards, getWorkingVans } from '@/lib/actions'
+import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay, getProducts, getWorkingVanStandards, getWorkingVans, getWarehouseRequests, getMyWarehouseRights } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
+import WarehousePendingActions from '@/components/WarehousePendingActions'
 
 const typeLabels: Record<string, string> = {
   issue:       'Issued to customer',
@@ -26,10 +27,11 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
   // An office-only user has no working van: present an office dashboard
   // rather than zero van balances and an unusable Adjust Stock action.
   if(user?.access?.office_access && !user.access.technician_access){
-    const recentLogs=await getActivityLog()
+    const [recentLogs,requests,rights]=await Promise.all([getActivityLog(),getWarehouseRequests(),getMyWarehouseRights()])
     return <div>
       <div className="topbar"><h1 className="topbar-title">Office Dashboard</h1></div>
       <div className="p-5 space-y-4">
+        <WarehousePendingActions requests={requests} canManage={rights.canManageRequests}/>
         <div className="card">
           <h2 className="text-sm font-semibold">Office stock management</h2>
           <p className="text-sm text-gray-600 mt-2">You can view warehouse balances, receive supplier stock and review transaction history. No service van is assigned to this account.</p>
@@ -64,6 +66,9 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
   ])
   const displayRows = buildStockDisplayRows(products, stockItems, standards)
   const lowItems = displayRows.filter(s => s.status === 'Critical' || s.status === 'Low')
+  const [warehouseRequests,warehouseRights]=user?.access?.office_access
+    ? await Promise.all([getWarehouseRequests(),getMyWarehouseRights()])
+    : [[],{canManageRequests:false}]
 
   return (
     <div>
@@ -83,6 +88,7 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
       </div>
 
       <div className="p-5">
+        {user?.access?.office_access&&<WarehousePendingActions requests={warehouseRequests} canManage={warehouseRights.canManageRequests}/>}
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId}/>
 
         {lowItems.length > 0 && (

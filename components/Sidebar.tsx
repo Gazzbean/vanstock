@@ -11,11 +11,11 @@
 // hardcoded text that never changed no matter who logged in.
 // ============================================================
 
-import { getCurrentUserDisplay } from '@/lib/actions'
+import { getCurrentUserDisplay, getMyWarehouseNotifications } from '@/lib/actions'
 import SidebarNav from './SidebarNav'
 
 export default async function Sidebar() {
   const user = await getCurrentUserDisplay()
-
-  return <SidebarNav user={user} />
+  const notifications = user ? await getMyWarehouseNotifications() : []
+  return <SidebarNav user={user} notifications={notifications} />
 }

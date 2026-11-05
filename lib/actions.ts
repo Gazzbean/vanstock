@@ -741,6 +741,42 @@ export async function getWarehouseRequests() {
   }))
 }
 
+// Private notification inbox: identity and company are always taken from the
+// verified session profile, never from a browser-supplied user identifier.
+export async function getMyWarehouseNotifications() {
+  const profile=await getCurrentProfile()
+  const db=createServerClient()
+  const {data,error}=await db.from('warehouse_notifications')
+    .select('id,request_id,event_type,created_at,read_at')
+    .eq('company_id',profile.company_id).eq('user_id',profile.id)
+    .order('created_at',{ascending:false}).limit(30)
+  if(error){
+    if(error.code==='42P01'||error.code==='PGRST205')return []
+    throw new Error('Could not load notifications')
+  }
+  if(!data?.length)return []
+  const ids=[...new Set(data.map(n=>n.request_id))]
+  const {data:requests,error:requestError}=await db.from('warehouse_replenishment_requests')
+    .select('id,reference,quantity,status,van_id,product_id')
+    .eq('company_id',profile.company_id).in('id',ids)
+  if(requestError)throw new Error('Could not load notification details')
+  const details=new Map((requests??[]).map(r=>[r.id,r]))
+  return data.filter(n=>details.has(n.request_id)).map(n=>({
+    ...n,reference:details.get(n.request_id)?.reference??'Warehouse request',
+    status:details.get(n.request_id)?.status??'',
+  }))
+}
+
+export async function markWarehouseNotificationRead(id:string){
+  if(!id)return {error:'Missing notification'}
+  const session=await createSessionClient()
+  const {data,error}=await session.rpc('vanstock_mark_warehouse_notification_read',{p_id:id})
+  if(error||!data)return {error:'Notification could not be marked as read'}
+  revalidatePath('/dashboard')
+  revalidatePath('/warehouse')
+  return {success:true}
+}
+
 export async function getWarehouseRequestLocations() {
   const rights=await getMyWarehouseRights()
   if (!rights.canRequest) return []
