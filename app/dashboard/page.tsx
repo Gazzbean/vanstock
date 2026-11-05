@@ -82,9 +82,9 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
             </span>
           )}
         </div>
-        <a href="/stock" className="btn btn-primary btn-sm">
+        {user?.role === 'admin' && <a href="/adjust-stock" className="btn btn-primary btn-sm">
           + Adjust stock
-        </a>
+        </a>}
       </div>
 
       <div className="p-5">
