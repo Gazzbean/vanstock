@@ -1252,6 +1252,18 @@ export async function addCatalogueSupplier(name:string,accountNumber:string){
  revalidatePath('/admin')
  return {success:true}
 }
+export async function updateCatalogueSupplier(id:string,name:string,accountNumber:string,active:boolean){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!id||typeof name!=='string'||!name.trim()||name.trim().length>120||typeof accountNumber!=='string'||accountNumber.length>100||typeof active!=='boolean')return {error:'Invalid supplier details'}
+ const session=await createSessionClient()
+ const {data,error}=await session.from('suppliers').update({name:name.trim(),account_number:accountNumber.trim()||null,active})
+  .eq('id',id).eq('company_id',p.company_id).select('id')
+ if(error)return {error:error.code==='23505'?'Supplier name already exists':error.message}
+ if(!data?.length)return {error:'Supplier not found or not authorised'}
+ revalidatePath('/admin');revalidatePath('/receive')
+ return {success:true}
+}
 export async function addSupplierPackage(productId:string,supplierId:string,supplierCode:string,packageLabel:string,purchaseUnit:string,unitsPerPackage:number){
  const p=await getCurrentProfile()
  if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
@@ -1286,6 +1298,36 @@ export async function setSupplierPackageActive(optionId:string,active:boolean){
   .update({active}).eq('id',optionId).eq('company_id',p.company_id).select('id')
  if(error)return {error:error.message}
  if(!data?.length)return {error:'Purchase option not found or not authorised'}
+ revalidatePath('/admin');revalidatePath('/receive')
+ return {success:true}
+}
+export async function updateSupplierPackage(optionId:string,supplierCode:string,packageLabel:string,purchaseUnit:string,unitsPerPackage:number){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!optionId||typeof supplierCode!=='string'||supplierCode.length>120||typeof packageLabel!=='string'||!packageLabel.trim()||packageLabel.trim().length>100||
+ !['ea','kg','m','pack','container','roll','box','cylinder'].includes(purchaseUnit)||!Number.isFinite(unitsPerPackage)||unitsPerPackage<=0||unitsPerPackage>=1000000000||
+ Math.abs(unitsPerPackage*100-Math.round(unitsPerPackage*100))>1e-7)return {error:'Invalid purchase package details'}
+ const db=createServerClient()
+ const {data:option,error:optionError}=await db.from('supplier_product_options').select('product_id').eq('id',optionId).eq('company_id',p.company_id).maybeSingle()
+ if(optionError||!option)return {error:'Purchase option not found'}
+ const {data:product,error:productError}=await db.from('products').select('stock_unit').eq('id',option.product_id).eq('company_id',p.company_id).maybeSingle()
+ if(productError||!product||!isValidPackageConversion(unitsPerPackage,product.stock_unit))return {error:'Invalid conversion for stock tracking unit'}
+ const session=await createSessionClient()
+ const {data,error}=await session.from('supplier_product_options').update({supplier_code:supplierCode.trim()||null,package_label:packageLabel.trim(),purchase_unit:purchaseUnit,units_per_package:unitsPerPackage})
+  .eq('id',optionId).eq('company_id',p.company_id).select('id')
+ if(error)return {error:error.code==='23505'?'This supplier package already exists':error.message}
+ if(!data?.length)return {error:'Purchase option not found or not authorised'}
+ revalidatePath('/admin');revalidatePath('/receive')
+ return {success:true}
+}
+export async function deleteUnusedSupplierRecord(kind:'supplier'|'package',id:string){
+ const p=await getCurrentProfile()
+ if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!['supplier','package'].includes(kind)||!id)return {error:'Invalid selection'}
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('vanstock_delete_unused_supplier_record',{p_kind:kind,p_id:id})
+ if(error)return {error:error.message}
+ if(!data)return {error:'Record was not deleted'}
  revalidatePath('/admin');revalidatePath('/receive')
  return {success:true}
 }
