@@ -401,14 +401,16 @@ export async function getVanTransferWorkspace(){
  const access=await accessFor(profile)
  if(!access.office_access&&!access.technician_access)throw new Error('Stock access required')
  const db=createServerClient()
- const [vansResult,productsResult,grantsResult,requestsResult]=await Promise.all([
+ const [vansResult,productsResult,grantsResult,requestsResult,packagesResult]=await Promise.all([
   db.from('vans').select('id,van_number').eq('company_id',profile.company_id).eq('active',true).order('van_number'),
   db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id).is('archived_at',null).order('name'),
   db.from('user_authorized_vans').select('van_id').eq('company_id',profile.company_id).eq('user_id',profile.id),
   db.from('van_transfer_requests').select('id,source_van_id,destination_van_id,product_id,quantity,reason,status,transaction_reference,created_at,decision_reason')
    .eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(100),
+  db.from('supplier_product_options').select('id,product_id,package_label,purchase_unit,units_per_package')
+   .eq('company_id',profile.company_id).eq('active',true),
  ])
- if(vansResult.error||productsResult.error||grantsResult.error||requestsResult.error)
+ if(vansResult.error||productsResult.error||grantsResult.error||requestsResult.error||packagesResult.error)
   throw new Error('Could not load van transfers')
  const assigned=new Set((grantsResult.data??[]).map(g=>g.van_id))
  const active=new Set((vansResult.data??[]).map(v=>v.id))
@@ -421,7 +423,7 @@ export async function getVanTransferWorkspace(){
   :{data:[],error:null}
  if(stockResult.error)throw new Error('Could not load source van balances')
  return {
-  vans:vansResult.data??[],sources,products:productsResult.data??[],
+  vans:vansResult.data??[],sources,products:productsResult.data??[],packages:packagesResult.data??[],
   balances:stockResult.data??[],requests,managed,
   receiverVanIds:[...assigned].filter(id=>active.has(id)),
  }
