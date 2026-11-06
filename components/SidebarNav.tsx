@@ -20,6 +20,7 @@ const navItems = [
   { href: '/fleet',     label: 'Fleet Stock',    icon: '🚐' },
   { href: '/receive',   label: 'Receive Stock',   icon: '↓'  },
   { href: '/transfer',  label: 'Materials Used',  icon: '⇄'  },
+  { href: '/van-transfers', label: 'Van Transfers', icon: '🚚' },
   { href: '/logs',      label: 'Transaction History',   icon: '☰'  },
   { href: '/warehouse', label: 'Warehouse', icon: '▣' },
   { href: '/admin',     label: 'Admin',          icon: '⚙'  },
@@ -97,6 +98,7 @@ export default function SidebarNav({ user, notifications=[] }: {
           if (item.href === '/warehouse' && !user?.access?.office_access) return null
           if (item.href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin') return null
           if ((item.href === '/stock' || item.href === '/transfer') && !user?.access?.technician_access) return null
+          if (item.href === '/van-transfers' && !user?.access?.technician_access && !user?.access?.office_access) return null
           const isActive = pathname.startsWith(item.href)
           return (
             <Link
