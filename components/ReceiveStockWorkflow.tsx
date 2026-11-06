@@ -119,7 +119,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
         if(isDuplicateDocketError(r.error)){
          setDuplicateReference(true)
          setConfirm(false)
-         setError(`Receipt not saved — reference ${docket.trim()} has already been used. No stock was added. Check the supplier delivery docket. If this is a different delivery, enter its correct, unique reference below.`)
+         setError(`Receipt not saved — this product and destination were already recorded against ${docket.trim()}. No stock was added. Check Transaction History or ask an administrator to review a genuine additional delivery.`)
          requestAnimationFrame(()=>{
           docketInputRef.current?.scrollIntoView({behavior:'smooth',block:'center'})
           docketInputRef.current?.focus({preventScroll:true})
@@ -165,7 +165,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
    <div>
     <div className="flex flex-wrap items-center justify-between gap-2">
      <h2 className="font-semibold text-base text-gray-900">B. Receipt details</h2>
-     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Reference already used</span>:valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
+     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Possible duplicate</span>:valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
     </div>
     <p className="text-xs text-gray-500 mt-1">Choose the product first, then the supplier. Package options will be filtered automatically.</p>
    </div>
@@ -209,13 +209,13 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
     </div>
    </div>
    <div>
-    <label htmlFor="r-docket" className="form-label">Supplier docket / test reference <span className="text-red-600">*</span></label>
-    <input ref={docketInputRef} id="r-docket" type="text" className={'form-input '+(duplicateReference?'border-2 border-red-600 bg-red-50':'')} aria-invalid={duplicateReference} aria-describedby={duplicateReference?'r-docket-error':undefined} maxLength={120} placeholder="e.g. TEST-RECEIPT-003" value={docket} onChange={e=>{setDocket(e.target.value);changed()}}/>
-    <p className="text-xs text-gray-500 mt-1">Use a new reference for every distinct receipt. Duplicate receipts are rejected.</p>
+    <label htmlFor="r-docket" className="form-label">Supplier delivery docket / invoice number <span className="text-red-600">*</span></label>
+    <input ref={docketInputRef} id="r-docket" type="text" className={'form-input '+(duplicateReference?'border-2 border-red-600 bg-red-50':'')} aria-invalid={duplicateReference} aria-describedby={duplicateReference?'r-docket-error':undefined} maxLength={120} placeholder="e.g. DN-12345 or TEST-RECEIPT-003" value={docket} onChange={e=>{setDocket(e.target.value);changed()}}/>
+    <p className="text-xs text-gray-500 mt-1">Enter the reference on the supplier's paperwork. One docket may cover several products or destinations; repeating the same product into the same location requires review.</p>
     {duplicateReference&&<div id="r-docket-error" role="alert" className="mt-3 rounded-lg border-2 border-red-500 bg-red-50 p-4 text-sm text-red-900">
-     <p className="font-bold">❌ Receipt not saved — reference already used</p>
-     <p className="mt-1">The reference <strong>{docket.trim()}</strong> has already been recorded. <strong>No stock was added.</strong></p>
-     <p className="mt-1">Check the supplier delivery docket. If this is a different delivery, enter its correct, unique reference in the highlighted field above.</p>
+     <p className="font-bold">❌ Receipt not saved — possible duplicate stock entry</p>
+     <p className="mt-1">This product and destination have already been recorded against <strong>{docket.trim()}</strong>. <strong>No stock was added.</strong></p>
+     <p className="mt-1">Check the earlier receipt in Transaction History. If this is another delivery of the same item under the same docket, ask an administrator to review it before recording additional stock.</p>
     </div>}
    </div>
    {valid&&!confirm&&!success&&!duplicateReference&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">

@@ -976,9 +976,9 @@ export async function transferWarehouseToVan(
     if(working.selectedId!==vanId)
       return {error:'Technicians may only issue stock to their selected authorised working van.'}
   }
-  if (!warehouseId || !vanId || !productId || !reference?.trim() ||
+  if (!warehouseId || !vanId || !productId || (reference??'').length>450 ||
       !Number.isFinite(quantity) || quantity <= 0) {
-    return { error: 'Complete the warehouse, receiving van, product, quantity and reference.' }
+    return { error: 'Complete the warehouse, receiving van, product and quantity.' }
   }
   const session = await createSessionClient()
   const { error } = await session.rpc('vanstock_warehouse_move', {
@@ -1014,7 +1014,7 @@ export async function returnVanStockToWarehouse(
     if(working.selectedId!==vanId)
       return {error:'Technicians may only return stock from their selected authorised working van.'}
   }
-  if (!warehouseId || !vanId || !productId || !reference?.trim() ||
+  if (!warehouseId || !vanId || !productId || !reference?.trim() || reference.length>450 ||
       !Number.isFinite(quantity) || quantity <= 0 ||
       Math.abs(quantity * 100 - Math.round(quantity * 100)) > 1e-7) {
     return { error: 'Enter a valid return quantity (up to two decimal places) and reference.' }
@@ -1038,7 +1038,7 @@ export async function adjustWarehouseStock(
   const profile = await getCurrentProfile()
   if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
   if (!warehouseId || !productId || !['add','remove','set'].includes(operation) ||
-      !reference?.trim() || !Number.isFinite(quantity) || quantity < 0 ||
+      !reference?.trim() || reference.length>450 || !Number.isFinite(quantity) || quantity < 0 ||
       (operation !== 'set' && quantity === 0) ||
       Math.abs(quantity * 100 - Math.round(quantity * 100)) > 1e-7) {
     return { error: 'Enter a valid adjustment quantity and reference.' }

@@ -93,9 +93,10 @@ export default function WarehouseOpeningStockForm({
             onChange={e => setQuantity(e.target.value)} />
         </div>
         <div>
-          <label htmlFor="opening-reference" className="form-label">Approved stocktake reference</label>
+          <label htmlFor="opening-reference" className="form-label">Approved stocktake reason / existing reference</label>
           <input id="opening-reference" className="form-input" value={reference}
-            onChange={e => setReference(e.target.value)} placeholder="e.g. Opening count 2026-11" />
+            onChange={e => setReference(e.target.value)} placeholder="e.g. Opening count approved by manager" />
+          <p className="text-xs text-gray-500 mt-1">A unique STK number is generated automatically on posting.</p>
         </div>
       </div>
       {hasBalance && <p className="text-sm text-amber-700 mt-3">A balance already exists for this product; opening stock cannot overwrite it.</p>}
