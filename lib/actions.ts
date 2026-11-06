@@ -395,6 +395,72 @@ export async function recordTransfer(payload: TransferPayload,selectedVanId?:str
   return { success: true }
 }
 
+// ── VAN-TO-VAN TRANSFERS: REQUEST THEN RECEIVE ──────────
+export async function getVanTransferWorkspace(){
+ const profile=await getCurrentProfile()
+ const access=await accessFor(profile)
+ if(!access.office_access&&!access.technician_access)throw new Error('Stock access required')
+ const db=createServerClient()
+ const [vansResult,productsResult,grantsResult,requestsResult]=await Promise.all([
+  db.from('vans').select('id,van_number').eq('company_id',profile.company_id).eq('active',true).order('van_number'),
+  db.from('products').select('id,name,stock_unit').eq('company_id',profile.company_id).is('archived_at',null).order('name'),
+  db.from('user_authorized_vans').select('van_id').eq('company_id',profile.company_id).eq('user_id',profile.id),
+  db.from('van_transfer_requests').select('id,source_van_id,destination_van_id,product_id,quantity,reason,status,transaction_reference,created_at,decision_reason')
+   .eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(100),
+ ])
+ if(vansResult.error||productsResult.error||grantsResult.error||requestsResult.error)
+  throw new Error('Could not load van transfers')
+ const assigned=new Set((grantsResult.data??[]).map(g=>g.van_id))
+ const active=new Set((vansResult.data??[]).map(v=>v.id))
+ const managed=Boolean(access.office_access&&['admin','manager'].includes(profile.role))
+ const sources=(vansResult.data??[]).filter(v=>managed||assigned.has(v.id))
+ const requests=(requestsResult.data??[]).filter(r=>managed||assigned.has(r.source_van_id)||assigned.has(r.destination_van_id))
+ const stockIds=sources.map(v=>v.id)
+ const stockResult=stockIds.length
+  ?await db.from('stock').select('van_id,product_id,quantity').in('van_id',stockIds)
+  :{data:[],error:null}
+ if(stockResult.error)throw new Error('Could not load source van balances')
+ return {
+  vans:vansResult.data??[],sources,products:productsResult.data??[],
+  balances:stockResult.data??[],requests,managed,
+  receiverVanIds:[...assigned].filter(id=>active.has(id)),
+ }
+}
+
+export async function requestVanTransfer(
+ sourceVanId:string,destinationVanId:string,productId:string,quantity:number,reason:string,
+){
+ const profile=await getCurrentProfile()
+ const access=await accessFor(profile)
+ if(!access.office_access&&!access.technician_access)return {error:'Stock access required'}
+ if(!sourceVanId||!destinationVanId||sourceVanId===destinationVanId||!productId||
+  !Number.isFinite(quantity)||quantity<=0||quantity>=1000000000||
+  Math.abs(quantity*100-Math.round(quantity*100))>1e-7||
+  typeof reason!=='string'||reason.trim().length<3||reason.trim().length>500)
+  return {error:'Choose different vans, a product, valid quantity and a reason.'}
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('vanstock_request_van_transfer',{
+  p_source_van_id:sourceVanId,p_destination_van_id:destinationVanId,
+  p_product_id:productId,p_quantity:quantity,p_reason:reason.trim(),
+ })
+ if(error)return {error:error.message}
+ revalidatePath('/van-transfers')
+ return {success:true,id:String(data)}
+}
+
+export async function decideVanTransfer(id:string,approve:boolean,managementReason:string){
+ if(!id||typeof approve!=='boolean'||typeof managementReason!=='string'||managementReason.length>500)
+  return {error:'Invalid transfer decision'}
+ await getCurrentProfile()
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('vanstock_decide_van_transfer',{
+  p_request_id:id,p_approve:approve,p_decision_reason:managementReason.trim()||null,
+ })
+ if(error)return {error:error.message}
+ for(const path of ['/van-transfers','/stock','/fleet','/dashboard','/logs'])revalidatePath(path)
+ return {success:true,reference:String(data)}
+}
+
 // ── ACTIVITY LOG ───────────────────────────────────────────
 
 export async function getActivityLog(filterType?: string, selectedVanId?:string) {
