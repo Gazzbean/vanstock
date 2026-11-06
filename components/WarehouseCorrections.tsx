@@ -57,7 +57,7 @@ export default function WarehouseCorrections({
           : await adjustWarehouseStock(warehouseId, productId, operation, amount, reference.trim())
         if (result.error) setError(result.error)
         else {
-          setSuccess('Recorded successfully. Refresh the page before entering another movement.')
+          setSuccess('Recorded with an automatic transaction reference in Transaction History. Refresh before entering another movement.')
           setReference('')
           setProductId('')
         }
@@ -126,10 +126,11 @@ export default function WarehouseCorrections({
             step={decimal ? '0.01' : '1'} value={qty} onChange={e => setQty(e.target.value)} />
         </div>
         <div className="md:col-span-2">
-          <label className="form-label" htmlFor="correction-ref">Reason / reference (required)</label>
-          <input id="correction-ref" className="form-input" maxLength={500}
+          <label className="form-label" htmlFor="correction-ref">{mode === 'return' ? 'Return reason / original reference (required)' : 'Reason for stock correction (required)'}</label>
+          <input id="correction-ref" className="form-input" maxLength={450}
             value={reference} onChange={e => setReference(e.target.value)}
-            placeholder={mode === 'return' ? 'Return or transfer reference' : 'Stocktake or adjustment reason'} />
+            placeholder={mode === 'return' ? 'e.g. Unused material returned from job' : 'e.g. Stocktake variance, damaged or lost stock'} />
+          <p className="text-xs text-gray-500 mt-1">VanStock automatically records a {mode === 'return' ? 'TRF' : operation === 'set' ? 'STK' : 'ADJ'} reference alongside your reason.</p>
         </div>
       </div>
       {mode === 'adjust' && warehouseId && availableProducts.length === 0 && (

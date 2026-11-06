@@ -46,8 +46,8 @@ export default function WarehouseReplenishmentDraft({
   function submit() {
     setError('')
     setSuccess('')
-    if (!valid || !reference.trim()) {
-      setError('Complete a valid transfer and reference.')
+    if (!valid) {
+      setError('Complete the warehouse, van, product and quantity.')
       return
     }
     if (!enabled) return
@@ -58,7 +58,7 @@ export default function WarehouseReplenishmentDraft({
         )
         if (result.error) setError(result.error)
         else {
-          setSuccess('Transfer completed. Refresh to view updated balances.')
+          setSuccess('Transfer completed. A unique TRF reference has been recorded in Transaction History. Refresh to view updated balances.')
           setQuantity('1')
         }
       } catch {
@@ -109,9 +109,10 @@ export default function WarehouseReplenishmentDraft({
             value={quantity} onChange={e => setQuantity(e.target.value)} aria-invalid={insufficientStock} aria-describedby={insufficientStock ? 'warehouse-insufficient-stock' : undefined} />
         </div>
         <div className="md:col-span-2">
-          <label className="form-label" htmlFor="warehouse-reference">Reference / replenishment request</label>
+          <label className="form-label" htmlFor="warehouse-reference">Job / replenishment request (optional)</label>
           <input id="warehouse-reference" className="form-input" value={reference}
-            onChange={e => setReference(e.target.value)} placeholder="Job or replenishment reference (required)" />
+            maxLength={450} onChange={e => setReference(e.target.value)} placeholder="Optional supporting reference; transfer number is generated automatically" />
+          <p className="text-xs text-gray-500 mt-1">VanStock assigns a unique TRF reference when the transfer is saved.</p>
         </div>
       </div>
       {insufficientStock && <p id="warehouse-insufficient-stock" role="alert" className="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-700">
@@ -127,7 +128,7 @@ export default function WarehouseReplenishmentDraft({
       {error && <p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
       {success && <p role="status" className="text-sm text-green-700 mt-3">{success}</p>}
       <button type="button" className="btn btn-primary mt-3"
-        disabled={!enabled || pending || !valid || !reference.trim()} onClick={submit}>
+        disabled={!enabled || pending || !valid} onClick={submit}>
         {pending ? 'Transferring…' : enabled ? 'Confirm replenishment' : 'Replenishment — not yet enabled'}
       </button>
     </section>
