@@ -865,6 +865,23 @@ export async function getWarehouseRequestLocations() {
   return data??[]
 }
 
+// Read-only availability shown before requesting or issuing replenishment.
+// Stock remains authoritative in the database when an issue is confirmed.
+export async function getWarehouseRequestBalances() {
+  const rights=await getMyWarehouseRights()
+  if (!rights.canRequest && !rights.canManageRequests && !(await getWorkingVans()).vans.length) return []
+  const profile=await getCurrentProfile()
+  const db=createServerClient()
+  const {data:locations,error:locationError}=await db.from('warehouses').select('id').eq('company_id',profile.company_id)
+  if(locationError)throw new Error('Could not read warehouse locations')
+  if(!locations?.length)return []
+  const {data,error}=await db.from('warehouse_stock')
+    .select('warehouse_id,product_id,quantity')
+    .in('warehouse_id',locations.map(w=>w.id))
+  if(error)throw new Error('Could not read warehouse stock availability: '+error.message)
+  return data??[]
+}
+
 export async function getWarehouseOperationLocations() {
   const rights=await getMyWarehouseRights()
   if (!rights.canIssue && !rights.canReceive) return []
