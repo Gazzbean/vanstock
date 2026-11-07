@@ -882,6 +882,18 @@ export async function getWarehouseRequestBalances() {
   return data??[]
 }
 
+export async function getWarehouseRequestPackages() {
+  const rights=await getMyWarehouseRights()
+  if(!rights.canRequest)return []
+  const profile=await getCurrentProfile()
+  const db=createServerClient()
+  const {data,error}=await db.from('supplier_product_options')
+    .select('id,product_id,package_label,purchase_unit,units_per_package')
+    .eq('company_id',profile.company_id).eq('active',true)
+  if(error)throw new Error('Could not load stock packaging options')
+  return data??[]
+}
+
 export async function getWarehouseOperationLocations() {
   const rights=await getMyWarehouseRights()
   if (!rights.canIssue && !rights.canReceive) return []

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseOperationLocations, getWarehouseRequestBalances } from '@/lib/actions'
+import { getMyStock, getProducts, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseOperationLocations, getWarehouseRequestBalances, getWarehouseRequestPackages } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
@@ -24,7 +24,7 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
   ])
   const displayRows = buildStockDisplayRows(products, stockItems, standards)
   const warehouseRights=await getMyWarehouseRights()
-  const [requestWarehouses,requests,warehouseBalances]=await Promise.all([getWarehouseRequestLocations(),getWarehouseRequests(),getWarehouseRequestBalances()])
+  const [requestWarehouses,requests,warehouseBalances,requestPackages]=await Promise.all([getWarehouseRequestLocations(),getWarehouseRequests(),getWarehouseRequestBalances(),getWarehouseRequestPackages()])
   const movementWarehouses=(warehouseRights.canIssue||warehouseRights.canReceive)
     ? await getWarehouseOperationLocations():[]
 
@@ -88,7 +88,7 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
             </tbody>
           </table>
         </div>
-        {warehouseRights.canRequest&&working.selectedId&&<WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId} balances={warehouseBalances}/>}
+        {warehouseRights.canRequest&&working.selectedId&&<WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId} balances={warehouseBalances} packages={requestPackages}/>}
         {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
         {warehouseRights.canReceive&&<TechnicianWarehouseMovement
           warehouses={movementWarehouses}

@@ -68,7 +68,7 @@ export default function SidebarNav({ user, notifications=[] }: {
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="text-sm font-medium text-gray-900">🚐 VanStock</div>
         <div className="text-xs text-gray-400 mt-0.5">Stock Control System</div>
-        {user?.access?.office_access && <div className="mt-3">
+        {(user?.access?.office_access||user?.access?.technician_access) && <div className="mt-3">
           <button type="button" className="btn btn-sm w-full justify-between" onClick={()=>setInboxOpen(v=>!v)}
             aria-expanded={inboxOpen} aria-label={`Warehouse notifications, ${unread} unread`}>
             <span>🔔 Notifications</span>
@@ -79,7 +79,7 @@ export default function SidebarNav({ user, notifications=[] }: {
               notifications.slice(0,12).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
                 <p>{n.reference} — {n.event_type}</p>
                 <div className="mt-1 flex gap-2">
-                  <Link href="/warehouse" className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
+                  <Link href={user?.access?.office_access?'/warehouse':'/stock'} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
                   {!n.read_at&&<button type="button" className="text-blue-700 underline" onClick={async()=>{
                     const result=await markWarehouseNotificationRead(n.id)
                     if(result.success)router.refresh()
