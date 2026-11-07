@@ -1,6 +1,5 @@
 // Warehouse stock overview and audited stocktake/replenishment actions.
 import { redirect } from 'next/navigation'
-import WarehouseReplenishmentDraft from '@/components/WarehouseReplenishmentDraft'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import WarehouseCorrections from '@/components/WarehouseCorrections'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
@@ -137,21 +136,14 @@ export default async function WarehousePage() {
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           canManage={rights.canManageRequests} writesEnabled={writesEnabled}
         />}
-        {(rights.canIssue||rights.canReceive) && <TechnicianWarehouseMovement
+        {rights.canReceive && <TechnicianWarehouseMovement
           warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           defaultVanId={companyVans[0]?.id??null} vans={companyVans}
-          canIssue={rights.canIssue} canReceive={rights.canReceive}
+          canIssue={false} canReceive={rights.canReceive}
           enabled={writesEnabled}
         />}
         {canManage ? <>
-        <WarehouseReplenishmentDraft
-          enabled={writesEnabled}
-          warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
-          vans={(adminData?.vans??[]).map(v => ({ id: v.id, van_number: v.van_number }))}
-          products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
-          balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
-        />
         <WarehouseCorrections
           enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
