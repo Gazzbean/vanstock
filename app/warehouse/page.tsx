@@ -5,7 +5,7 @@ import WarehouseCorrections from '@/components/WarehouseCorrections'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
-import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels } from '@/lib/actions'
+import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels, getWarehouseRequestPackages } from '@/lib/actions'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
 export default async function WarehousePage() {
@@ -21,9 +21,9 @@ export default async function WarehousePage() {
   }
 
   const canManage = user.role === 'admin' || user.role === 'manager'
-  const [overview, adminData, products,requests,rights,thresholds,siteAllocations,companyVans] = await Promise.all([
+  const [overview, adminData, products,requests,rights,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
     getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),getMyWarehouseRights(),
-    getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),
+    getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),getWarehouseRequestPackages(),
   ])
   const writesEnabled = warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && !overview.setupRequired
   const productUnits = new Map(products.map(p => [p.id, p.stock_unit ?? 'ea']))
@@ -130,6 +130,7 @@ export default async function WarehousePage() {
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           vans={companyVans} selectedVanId={companyVans[0]?.id??null}
           balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.quantity}))}
+          packages={packages}
         />}
         {(rights.canRequest || rights.canManageRequests) && <WarehouseRequestQueue
           requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
