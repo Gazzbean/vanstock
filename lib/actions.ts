@@ -694,7 +694,7 @@ export async function deactivateVehicle(id:string):Promise<{error?:string;succes
     db.from('stock').select('id').eq('van_id',id).neq('quantity',0).limit(1),
     db.from('profiles').select('id').eq('van_id',id).limit(1),
     db.from('user_authorized_vans').select('user_id').eq('van_id',id).limit(1),
-    db.from('warehouse_replenishment_requests').select('id').eq('van_id',id).in('status',['pending','approved']).limit(1),
+    db.from('warehouse_replenishment_requests').select('id').eq('van_id',id).in('status',['pending','approved','issued']).limit(1),
   ])
   if(stock.error||profiles.error||assignments.error||requests.error)return {error:'Could not verify stock, requests and assignments. No changes made.'}
   if(stock.data?.length||profiles.data?.length||assignments.data?.length||requests.data?.length)
@@ -781,17 +781,21 @@ export async function getMyWarehouseRights() {
 export async function getWarehouseRequests() {
   const profile = await getCurrentProfile()
   const rights = await getMyWarehouseRights()
-  if (!rights.canRequest && !rights.canManageRequests) return []
   const db = createServerClient()
-  let query = db.from('warehouse_replenishment_requests')
-    .select('id,warehouse_id,van_id,product_id,quantity,reference,status,requested_by,reviewed_by,fulfilled_by,created_at,reviewed_at,fulfilled_at')
+  const columns='id,warehouse_id,van_id,product_id,quantity,reference,status,requested_by,reviewed_by,fulfilled_by,issued_by,received_by,created_at,reviewed_at,issued_at,received_at,fulfilled_at'
+  const base=()=>db.from('warehouse_replenishment_requests').select(columns)
     .eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(100)
-  if (!rights.canManageRequests) query = query.eq('requested_by',profile.id)
-  const {data,error} = await query
+  const working=rights.canManageRequests?null:await getWorkingVans()
+  if (!rights.canRequest && !rights.canManageRequests && !working?.vans.length) return []
+  const own=rights.canManageRequests?await base():await base().eq('requested_by',profile.id)
+  const inbound=working?.vans.length?await base().eq('status','issued').in('van_id',working.vans.map(v=>v.id)):null
+  const error=own.error??inbound?.error
   if (error) {
     if (error.code === '42P01' || error.code === 'PGRST205') return []
     throw new Error('Could not load warehouse requests: '+error.message)
   }
+  const data=[...new Map([...(own.data??[]),...(inbound?.data??[])].map(row=>[row.id,row])).values()]
+    .sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,100)
   if (!data?.length) return []
   const {data:staff,error:staffError}=await db.from('profiles')
     .select('id,full_name,initials').eq('company_id',profile.company_id)
@@ -806,6 +810,8 @@ export async function getWarehouseRequests() {
     requested_by_label:label(row.requested_by),
     reviewed_by_label:label(row.reviewed_by),
     fulfilled_by_label:label(row.fulfilled_by),
+    issued_by_label:label(row.issued_by),
+    received_by_label:label(row.received_by),
   }))
 }
 
@@ -847,7 +853,7 @@ export async function markWarehouseNotificationRead(id:string){
 
 export async function getWarehouseRequestLocations() {
   const rights=await getMyWarehouseRights()
-  if (!rights.canRequest) return []
+  if (!rights.canRequest && !(await getWorkingVans()).vans.length) return []
   const profile=await getCurrentProfile()
   const db=createServerClient()
   const {data,error}=await db.from('warehouses').select('id,name')
@@ -910,6 +916,17 @@ export async function processWarehouseRequest(id:string,action:'approve'|'reject
   })
   if(error)return {error:error.message}
   for(const path of ['/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
+  return {success:true}
+}
+
+export async function confirmWarehouseReceipt(id:string) {
+  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED))
+    return {error:'Warehouse stock movements are disabled.'}
+  if (!id) return {error:'Missing warehouse request.'}
+  const session=await createSessionClient()
+  const {error}=await session.rpc('confirm_warehouse_replenishment_receipt',{p_request_id:id})
+  if(error)return {error:error.message}
+  for(const path of ['/warehouse','/stock','/dashboard','/logs','/fleet'])revalidatePath(path)
   return {success:true}
 }
 
@@ -1027,43 +1044,11 @@ export async function postWarehouseOpeningStock(
 }
 
 export async function transferWarehouseToVan(
-  warehouseId: string, vanId: string, productId: string, quantity: number,
-  reference: string,
+  _warehouseId: string, _vanId: string, _productId: string, _quantity: number,
+  _reference: string,
 ) {
-  if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) {
-    return { error: 'Warehouse replenishment is not yet enabled.' }
-  }
-  const profile = await getCurrentProfile()
-  const rights = await getMyWarehouseRights()
-  if (!rights.canIssue) {
-    return { error: 'Warehouse issue permission required.' }
-  }
-  const capabilities=await accessFor(profile)
-  if (!['admin','manager'].includes(profile.role) && !capabilities.office_access) {
-    const working=await getWorkingVans()
-    if(working.selectedId!==vanId)
-      return {error:'Technicians may only issue stock to their selected authorised working van.'}
-  }
-  if (!warehouseId || !vanId || !productId || (reference??'').length>450 ||
-      !Number.isFinite(quantity) || quantity <= 0) {
-    return { error: 'Complete the warehouse, receiving van, product and quantity.' }
-  }
-  const session = await createSessionClient()
-  const { error } = await session.rpc('vanstock_warehouse_move', {
-    p_warehouse_id: warehouseId,
-    p_van_id: vanId,
-    p_product_id: productId,
-    p_quantity: quantity,
-    p_direction: 'warehouse-to-van',
-    p_reference: reference.trim(),
-    p_notes: '',
-  })
-  if (error) return { error: error.message }
-  revalidatePath('/warehouse')
-  revalidatePath('/stock')
-  revalidatePath('/dashboard')
-  revalidatePath('/logs')
-  return { success: true }
+  // The legacy immediate issue endpoint must not bypass two-confirmation replenishment.
+  return {error:'Use Warehouse replenishment requests. The receiving van must confirm stock before balances change.'}
 }
 
 
