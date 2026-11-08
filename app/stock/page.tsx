@@ -36,6 +36,7 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
 
       <div className="p-5">
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
+        {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
         <div className="card">
           <table className="w-full">
             <thead>
@@ -89,7 +90,6 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
           </table>
         </div>
         {warehouseRights.canRequest&&working.selectedId&&<WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId} balances={warehouseBalances} packages={requestPackages}/>}
-        {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
         {warehouseRights.canReceive&&<TechnicianWarehouseMovement
           warehouses={movementWarehouses}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
