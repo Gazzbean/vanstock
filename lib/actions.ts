@@ -738,10 +738,16 @@ export async function reactivateVehicle(id:string):Promise<{error?:string;succes
 export async function getCurrentUserDisplay() {
   try {
     const profile = await getCurrentProfile()
+    const manager_operations = profile.role === 'admin'
+      ? {maintain_catalogue:true,maintain_vehicles:true}
+      : profile.role === 'manager'
+        ? {maintain_catalogue:await managerOperationAllowed(profile,'maintain_catalogue'),maintain_vehicles:await managerOperationAllowed(profile,'maintain_vehicles')}
+        : {maintain_catalogue:false,maintain_vehicles:false}
     return {
       full_name: profile.full_name,
       role: profile.role,
       access: await accessFor(profile),
+      manager_operations,
       van_number: (profile.van as any)?.van_number ?? null,
     }
   } catch {
@@ -846,6 +852,11 @@ export async function getWarehouseRequests() {
   const data=[...new Map([...(own.data??[]),...(inbound?.data??[])].map(row=>[row.id,row])).values()]
     .sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,100)
   if (!data?.length) return []
+  const {data:discrepancies,error:discrepancyError}=await db.from('warehouse_receipt_discrepancies')
+    .select('request_id,observed_quantity,reason,reported_at,resolved_at,resolution_note')
+    .eq('company_id',profile.company_id).in('request_id',data.map(r=>r.id))
+  if(discrepancyError)throw new Error('Could not load receiving exceptions: '+discrepancyError.message)
+  const discrepancyByRequest=new Map((discrepancies??[]).map(d=>[d.request_id,d]))
   const {data:staff,error:staffError}=await db.from('profiles')
     .select('id,full_name,initials').eq('company_id',profile.company_id)
   if (staffError) throw new Error('Could not load request audit names: '+staffError.message)
@@ -856,12 +867,36 @@ export async function getWarehouseRequests() {
   }
   return data.map(row=>({
     ...row,
+    discrepancy:discrepancyByRequest.get(row.id)??null,
     requested_by_label:label(row.requested_by),
     reviewed_by_label:label(row.reviewed_by),
     fulfilled_by_label:label(row.fulfilled_by),
     issued_by_label:label(row.issued_by),
     received_by_label:label(row.received_by),
   }))
+}
+
+export async function reportWarehouseReceiptDiscrepancy(id:string,observedQuantity:number,reason:string){
+ if(!id||!Number.isFinite(observedQuantity)||observedQuantity<0||typeof reason!=='string'||reason.trim().length<5)
+  return {error:'Enter the quantity actually received and explain the discrepancy.'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('report_warehouse_receipt_discrepancy',{
+  p_request_id:id,p_observed_quantity:observedQuantity,p_reason:reason.trim()})
+ if(error)return {error:error.message}
+ revalidatePath('/warehouse');revalidatePath('/stock');revalidatePath('/actions')
+ return {success:true}
+}
+
+export async function resolveWarehouseReceiptDiscrepancy(id:string,note:string){
+ const rights=await getMyWarehouseRights()
+ if(!rights.canIssueRequests)return {error:'Warehouse issue permission required.'}
+ if(!id||typeof note!=='string'||note.trim().length<5)return {error:'Explain how the discrepancy was reconciled.'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('resolve_warehouse_receipt_discrepancy',{
+  p_request_id:id,p_resolution_note:note.trim()})
+ if(error)return {error:error.message}
+ revalidatePath('/warehouse');revalidatePath('/stock');revalidatePath('/actions')
+ return {success:true}
 }
 
 // Private notification inbox: identity and company are always taken from the

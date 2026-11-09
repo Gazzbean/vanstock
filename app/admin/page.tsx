@@ -31,6 +31,11 @@ export default async function AdminPage() {
       <div className="p-5"><div className="card"><h2 className="text-sm font-medium">Manager access required</h2>
       <p className="text-sm text-gray-500 mt-2">You do not have permission to access administration.</p></div></div></div>
   }
+  if (user.role === 'manager' && !user.manager_operations?.maintain_catalogue) {
+    if (!user.manager_operations?.maintain_vehicles) return <div className="p-5"><h1 className="text-lg font-semibold">Administration</h1><p className="mt-2 text-sm text-gray-600">No administration responsibilities have been assigned to your account.</p></div>
+    const {vans}=await getAdminData()
+    return <div><div className="topbar"><h1 className="topbar-title">Vehicles</h1></div><div className="p-5"><p className="text-sm text-gray-600 mb-4">Your assigned Manager responsibility: maintain the vehicle register.</p><VehicleRegisterPanel canEdit={true} vans={vans}/></div></div>
+  }
   const [products, { vans, profiles }, warehousePermissions, managerPermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities, userVans, warehouseStandards] = await Promise.all([
     getAdminProducts(),
     getAdminData(),
@@ -75,7 +80,7 @@ export default async function AdminPage() {
           access={<><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">          <div className="space-y-4">
             <UsersAccessPanel canEdit={user.role === 'admin'} vans={vans.filter((v:any)=>v.active!==false).map((v:any)=>({id:v.id,van_number:v.van_number}))} capabilities={capabilities} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,role:p.role,is_active:p.is_active!==false,van_number:p.van?.van_number??null}))} />
             <AuthorizedVansPanel canEdit={user.role === 'admin'} users={profiles.map((p:any)=>({id:p.id,full_name:p.full_name,initials:p.initials??null,van_id:p.van_id??null}))} vans={vans.filter((v:any)=>v.active!==false).map((v:any)=>({id:v.id,van_number:v.van_number}))} initial={userVans} />
-            <VehicleRegisterPanel canEdit={user.role === 'admin'} vans={vans} />
+            <VehicleRegisterPanel canEdit={Boolean(user.manager_operations?.maintain_vehicles)} vans={vans} />
             {/* Summary stats */}
             <div className="card">
               <h2 className="text-sm font-medium mb-3">System summary</h2>

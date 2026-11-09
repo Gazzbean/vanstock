@@ -3,8 +3,9 @@
 import {useEffect,useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {processWarehouseRequest,confirmWarehouseReceipt} from '@/lib/actions'
+import WarehouseReceiptExceptionActions from './WarehouseReceiptExceptionActions'
 
-type Request={id:string;warehouse_id:string;van_id:string;product_id:string;quantity:number;reference:string;status:string;created_at:string;requested_by_label:string;reviewed_by_label:string;fulfilled_by_label:string;issued_by_label:string;received_by_label:string}
+type Request={id:string;warehouse_id:string;van_id:string;product_id:string;quantity:number;reference:string;status:string;created_at:string;requested_by_label:string;reviewed_by_label:string;fulfilled_by_label:string;issued_by_label:string;received_by_label:string;discrepancy:{observed_quantity:number;reason:string;resolved_at:string|null;resolution_note:string|null}|null}
 
 export default function WarehouseRequestQueue({requests,warehouses,vans,products,canManage,canApprove=canManage,canIssue=canManage,canReceive=canManage,writesEnabled,receiverVanIds=[],balances=[]}:{
   requests:Request[];warehouses:{id:string;name:string}[];
@@ -61,6 +62,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
           const unit=products.find(p=>p.id===r.product_id)?.unit??'ea'
           const available=Number(balances.find(b=>b.warehouse_id===r.warehouse_id&&b.product_id===r.product_id)?.quantity??0)
           const shortage=r.status==='approved'&&r.quantity>available
+          const receiptBlocked=Boolean(r.discrepancy&&!r.discrepancy.resolved_at)
           return <article id={`warehouse-request-mobile-${r.id}`} key={r.id} className="rounded-xl border-2 border-amber-200 p-3 space-y-3">
             <div className="flex items-start justify-between gap-2"><strong className="text-sm">{name(products,r.product_id)}</strong><span className="text-xs rounded-full bg-amber-100 text-amber-900 px-2 py-1">{r.status==='issued'?'Awaiting receipt':r.status==='approved'?'Ready to issue':r.status==='pending'?'Awaiting approval':r.status==='fulfilled'?'Received':'Rejected'}</span></div>
             <p className="text-sm">{name(warehouses,r.warehouse_id)} → {name(vans,r.van_id)}</p>
@@ -72,10 +74,11 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
             {shortage&&<p role="alert" className="text-sm text-red-700">Insufficient warehouse stock: {available} {unit} available.</p>}
             {canApprove&&!completed.includes(r.id)&&r.status==='pending'&&<div className="flex gap-2"><button className="btn btn-primary flex-1 min-h-11" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button><button className="btn min-h-11" disabled={busy} onClick={()=>act(r.id,'reject')}>Reject</button></div>}
             {canIssue&&!completed.includes(r.id)&&r.status==='approved'&&<button className="btn btn-primary w-full min-h-11" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>Confirm warehouse issue</button>}
-            {(canReceive||receiverVanIds.includes(r.van_id))&&!completed.includes(r.id)&&r.status==='issued'&&(
+            {(canReceive||receiverVanIds.includes(r.van_id))&&!receiptBlocked&&!completed.includes(r.id)&&r.status==='issued'&&(
               receiptReview===r.id?<div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-3 space-y-2"><p className="text-sm font-semibold">Confirm {r.quantity} {unit} received into {name(vans,r.van_id)}?</p><p className="text-xs">This updates both warehouse and van balances.</p><button className="btn bg-green-700 text-white w-full min-h-11" disabled={busy||!writesEnabled} onClick={()=>receive(r.id)}>Confirm received & move stock</button><button className="btn w-full min-h-11" onClick={()=>setReceiptReview(null)}>Back to edit</button></div>
               :<button className="btn btn-primary w-full min-h-11" disabled={busy||!writesEnabled} onClick={()=>setReceiptReview(r.id)}>Review receiving confirmation</button>
             )}
+            {r.status==='issued'&&<WarehouseReceiptExceptionActions requestId={r.id} quantity={r.quantity} unit={unit} discrepancy={r.discrepancy} canReport={canReceive||receiverVanIds.includes(r.van_id)} canResolve={canIssue}/>}
           </article>
         })}
       </div>
@@ -94,9 +97,10 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
         <button type="button" className="btn btn-primary" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button>
         <button type="button" className="btn" disabled={busy} onClick={()=>act(r.id,'reject')}>Reject</button>
       </>}{canIssue&&!completed.includes(r.id)&&r.status==='approved'&&<button type="button" className="btn btn-primary" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>{shortage?'Awaiting warehouse stock':'Confirm warehouse issue — no stock movement'}</button>}
-      {(canReceive||receiverVanIds.includes(r.van_id))&&!completed.includes(r.id)&&r.status==='issued'&&
+      {(canReceive||receiverVanIds.includes(r.van_id))&&!(r.discrepancy&&!r.discrepancy.resolved_at)&&!completed.includes(r.id)&&r.status==='issued'&&
        (receiptReview===r.id?<div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-2 space-y-2 min-w-56"><p className="text-xs font-semibold text-amber-900">Final confirmation — received {r.quantity} stock units into {name(vans,r.van_id)}?</p><p className="text-xs text-amber-900">This will move stock from the warehouse to the van.</p><button type="button" className="btn bg-green-700 text-white" disabled={busy||!writesEnabled} onClick={()=>receive(r.id)}>Confirm received & move stock</button><button type="button" className="btn" disabled={busy} onClick={()=>setReceiptReview(null)}>Back to edit</button></div>
        :<button type="button" className="btn btn-primary" disabled={busy||!writesEnabled} onClick={()=>setReceiptReview(r.id)}>Review receiving confirmation</button>)}
+      {r.status==='issued'&&<WarehouseReceiptExceptionActions requestId={r.id} quantity={r.quantity} unit={unit} discrepancy={r.discrepancy} canReport={canReceive||receiverVanIds.includes(r.van_id)} canResolve={canIssue}/>}
       </div></td>
     </tr>})}</tbody></table></div></>}
   </section>

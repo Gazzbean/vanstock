@@ -8,6 +8,7 @@ const inventory=new URL('../supabase/migrations/20261030_warehouse_inventory_sta
 const dual=new URL('../supabase/migrations/20261107080000_warehouse_two_confirmations.sql',import.meta.url)
 const managerPermissions=new URL('../supabase/migrations/20261109090000_manager_operation_permissions.sql',import.meta.url)
 const managerGate=new URL('../supabase/migrations/20261109100000_enforce_manager_warehouse_permissions.sql',import.meta.url)
+const discrepancies=new URL('../supabase/migrations/20261109110000_warehouse_receipt_discrepancies.sql',import.meta.url)
 const ids={company:'00000000-0000-4000-8000-000000000001',warehouse:'00000000-0000-4000-8000-000000000002',
  van:'00000000-0000-4000-8000-000000000003',product:'00000000-0000-4000-8000-000000000004',
  manager:'00000000-0000-4000-8000-000000000005',receiver:'00000000-0000-4000-8000-000000000006',
@@ -51,6 +52,7 @@ test('warehouse issue and receiving acceptance are distinct, atomic and authoris
   await db.exec(await readFile(dual,'utf8'))
   await db.exec(await readFile(managerPermissions,'utf8'))
   await db.exec(await readFile(managerGate,'utf8'))
+  await db.exec(await readFile(discrepancies,'utf8'))
   await db.query("select set_config('test.user_id',$1,false)",[ids.receiver])
   const request=(await db.query('select create_warehouse_replenishment_request($1,$2,$3,5,$4) as id',
    [ids.warehouse,ids.van,ids.product,'JOB-123'])).rows[0].id
@@ -78,6 +80,14 @@ test('warehouse issue and receiving acceptance are distinct, atomic and authoris
    await assert.rejects(db.query('select confirm_warehouse_replenishment_receipt($1)',[request]),/not authorised/)
   })
   await db.query("select set_config('test.user_id',$1,false)",[ids.receiver])
+  await t.test('receiving discrepancy blocks stock movement until warehouse reconciliation',async()=>{
+   await db.query('select report_warehouse_receipt_discrepancy($1,3,$2)',[request,'Two units missing from package'])
+   await assert.rejects(db.query('select confirm_warehouse_replenishment_receipt($1)',[request]),/Outstanding receipt discrepancy/)
+   assert.equal(Number((await db.query('select quantity from warehouse_stock')).rows[0].quantity),500)
+   await db.query("select set_config('test.user_id',$1,false)",[ids.manager])
+   await db.query('select resolve_warehouse_receipt_discrepancy($1,$2)',[request,'Two missing units physically located and delivered'])
+   await db.query("select set_config('test.user_id',$1,false)",[ids.receiver])
+  })
   await db.query('select confirm_warehouse_replenishment_receipt($1)',[request])
   await t.test('receipt moves the stock once and records the receiver',async()=>{
    assert.equal(Number((await db.query('select quantity from warehouse_stock')).rows[0].quantity),495)

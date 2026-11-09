@@ -29,7 +29,7 @@ export default function ManagerPermissionsPanel({managers,initialGrants}:{manage
  })}
  return <section className="card mt-4">
   <h2 className="text-sm font-semibold">Manager permissions</h2>
-  <p className="text-xs text-gray-600 mt-1 mb-3">Assign individual operating responsibilities to Managers. These settings are being introduced in stages; the related database enforcement must be enabled before relying on them to restrict existing Manager roles.</p>
+  <p className="text-xs text-gray-600 mt-1 mb-3">Assign individual operating responsibilities to Managers. Changes are audited. Warehouse operations and application catalogue/vehicle controls follow these grants.</p>
   {!managers.length?<p className="text-sm text-gray-600">No Manager accounts exist yet. Permissions can be configured when one is created.</p>:<>
    <label className="form-label" htmlFor="manager-permission-user">Manager</label>
    <select className="form-input max-w-lg mb-3" id="manager-permission-user" value={selected} onChange={e=>choose(e.target.value)}>{managers.map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}</select>

@@ -37,6 +37,7 @@ interface UserDisplay {
   full_name: string
   role: string
   access?: {office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean;manage_users:boolean}
+  manager_operations?: {maintain_catalogue:boolean;maintain_vehicles:boolean}
   van_number: string | null
 }
 
@@ -71,7 +72,7 @@ export default function SidebarNav({ user, notifications=[] }: {
 
   const navAvailable = (href:string) => {
     if (href === '/receive' && !user?.access?.receive_stock) return false
-    if (href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return false
+    if (href === '/admin' && user?.role !== 'admin' && !user?.manager_operations?.maintain_catalogue && !user?.manager_operations?.maintain_vehicles) return false
     if (href === '/warehouse' && !user?.access?.office_access) return false
     if (href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin') return false
     if ((href === '/stock' || href === '/transfer') && !user?.access?.technician_access) return false
@@ -108,7 +109,7 @@ export default function SidebarNav({ user, notifications=[] }: {
           {inboxOpen&&<div className="mt-2 max-h-64 overflow-y-auto rounded border border-gray-200 bg-white p-2">
             {notifications.length===0?<p className="text-xs text-gray-500">No notifications.</p>:
               notifications.slice(0,12).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
-                <p>{n.reference} — {n.status==='fulfilled'?'Completed':n.status==='issued'?'Awaiting van receipt':n.status==='approved'?'Approved':n.status==='rejected'?'Rejected':n.event_type}</p>
+                <p>{n.reference} — {n.event_type==='discrepancy'?'Receiving discrepancy — review required':n.status==='fulfilled'?'Completed':n.status==='issued'?'Awaiting van receipt':n.status==='approved'?'Approved':n.status==='rejected'?'Rejected':n.event_type}</p>
                 <div className="mt-1 flex gap-2">
                   <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
                   {!n.read_at&&<button type="button" className="text-blue-700 underline" onClick={async()=>{
@@ -154,7 +155,7 @@ export default function SidebarNav({ user, notifications=[] }: {
         {inboxOpen&&<section className="p-3 border-b max-h-48 overflow-y-auto" aria-label="Notifications">
           <h2 className="font-semibold text-sm mb-2">Notifications</h2>
           {!notifications.length?<p className="text-xs text-gray-500">No notifications.</p>:notifications.slice(0,8).map(n=><div key={n.id} className="text-sm border-b py-2">
-            <div>{n.reference} — {n.status==='fulfilled'?'Completed':n.status}</div>
+            <div>{n.reference} — {n.event_type==='discrepancy'?'Receiving discrepancy — review required':n.status==='fulfilled'?'Completed':n.status}</div>
             <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700 underline" onClick={()=>setMobileMenuOpen(false)}>View request</Link>
             {!n.read_at&&<button type="button" className="ml-3 text-blue-700 underline" onClick={async()=>{const result=await markWarehouseNotificationRead(n.id);if(result.success)router.refresh()}}>Mark read</button>}
           </div>)}
