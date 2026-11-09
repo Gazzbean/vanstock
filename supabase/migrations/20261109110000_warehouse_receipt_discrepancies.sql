@@ -17,6 +17,9 @@ create table if not exists public.warehouse_receipt_discrepancies (
 create index if not exists warehouse_receipt_discrepancies_company_idx on public.warehouse_receipt_discrepancies(company_id);
 alter table public.warehouse_receipt_discrepancies enable row level security;
 revoke all on public.warehouse_receipt_discrepancies from anon,authenticated;
+alter table public.warehouse_notifications drop constraint if exists warehouse_notifications_event_type_check;
+alter table public.warehouse_notifications add constraint warehouse_notifications_event_type_check
+ check(event_type in ('requested','approved','issued','rejected','fulfilled','discrepancy'));
 
 create or replace function public.report_warehouse_receipt_discrepancy(p_request_id uuid,p_observed_quantity numeric,p_reason text)
 returns void language plpgsql security definer set search_path='' as $$
@@ -38,6 +41,13 @@ begin
  insert into public.warehouse_receipt_discrepancies
  (company_id,request_id,observed_quantity,reason,reported_by)
  values(v_company,p_request_id,p_observed_quantity,btrim(p_reason),v_actor);
+ insert into public.warehouse_notifications(company_id,user_id,request_id,event_type)
+ select v_company,p.id,p_request_id,'discrepancy' from public.profiles p
+ where p.company_id=v_company and p.is_active=true and p.id is distinct from v_actor
+ and (p.role='admin' or (p.role='manager' and exists(
+  select 1 from public.manager_operation_permissions m
+  where m.user_id=p.id and m.company_id=v_company and m.issue_warehouse=true)))
+ on conflict do nothing;
 end;
 $$;
 revoke all on function public.report_warehouse_receipt_discrepancy(uuid,numeric,text) from public,anon;
