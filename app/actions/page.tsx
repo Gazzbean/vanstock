@@ -8,6 +8,7 @@ const warehouseStatus:Record<string,string>={pending:'Awaiting approval',approve
 export default async function MyActions(){
  const user=await getCurrentUserDisplay()
  if(!user)redirect('/login')
+ if(!user.access?.office_access&&!user.access?.technician_access)redirect('/dashboard')
  const [rights,requests,transfers]=await Promise.all([
   getMyWarehouseRights(),getWarehouseRequests(),getVanTransferWorkspace(),
  ])

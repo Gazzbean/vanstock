@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import ResetWelcomeButton from '@/components/ResetWelcomeButton'
+import {redirect} from 'next/navigation'
+import {getCurrentUserDisplay} from '@/lib/actions'
 
 const guides=[
  {id:'supplier',code:'VS-SOP-001',title:'Receive stock from a supplier',steps:['Check the supplier delivery docket against the goods.','Select full packs or loose items, the product and destination.','Enter the supplier reference and review the converted stock quantity.','Confirm once. Verify the receipt appears in History.']},
@@ -12,7 +14,10 @@ const guides=[
  {id:'accounts',code:'VS-SOP-008',title:'Accounts and working vans',steps:['Sign in using your own account; never share credentials.','Verify the assigned working van before a stock movement.','Select another van only if authorised; changes are logged.','Contact an Administrator if your van or permissions are incorrect.']},
 ]
 
-export default function HelpPage(){return <div>
+export default async function HelpPage(){
+ const user=await getCurrentUserDisplay()
+ if(!user)redirect('/login')
+ return <div>
  <div className="topbar"><h1 className="topbar-title">Help & SOPs</h1></div>
  <div className="p-4 sm:p-5 max-w-4xl space-y-4">
   <div className="rounded-xl bg-blue-50 border border-blue-200 p-4"><h2 className="font-semibold">Simplicity Air · VanStock guidance</h2><p className="text-sm text-gray-600 mt-1">Find a procedure below. Each stock-changing screen also explains the confirmation required. Ask an authorised manager before correcting an uncertain transaction.</p></div>
