@@ -20,9 +20,10 @@ export default async function WarehousePage() {
     )
   }
 
-  const canManage = user.role === 'admin' || user.role === 'manager'
-  const [overview, adminData, products,requests,rights,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
-    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),getMyWarehouseRights(),
+  const rights = await getMyWarehouseRights()
+  const canManage = rights.canManageRequests || rights.canAdjust || rights.canReceiveRequests
+  const [overview, adminData, products,requests,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
+    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),
     getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),getWarehouseRequestPackages(),
   ])
   const writesEnabled = warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && !overview.setupRequired
@@ -125,19 +126,19 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
+        {(rights.canRequest || rights.canManageRequests) && <WarehouseRequestQueue
+          requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
+          vans={companyVans.map(v=>({id:v.id,van_number:v.van_number}))}
+          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
+          canManage={rights.canManageRequests} canApprove={rights.canApproveRequests} canIssue={rights.canIssueRequests} canReceive={rights.canReceiveRequests} writesEnabled={writesEnabled}
+          balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.quantity}))}
+        />}
         {(canManage||rights.canRequest) && !overview.setupRequired && <WarehouseRequestForm
           warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           vans={companyVans} selectedVanId={companyVans[0]?.id??null}
           balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.quantity}))}
           packages={packages}
-        />}
-        {(rights.canRequest || rights.canManageRequests) && <WarehouseRequestQueue
-          requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
-          vans={companyVans.map(v=>({id:v.id,van_number:v.van_number}))}
-          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
-          canManage={rights.canManageRequests} writesEnabled={writesEnabled}
-          balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.quantity}))}
         />}
         {rights.canReceive && <TechnicianWarehouseMovement
           warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
@@ -146,7 +147,7 @@ export default async function WarehousePage() {
           canIssue={false} canReceive={rights.canReceive}
           enabled={writesEnabled}
         />}
-        {canManage ? <>
+        {rights.canAdjust ? <>
         <WarehouseCorrections
           enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}

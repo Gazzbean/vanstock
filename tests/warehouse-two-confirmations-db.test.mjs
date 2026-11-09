@@ -6,6 +6,8 @@ import {PGlite} from '@electric-sql/pglite'
 const base=new URL('../supabase/migrations/20261103060000_warehouse_replenishment_requests.sql',import.meta.url)
 const inventory=new URL('../supabase/migrations/20261030_warehouse_inventory_stage.sql',import.meta.url)
 const dual=new URL('../supabase/migrations/20261107080000_warehouse_two_confirmations.sql',import.meta.url)
+const managerPermissions=new URL('../supabase/migrations/20261109090000_manager_operation_permissions.sql',import.meta.url)
+const managerGate=new URL('../supabase/migrations/20261109100000_enforce_manager_warehouse_permissions.sql',import.meta.url)
 const ids={company:'00000000-0000-4000-8000-000000000001',warehouse:'00000000-0000-4000-8000-000000000002',
  van:'00000000-0000-4000-8000-000000000003',product:'00000000-0000-4000-8000-000000000004',
  manager:'00000000-0000-4000-8000-000000000005',receiver:'00000000-0000-4000-8000-000000000006',
@@ -47,11 +49,23 @@ test('warehouse issue and receiving acceptance are distinct, atomic and authoris
   await db.query('insert into warehouse_stock(warehouse_id,product_id,quantity) values($1,$2,500)',[ids.warehouse,ids.product])
   await db.exec(await readFile(base,'utf8'))
   await db.exec(await readFile(dual,'utf8'))
+  await db.exec(await readFile(managerPermissions,'utf8'))
+  await db.exec(await readFile(managerGate,'utf8'))
   await db.query("select set_config('test.user_id',$1,false)",[ids.receiver])
   const request=(await db.query('select create_warehouse_replenishment_request($1,$2,$3,5,$4) as id',
    [ids.warehouse,ids.van,ids.product,'JOB-123'])).rows[0].id
   await db.query("select set_config('test.user_id',$1,false)",[ids.manager])
+  await db.query('update manager_operation_permissions set approve_requests=false where user_id=$1',[ids.manager])
+  await t.test('Manager cannot approve without saved grant',async()=>{
+   await assert.rejects(db.query("select process_warehouse_replenishment_request($1,'approve')",[request]),/permission required to review/)
+   assert.equal((await db.query('select status from warehouse_replenishment_requests where id=$1',[request])).rows[0].status,'pending')
+  })
+  await db.query('update manager_operation_permissions set approve_requests=true,issue_warehouse=false where user_id=$1',[ids.manager])
   await db.query("select process_warehouse_replenishment_request($1,'approve')",[request])
+  await t.test('Manager cannot issue without saved grant',async()=>{
+   await assert.rejects(db.query("select process_warehouse_replenishment_request($1,'fulfil')",[request]),/permission required to issue/)
+  })
+  await db.query('update manager_operation_permissions set issue_warehouse=true where user_id=$1',[ids.manager])
   await db.query("select process_warehouse_replenishment_request($1,'fulfil')",[request])
   await t.test('warehouse issue changes only the status',async()=>{
    assert.equal((await db.query('select status from warehouse_replenishment_requests where id=$1',[request])).rows[0].status,'issued')

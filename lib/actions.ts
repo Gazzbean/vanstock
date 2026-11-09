@@ -53,6 +53,16 @@ async function accessFor(profile:any){
  return data??{office_access:false,technician_access:false,receive_stock:false,manage_catalogue:false,manage_users:false}
 }
 
+async function managerOperationAllowed(profile:any,permission:'maintain_catalogue'|'maintain_vehicles'){
+ if(profile.role==='admin')return true
+ if(profile.role!=='manager')return false
+ const db=createServerClient()
+ const {data,error}=await db.from('manager_operation_permissions').select(permission)
+  .eq('company_id',profile.company_id).eq('user_id',profile.id).maybeSingle()
+ if(error)throw new Error('Could not check Manager operations: '+error.message)
+ return Boolean((data as Record<string,boolean>|null)?.[permission])
+}
+
 // ── AUTH ───────────────────────────────────────────────────
 const workingVanCookie='vanstock-working-van'
 
@@ -518,7 +528,7 @@ export async function getProducts() {
 // active products. Archived records remain visible in administration.
 export async function getAdminProducts() {
   const profile = await getCurrentProfile()
-  if (!['manager', 'admin'].includes(profile.role)) throw new Error('Manager access required')
+  if (!(await managerOperationAllowed(profile,'maintain_catalogue'))) throw new Error('Catalogue permission required')
   const db = createServerClient()
   const { data, error } = await db.from('products')
     .select('*').eq('company_id', profile.company_id).order('name')
@@ -531,8 +541,8 @@ export async function setProductArchived(productId: string, archive: boolean) {
     return { error: 'Catalogue archiving is not enabled yet.' }
   }
   const profile = await getCurrentProfile()
-  if (!['manager', 'admin'].includes(profile.role)) {
-    return { error: 'Manager access required' }
+  if (!(await managerOperationAllowed(profile,'maintain_catalogue'))) {
+    return { error: 'Catalogue permission required' }
   }
   if (!productId || typeof archive !== 'boolean') return { error: 'Invalid product or action' }
   const session = await createSessionClient()
@@ -557,8 +567,8 @@ export async function addProduct(
 ) {
   const profile = await getCurrentProfile()
 
-  if (!['manager', 'admin'].includes(profile.role)) {
-    return { error: 'Only managers can add products' }
+  if (!(await managerOperationAllowed(profile,'maintain_catalogue'))) {
+    return { error: 'Catalogue permission required' }
   }
   if (!name?.trim() || name.trim().length > 200 || !category?.trim()) {
     return { error: 'Enter a valid product name and category' }
@@ -661,7 +671,7 @@ export async function saveWarehouseStockStandard(warehouseId:string,productId:st
 const vehicleFuels=['diesel','petrol','hybrid','electric','lpg','other']
 export async function saveVehicle(id:string|null,input:VehicleInput):Promise<{error?:string;success?:true}> {
   const actor=await getCurrentProfile()
-  if(actor.role!=='admin')return {error:'Administrator access required.'}
+  if(!(await managerOperationAllowed(actor,'maintain_vehicles')))return {error:'Vehicle register permission required.'}
   if(!input||typeof input!=='object')return {error:'Invalid vehicle details.'}
   const fields=['van_number','registration','make','model','colour','fuel_type'] as const
   if(fields.some(f=>typeof input[f]!=='string'))return {error:'Invalid vehicle details.'}
@@ -685,7 +695,7 @@ export async function saveVehicle(id:string|null,input:VehicleInput):Promise<{er
 // Deactivation is reversible; identifiers and historical movements are never deleted.
 export async function deactivateVehicle(id:string):Promise<{error?:string;success?:true}>{
   const actor=await getCurrentProfile()
-  if(actor.role!=='admin')return {error:'Administrator access required.'}
+  if(!(await managerOperationAllowed(actor,'maintain_vehicles')))return {error:'Vehicle register permission required.'}
   const db=createServerClient()
   const {data:van,error:vanError}=await db.from('vans').select('id,active').eq('id',id).eq('company_id',actor.company_id).maybeSingle()
   if(vanError||!van)return {error:'Vehicle not found.'}
@@ -705,7 +715,7 @@ export async function deactivateVehicle(id:string):Promise<{error?:string;succes
 }
 export async function reactivateVehicle(id:string):Promise<{error?:string;success?:true}>{
   const actor=await getCurrentProfile()
-  if(actor.role!=='admin')return {error:'Administrator access required.'}
+  if(!(await managerOperationAllowed(actor,'maintain_vehicles')))return {error:'Vehicle register permission required.'}
   const db=createServerClient()
   const {data,error}=await db.from('vans').update({active:true}).eq('id',id).eq('company_id',actor.company_id).select('id').maybeSingle()
   if(error)return {error:error.message}
@@ -756,25 +766,64 @@ export async function getWarehousePermissionData() {
   return data ?? []
 }
 
+// Administrator-managed Manager operation grants. This register is separate
+// from technician warehouse permissions and does not itself bypass existing
+// database movement checks.
+export async function getManagerOperationPermissions(){
+ const profile=await getCurrentProfile()
+ if(profile.role!=='admin')return []
+ const db=createServerClient()
+ const {data,error}=await db.from('manager_operation_permissions')
+  .select('user_id,approve_requests,issue_warehouse,receive_returns,adjust_stock,maintain_catalogue,maintain_vehicles')
+  .eq('company_id',profile.company_id)
+ if(error)throw new Error('Could not load Manager permissions: '+error.message)
+ return data??[]
+}
+
+export async function saveManagerOperationPermissions(userId:string,grants:{approve_requests:boolean;issue_warehouse:boolean;receive_returns:boolean;adjust_stock:boolean;maintain_catalogue:boolean;maintain_vehicles:boolean}){
+ const actor=await getCurrentProfile()
+ if(actor.role!=='admin')return {error:'Administrator authorisation required'}
+ if(!userId||Object.values(grants).length!==6||Object.values(grants).some(v=>typeof v!=='boolean'))return {error:'Invalid Manager permission settings'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('set_manager_operation_permissions',{
+  p_user_id:userId,p_approve_requests:grants.approve_requests,p_issue_warehouse:grants.issue_warehouse,
+  p_receive_returns:grants.receive_returns,p_adjust_stock:grants.adjust_stock,
+  p_maintain_catalogue:grants.maintain_catalogue,p_maintain_vehicles:grants.maintain_vehicles,
+ })
+ if(error)return {error:error.message}
+ revalidatePath('/admin')
+ return {success:true}
+}
+
 // Server-selected, company-scoped warehouse permissions. Administrators and
 // managers manage the request queue; technicians require an explicit grant.
 export async function getMyWarehouseRights() {
   const profile = await getCurrentProfile()
-  const manager = ['admin','manager'].includes(profile.role)
+  const admin = profile.role === 'admin'
   const db = createServerClient()
+  const managerGrants = profile.role === 'manager'
+    ? await db.from('manager_operation_permissions')
+        .select('approve_requests,issue_warehouse,receive_returns,adjust_stock')
+        .eq('company_id',profile.company_id).eq('user_id',profile.id).maybeSingle()
+    : null
+  if (managerGrants?.error) throw new Error('Could not check Manager permissions: '+managerGrants.error.message)
+  const grants = managerGrants?.data
   const {data,error} = await db.from('user_warehouse_permissions')
     .select('can_request,can_issue,can_receive,can_adjust,can_stocktake')
     .eq('company_id',profile.company_id).eq('user_id',profile.id).maybeSingle()
   if (error) throw new Error('Could not check warehouse permissions: '+error.message)
   return {
-    canRequest: manager || Boolean(data?.can_request),
-    canIssue: manager || Boolean(data?.can_issue),
-    canReceive: manager || Boolean(data?.can_receive),
+    canRequest: admin || profile.role === 'manager' || Boolean(data?.can_request),
+    canIssue: admin || Boolean(grants?.issue_warehouse) || (profile.role==='technician' && Boolean(data?.can_issue)),
+    canReceive: admin || Boolean(grants?.receive_returns) || (profile.role==='technician' && Boolean(data?.can_receive)),
     // Physical count reconciliation remains management-only until the
     // independent technician stocktake workflow is designed and tested.
-    canAdjust: manager,
-    canStocktake: manager,
-    canManageRequests: manager,
+    canAdjust: admin || Boolean(grants?.adjust_stock),
+    canStocktake: admin || Boolean(grants?.adjust_stock),
+    canApproveRequests: admin || Boolean(grants?.approve_requests),
+    canIssueRequests: admin || Boolean(grants?.issue_warehouse),
+    canReceiveRequests: admin || Boolean(grants?.receive_returns),
+    canManageRequests: admin || Boolean(grants?.approve_requests) || Boolean(grants?.issue_warehouse),
   }
 }
 
@@ -937,7 +986,8 @@ export async function processWarehouseRequest(id:string,action:'approve'|'reject
     return {error:'Warehouse stock movements are disabled.'}
   }
   const rights=await getMyWarehouseRights()
-  if (!rights.canManageRequests) return {error:'Manager access required.'}
+  if (action==='fulfil' ? !rights.canIssueRequests : !rights.canApproveRequests)
+    return {error:'Permission required for this warehouse action.'}
   if (!id || !['approve','reject','fulfil'].includes(action)) return {error:'Invalid request action.'}
   const session=await createSessionClient()
   const {error}=await session.rpc('process_warehouse_replenishment_request',{
@@ -1153,7 +1203,7 @@ type CatalogueImportItem = {
 // Stock balances are deliberately excluded; the separate opening stocktake remains authoritative.
 export async function importProductCatalogue(items: CatalogueImportItem[]) {
   const profile = await getCurrentProfile()
-  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  if (!(await managerOperationAllowed(profile,'maintain_catalogue'))) return { error: 'Manager access required.' }
   if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
     return { error: 'Import between 1 and 200 products at a time.' }
   }
@@ -1218,7 +1268,7 @@ export async function updateCatalogueProduct(
   stockUnit: 'ea' | 'kg' | 'm' | 'pack' | 'container', minStock: number,
 ) {
   const profile = await getCurrentProfile()
-  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  if (!(await managerOperationAllowed(profile,'maintain_catalogue'))) return { error: 'Manager access required.' }
   if (!productId || !name?.trim() || name.trim().length > 200 ||
       !category?.trim() || category.trim().length > 100 ||
       !['ea','kg','m','pack','container'].includes(stockUnit) ||
@@ -1244,7 +1294,7 @@ export async function updateCatalogueProduct(
 // ── PHASE 1A: CATALOGUE SETTINGS (metadata only) ─────────
 export async function getPhase1CatalogueSettings(){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
+ if(!(await managerOperationAllowed(p,'maintain_catalogue'))) throw new Error('Manager access required')
  const db=createServerClient()
  const [settings,groups]=await Promise.all([
   db.from('product_settings').select('product_id,tracking_type,servicem8_material_uuid,servicem8_item_number,mapping_status').eq('company_id',p.company_id),
@@ -1256,7 +1306,7 @@ export async function getPhase1CatalogueSettings(){
 }
 export async function saveCatalogueSettings(productId:string,trackingType:string,mappingStatus:string,materialUuid:string,itemNumber:string){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!['stocked','bulk_consumable','cylinder','kit','reference_only','billing_only'].includes(trackingType)
   || !['unlinked','linked','needs_review','vanstock_only'].includes(mappingStatus)
   || typeof materialUuid!=='string'||materialUuid.length>120
@@ -1290,7 +1340,7 @@ export async function saveCatalogueSettings(productId:string,trackingType:string
 }
 export async function saveConsumablesGroup(groupId:string,quantities:number[]){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  const session=await createSessionClient()
  const {data:group,error:groupError}=await session.from('consumables_groups')
   .select('unit').eq('id',groupId).eq('company_id',p.company_id).maybeSingle()
@@ -1311,7 +1361,7 @@ export async function saveConsumablesGroup(groupId:string,quantities:number[]){
 // ── PHASE 1B: suppliers, purchase packages and bins ───────
 export async function getPhase1BSupplierData(){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))throw new Error('Manager access required')
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))throw new Error('Manager access required')
  const db=createServerClient()
  const [suppliers,options,bins,vans,warehouses,hints]=await Promise.all([
    db.from('suppliers').select('id,name,account_number,active').eq('company_id',p.company_id).order('name'),
@@ -1326,7 +1376,7 @@ export async function getPhase1BSupplierData(){
 }
 export async function addCatalogueSupplier(name:string,accountNumber:string){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(typeof name!=='string'||!name.trim()||name.trim().length>120||typeof accountNumber!=='string'||accountNumber.length>100)return {error:'Invalid supplier details'}
  const session=await createSessionClient()
  const {error}=await session.from('suppliers').insert({company_id:p.company_id,name:name.trim(),account_number:accountNumber.trim()||null})
@@ -1336,7 +1386,7 @@ export async function addCatalogueSupplier(name:string,accountNumber:string){
 }
 export async function updateCatalogueSupplier(id:string,name:string,accountNumber:string,active:boolean){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!id||typeof name!=='string'||!name.trim()||name.trim().length>120||typeof accountNumber!=='string'||accountNumber.length>100||typeof active!=='boolean')return {error:'Invalid supplier details'}
  const session=await createSessionClient()
  const {data,error}=await session.from('suppliers').update({name:name.trim(),account_number:accountNumber.trim()||null,active})
@@ -1348,7 +1398,7 @@ export async function updateCatalogueSupplier(id:string,name:string,accountNumbe
 }
 export async function addSupplierPackage(productId:string,supplierId:string,supplierCode:string,packageLabel:string,purchaseUnit:string,unitsPerPackage:number){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!productId||!supplierId||typeof supplierCode!=='string'||supplierCode.length>120||
  typeof packageLabel!=='string'||!packageLabel.trim()||packageLabel.trim().length>100||
  !['ea','kg','m','pack','container','roll','box','cylinder'].includes(purchaseUnit)||
@@ -1373,7 +1423,7 @@ export async function addSupplierPackage(productId:string,supplierId:string,supp
 }
 export async function setSupplierPackageActive(optionId:string,active:boolean){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!optionId||typeof active!=='boolean')return {error:'Invalid package selection'}
  const session=await createSessionClient()
  const {data,error}=await session.from('supplier_product_options')
@@ -1385,7 +1435,7 @@ export async function setSupplierPackageActive(optionId:string,active:boolean){
 }
 export async function updateSupplierPackage(optionId:string,supplierCode:string,packageLabel:string,purchaseUnit:string,unitsPerPackage:number){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!optionId||typeof supplierCode!=='string'||supplierCode.length>120||typeof packageLabel!=='string'||!packageLabel.trim()||packageLabel.trim().length>100||
  !['ea','kg','m','pack','container','roll','box','cylinder'].includes(purchaseUnit)||!Number.isFinite(unitsPerPackage)||unitsPerPackage<=0||unitsPerPackage>=1000000000||
  Math.abs(unitsPerPackage*100-Math.round(unitsPerPackage*100))>1e-7)return {error:'Invalid purchase package details'}
@@ -1404,7 +1454,7 @@ export async function updateSupplierPackage(optionId:string,supplierCode:string,
 }
 export async function deleteUnusedSupplierRecord(kind:'supplier'|'package',id:string){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!['supplier','package'].includes(kind)||!id)return {error:'Invalid selection'}
  const session=await createSessionClient()
  const {data,error}=await session.rpc('vanstock_delete_unused_supplier_record',{p_kind:kind,p_id:id})
@@ -1415,7 +1465,7 @@ export async function deleteUnusedSupplierRecord(kind:'supplier'|'package',id:st
 }
 export async function saveProductBin(productId:string,locationType:'van'|'warehouse',locationId:string,binLabel:string){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!productId||!locationId||!['van','warehouse'].includes(locationType)||
  typeof binLabel!=='string'||!binLabel.trim()||binLabel.trim().length>80)return {error:'Invalid bin or location'}
  const session=await createSessionClient()
@@ -1437,7 +1487,7 @@ export async function saveProductBin(productId:string,locationType:'van'|'wareho
 // ── PHASE 1C: PER-VAN STOCK STANDARDS ─────────────────────
 export async function getVanStockStandardsAdmin(){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
+ if(!(await managerOperationAllowed(p,'maintain_catalogue'))) throw new Error('Manager access required')
  const db=createServerClient()
  const {data,error}=await db.from('van_stock_standards')
    .select('id,van_id,product_id,classification,min_quantity,target_quantity')
@@ -1449,7 +1499,7 @@ export async function saveVanStockStandard(
  vanId:string,productId:string,classification:string,minQuantity:number,targetQuantity:number,
 ){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  if(!vanId||!productId||!['mandatory','preferred','optional','not_assigned'].includes(classification))
    return {error:'Invalid van, product or classification'}
  if(!Number.isFinite(minQuantity)||!Number.isFinite(targetQuantity)||
@@ -1482,7 +1532,7 @@ export async function saveVanStockStandard(
 // Only return balances for vans belonging to the authenticated manager's company.
 export async function getFleetStockOverview(){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role)) throw new Error('Manager access required')
+ if(!(await managerOperationAllowed(p,'maintain_catalogue'))) throw new Error('Manager access required')
  const db=createServerClient()
  const {data:vans,error:vanError}=await db.from('vans').select('id,van_number').eq('company_id',p.company_id).eq('active',true).order('van_number')
  if(vanError)throw new Error(vanError.message)
@@ -1506,7 +1556,7 @@ export async function getConsumablesAssignments(){
 }
 export async function assignProductConsumablesGroup(productId:string,groupId:string){
  const p=await getCurrentProfile()
- if(!['admin','manager'].includes(p.role))return {error:'Manager access required'}
+ if(!(await managerOperationAllowed(p,'maintain_catalogue')))return {error:'Manager access required'}
  const session=await createSessionClient()
  const [product,group]=await Promise.all([
    session.from('products').select('id,stock_unit,archived_at').eq('company_id',p.company_id).eq('id',productId).maybeSingle(),
