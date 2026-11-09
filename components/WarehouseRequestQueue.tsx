@@ -6,10 +6,10 @@ import {processWarehouseRequest,confirmWarehouseReceipt} from '@/lib/actions'
 
 type Request={id:string;warehouse_id:string;van_id:string;product_id:string;quantity:number;reference:string;status:string;created_at:string;requested_by_label:string;reviewed_by_label:string;fulfilled_by_label:string;issued_by_label:string;received_by_label:string}
 
-export default function WarehouseRequestQueue({requests,warehouses,vans,products,canManage,writesEnabled,receiverVanIds=[],balances=[]}:{
+export default function WarehouseRequestQueue({requests,warehouses,vans,products,canManage,canApprove=canManage,canIssue=canManage,canReceive=canManage,writesEnabled,receiverVanIds=[],balances=[]}:{
   requests:Request[];warehouses:{id:string;name:string}[];
   vans:{id:string;van_number:string}[];products:{id:string;name:string;unit:string}[];
-  canManage:boolean;writesEnabled:boolean;receiverVanIds?:string[];
+  canManage:boolean;canApprove?:boolean;canIssue?:boolean;canReceive?:boolean;writesEnabled:boolean;receiverVanIds?:string[];
   balances?:{warehouse_id:string;product_id:string;quantity:number}[]
 }){
   const [busy,start]=useTransition()
@@ -70,9 +70,9 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
               return <span key={stage} className={`rounded p-1 ${i<at?'bg-green-100 text-green-800':i===at?'bg-amber-100 text-amber-900':'bg-gray-100 text-gray-500'}`}>{i<at?'✓ ':''}{stage}</span>
             })}</div>
             {shortage&&<p role="alert" className="text-sm text-red-700">Insufficient warehouse stock: {available} {unit} available.</p>}
-            {canManage&&!completed.includes(r.id)&&r.status==='pending'&&<div className="flex gap-2"><button className="btn btn-primary flex-1 min-h-11" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button><button className="btn min-h-11" disabled={busy} onClick={()=>act(r.id,'reject')}>Reject</button></div>}
-            {canManage&&!completed.includes(r.id)&&r.status==='approved'&&<button className="btn btn-primary w-full min-h-11" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>Confirm warehouse issue</button>}
-            {(canManage||receiverVanIds.includes(r.van_id))&&!completed.includes(r.id)&&r.status==='issued'&&(
+            {canApprove&&!completed.includes(r.id)&&r.status==='pending'&&<div className="flex gap-2"><button className="btn btn-primary flex-1 min-h-11" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button><button className="btn min-h-11" disabled={busy} onClick={()=>act(r.id,'reject')}>Reject</button></div>}
+            {canIssue&&!completed.includes(r.id)&&r.status==='approved'&&<button className="btn btn-primary w-full min-h-11" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>Confirm warehouse issue</button>}
+            {(canReceive||receiverVanIds.includes(r.van_id))&&!completed.includes(r.id)&&r.status==='issued'&&(
               receiptReview===r.id?<div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-3 space-y-2"><p className="text-sm font-semibold">Confirm {r.quantity} {unit} received into {name(vans,r.van_id)}?</p><p className="text-xs">This updates both warehouse and van balances.</p><button className="btn bg-green-700 text-white w-full min-h-11" disabled={busy||!writesEnabled} onClick={()=>receive(r.id)}>Confirm received & move stock</button><button className="btn w-full min-h-11" onClick={()=>setReceiptReview(null)}>Back to edit</button></div>
               :<button className="btn btn-primary w-full min-h-11" disabled={busy||!writesEnabled} onClick={()=>setReceiptReview(r.id)}>Review receiving confirmation</button>
             )}
@@ -90,11 +90,11 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       <td className="table-cell">{name(warehouses,r.warehouse_id)}</td><td className="table-cell">{name(vans,r.van_id)}</td>
       <td className="table-cell">{name(products,r.product_id)}</td><td className="table-cell">{r.quantity} {unit}<p className={'text-xs mt-1 '+(shortage?'font-semibold text-amber-900':'text-gray-500')}>Warehouse available: {available} {unit}</p>{shortage&&<div className="mt-2 rounded-lg border-2 border-amber-500 bg-amber-50 p-2 text-xs text-amber-950" role="alert"><strong>⚠ Insufficient warehouse stock.</strong> Short by {(r.quantity-available).toLocaleString('en-AU')} {unit}. <a className="underline font-semibold" href="/receive">Receive warehouse stock</a> or wait for replenishment before issuing.</div>}</td>
       <td className="table-cell">{r.reference}</td><td className="table-cell whitespace-nowrap">{r.requested_by_label}</td><td className="table-cell whitespace-nowrap">{r.reviewed_by_label}</td><td className="table-cell whitespace-nowrap">{r.issued_by_label}</td><td className="table-cell whitespace-nowrap">{r.received_by_label}</td><td className="table-cell"><span className={'rounded-full px-2 py-1 text-xs font-semibold '+(r.status==='fulfilled'?'bg-green-100 text-green-800':r.status==='rejected'?'bg-red-100 text-red-800':'bg-amber-100 text-amber-900')}>{r.status==='issued'?'Awaiting van receipt':r.status==='fulfilled'?'✓ Received':r.status==='approved'?'Approved — ready to issue':r.status==='pending'?'Awaiting review':'Rejected'}</span></td>
-      <td className="table-cell"><div className="flex gap-1">{canManage&&!completed.includes(r.id)&&r.status==='pending'&&<>
+      <td className="table-cell"><div className="flex gap-1">{canApprove&&!completed.includes(r.id)&&r.status==='pending'&&<>
         <button type="button" className="btn btn-primary" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button>
         <button type="button" className="btn" disabled={busy} onClick={()=>act(r.id,'reject')}>Reject</button>
-      </>}{canManage&&!completed.includes(r.id)&&r.status==='approved'&&<button type="button" className="btn btn-primary" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>{shortage?'Awaiting warehouse stock':'Confirm warehouse issue — no stock movement'}</button>}
-      {(canManage||receiverVanIds.includes(r.van_id))&&!completed.includes(r.id)&&r.status==='issued'&&
+      </>}{canIssue&&!completed.includes(r.id)&&r.status==='approved'&&<button type="button" className="btn btn-primary" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>{shortage?'Awaiting warehouse stock':'Confirm warehouse issue — no stock movement'}</button>}
+      {(canReceive||receiverVanIds.includes(r.van_id))&&!completed.includes(r.id)&&r.status==='issued'&&
        (receiptReview===r.id?<div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-2 space-y-2 min-w-56"><p className="text-xs font-semibold text-amber-900">Final confirmation — received {r.quantity} stock units into {name(vans,r.van_id)}?</p><p className="text-xs text-amber-900">This will move stock from the warehouse to the van.</p><button type="button" className="btn bg-green-700 text-white" disabled={busy||!writesEnabled} onClick={()=>receive(r.id)}>Confirm received & move stock</button><button type="button" className="btn" disabled={busy} onClick={()=>setReceiptReview(null)}>Back to edit</button></div>
        :<button type="button" className="btn btn-primary" disabled={busy||!writesEnabled} onClick={()=>setReceiptReview(r.id)}>Review receiving confirmation</button>)}
       </div></td>

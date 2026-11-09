@@ -3,7 +3,7 @@
 // Manager-only view: manage products, see all vans and users.
 // ============================================================
 
-import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities, getUserAuthorizedVans, getWarehouseStockStandards } from '@/lib/actions'
+import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getManagerOperationPermissions, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities, getUserAuthorizedVans, getWarehouseStockStandards } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 import AddProductModal from '@/components/AddProductModal'
 import EditProductModal from '@/components/EditProductModal'
@@ -15,6 +15,7 @@ import FleetStandardsOverview from '@/components/FleetStandardsOverview'
 import ConsumablesAssignmentsPanel from '@/components/ConsumablesAssignmentsPanel'
 import RemoveProductButton from '@/components/RemoveProductButton'
 import WarehousePermissionsPanel from '@/components/WarehousePermissionsPanel'
+import ManagerPermissionsPanel from '@/components/ManagerPermissionsPanel'
 import AdminTabbedSections from '@/components/AdminTabbedSections'
 import UsersAccessPanel from '@/components/UsersAccessPanel'
 import AuthorizedVansPanel from '@/components/AuthorizedVansPanel'
@@ -30,10 +31,11 @@ export default async function AdminPage() {
       <div className="p-5"><div className="card"><h2 className="text-sm font-medium">Manager access required</h2>
       <p className="text-sm text-gray-500 mt-2">You do not have permission to access administration.</p></div></div></div>
   }
-  const [products, { vans, profiles }, warehousePermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities, userVans, warehouseStandards] = await Promise.all([
+  const [products, { vans, profiles }, warehousePermissions, managerPermissions, phase1, phase1b, vanStandards, fleetBalances, consumablesAssignments, capabilities, userVans, warehouseStandards] = await Promise.all([
     getAdminProducts(),
     getAdminData(),
     user.role === 'admin' ? getWarehousePermissionData() : Promise.resolve(null),
+    user.role === 'admin' ? getManagerOperationPermissions() : Promise.resolve([]),
     getPhase1CatalogueSettings(),
     getPhase1BSupplierData(),
     getVanStockStandardsAdmin(),
@@ -99,6 +101,7 @@ export default async function AdminPage() {
           </div>
 
 </div>
+{user.role === 'admin' && <div className="mt-4"><ManagerPermissionsPanel managers={profiles.filter((p:any)=>p.role==='manager' && p.is_active!==false).map((p:any)=>({id:p.id,full_name:p.full_name}))} initialGrants={managerPermissions} /></div>}
 {user.role === 'admin' && warehousePermissions && (
   <div className="mt-4"><WarehousePermissionsPanel users={profiles.map((p: any) => ({ id: p.id, full_name: p.full_name, initials: p.initials??null, is_active: p.is_active!==false, office_access: capabilities.some((a:any)=>a.user_id===p.id && a.office_access), technician_access: capabilities.some((a:any)=>a.user_id===p.id && a.technician_access), admin_access: p.role==='admin', van_number: p.van?.van_number ?? null }))} saved={warehousePermissions} /></div>
 )}</>}
