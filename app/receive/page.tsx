@@ -3,7 +3,7 @@ import Link from 'next/link'
 import {getCurrentUserDisplay,getReceivingSetup,getRecentStockReceipts,getWorkingVans} from '@/lib/actions'
 import ReceiveStockWorkflow from '@/components/ReceiveStockWorkflow'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
-import WorkflowGuide from '@/components/WorkflowGuide'
+import WorkflowHelp from '@/components/WorkflowHelp'
 
 export default async function ReceiveStockPage({searchParams}:{searchParams:{van?:string}}){
  const user=await getCurrentUserDisplay()
@@ -24,7 +24,7 @@ export default async function ReceiveStockPage({searchParams}:{searchParams:{van
  return <div>
   <div className="topbar"><h1 className="topbar-title">Receive Stock</h1></div>
   <div className="p-5 space-y-4">
-   <WorkflowGuide title="Supplier receipt · 3 steps" stages={[{label:'Details'},{label:'Review'},{label:'Confirm'}]} current={0} help={['Check products and quantities against the supplier docket.','Select full packs or loose items and the receiving location.','Review the stock-unit conversion, then confirm the actual receipt.']} helpHref="/help#supplier"/>
+   <div className="card"><div className="flex flex-wrap justify-between items-center gap-2"><h2 className="text-sm font-semibold">Supplier receipt · 3 steps: Details → Review → Confirm</h2><WorkflowHelp title="Receive stock from a supplier" steps={['Check goods against the supplier delivery docket and choose the receiving location.','Enter products and quantities as full packs or loose items. Check the converted stock units.','Review the entire receipt and confirm once. Verify it in Transaction History.']} href="/help#supplier"/></div></div>
    {working&&<WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId}/>}
    <div className="flex flex-wrap gap-3 items-center justify-between">
     <p className="text-sm text-gray-600">Record incoming stock in three steps. Pack setup remains in Administration.</p>

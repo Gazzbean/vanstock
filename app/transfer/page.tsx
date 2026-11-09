@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation'
 import { getMyStock, getProducts, getActivityLog, getWorkingVans, getCurrentUserDisplay, getConsumablesAssignments, getJobMaterialAllocations } from '@/lib/actions'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import TransferForm from '@/components/TransferForm'
-import WorkflowGuide from '@/components/WorkflowGuide'
+import WorkflowHelp from '@/components/WorkflowHelp'
 
 function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
 
@@ -47,7 +47,7 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
       </div>
 
       <div className="p-5">
-        <WorkflowGuide title="Materials used · 3 steps" stages={[{label:'Details'},{label:'Review'},{label:'Confirm'}]} current={0} help={['Check the working van and product quantities.','Record the job reference and items used, or materials left on site.','Review the stock deduction, then confirm once.']} helpHref="/help#used"/>
+        <div className="card mb-4"><div className="flex flex-wrap justify-between items-center gap-2"><h2 className="text-sm font-semibold">Materials used · Check → Record → Confirm</h2><WorkflowHelp title="Record materials used or left on site" steps={['Check the selected working van and available stock.','Enter the job reference and quantities. Choose materials used or allocated on site.','Check the deduction and confirm. Materials left on site require a location and reason.']} href="/help#used"/></div></div>
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
         <div className="alert alert-info">
           ℹ️ Record parts and consumables used on jobs here. Materials left on site stay allocated until used or returned.

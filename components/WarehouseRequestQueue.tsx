@@ -5,6 +5,7 @@ import {useRouter} from 'next/navigation'
 import {processWarehouseRequest,confirmWarehouseReceipt} from '@/lib/actions'
 import WarehouseReceiptExceptionActions from './WarehouseReceiptExceptionActions'
 import RequestProgress from './RequestProgress'
+import WorkflowHelp from './WorkflowHelp'
 
 type Request={id:string;warehouse_id:string;van_id:string;product_id:string;quantity:number;reference:string;status:string;created_at:string;requested_by_label:string;reviewed_by_label:string;fulfilled_by_label:string;issued_by_label:string;received_by_label:string;discrepancy:{observed_quantity:number;reason:string;resolved_at:string|null;resolution_note:string|null}|null}
 const requestKey=(request:Request)=>`${request.id}:${request.status}`
@@ -53,7 +54,16 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
     })
   }
   return <section id="warehouse-requests" className="card mt-4 scroll-mt-4">
-    <h2 className="text-sm font-medium mb-2">{canManage?'Warehouse replenishment requests':'My warehouse replenishment requests'}</h2>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-2">
+      <h2 className="text-sm font-medium">{canManage?'Warehouse replenishment requests':'My warehouse replenishment requests'}</h2>
+      <WorkflowHelp title="Warehouse replenishment · 4 stages" href="/help#replenishment" steps={[
+        'Request — a technician requests stock for the receiving van.',
+        'Approve — an authorised person reviews and approves the request.',
+        'Issue — warehouse personnel physically issue the goods and record the issue; balances do not change yet.',
+        'Receive — the receiving technician checks the delivery and confirms it. Only then do warehouse and van stock balances change.',
+        'If goods are missing or damaged, report the discrepancy instead of confirming receipt.'
+      ]}/>
+    </div>
     <p className="text-xs text-gray-500 mb-3">Warehouse approval and issue do not move stock. Both balances change only when the receiving van confirms receipt.</p>
     <div className="mb-3"><label className="form-label" htmlFor="warehouse-request-filter">Show requests</label><select id="warehouse-request-filter" className="form-input max-w-xs" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="open">Pending, approved & awaiting receipt</option><option value="all">All requests</option><option value="fulfilled">Received</option><option value="rejected">Rejected</option></select></div>
     {error&&<p role="alert" className="text-sm text-red-700 mb-2">{error}</p>}
