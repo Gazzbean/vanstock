@@ -40,7 +40,16 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
         <WorkflowGuide title="Warehouse replenishment · 4 stages" stages={[{label:'Request'},{label:'Approve'},{label:'Issue'},{label:'Receive'}]} current={0} help={['Request stock for an authorised working van.','An authorised manager or office user approves the request.','Warehouse personnel physically issue the stock.','Check goods delivered and confirm receipt. Both stock balances update at this point.']} helpHref="/help#replenishment"/>
         {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
         <div className="card">
-          <table className="w-full">
+          <h2 className="text-sm font-semibold mb-3">Current van stock</h2>
+          <div className="md:hidden space-y-2">
+            {displayRows.map(s=><div key={s.id} className="rounded-lg border border-gray-200 p-3">
+              <div className="flex justify-between gap-3"><span className="text-sm font-semibold">{s.product?.name}</span><span className={`badge flex-shrink-0 ${s.status==='Critical'?'badge-critical':s.status==='Low'?'badge-low':'badge-ok'}`}>{s.status}</span></div>
+              <p className="text-lg font-semibold mt-2">{s.quantity} {s.product?.stock_unit??'ea'}</p>
+              <p className="text-xs text-gray-500">Minimum: {s.minimum} · Target: {s.target??'Not set'} · {s.product?.category}</p>
+            </div>)}
+            {!displayRows.length&&<p className="text-sm text-gray-500">No stock recorded for this van.</p>}
+          </div>
+          <table className="hidden md:table w-full">
             <thead>
               <tr>
                 <th className="table-header">Item</th>

@@ -51,7 +51,7 @@ export default function SidebarNav({ user, notifications=[] }: {
   const router = useRouter()
   const [inboxOpen,setInboxOpen]=useState(false)
   const [mobileMenuOpen,setMobileMenuOpen]=useState(false)
-  const unread=notifications.filter(n=>!n.read_at).length
+  const unread=notifications.filter(n=>!n.read_at&&n.status!=='fulfilled').length
   // Invite acceptance is a standalone auth flow, not an authenticated app screen.
   if (pathname.startsWith('/auth/accept-invite')) return null
 
@@ -146,11 +146,19 @@ export default function SidebarNav({ user, notifications=[] }: {
 
     </aside>
     <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 bg-white border-b flex items-center justify-between px-4">
-      <strong>🚐 VanStock</strong><button type="button" onClick={()=>setMobileMenuOpen(true)} className="border rounded-lg min-h-11 min-w-11" aria-label="Open menu">☰</button>
+      <strong>🚐 VanStock</strong><div className="flex gap-2"><button type="button" onClick={()=>{setInboxOpen(true);setMobileMenuOpen(true)}} className="border rounded-lg min-h-11 min-w-11 relative" aria-label={`${unread} unread notifications`}>🔔{unread>0&&<span className="absolute -top-1 -right-1 rounded-full bg-red-600 text-white text-xs px-1">{unread}</span>}</button><button type="button" onClick={()=>setMobileMenuOpen(true)} className="border rounded-lg min-h-11 min-w-11" aria-label="Open menu">☰</button></div>
     </header>
     {mobileMenuOpen&&<div className="md:hidden fixed inset-0 z-50 bg-black/40" onClick={()=>setMobileMenuOpen(false)}>
       <div className="bg-white w-[min(88vw,340px)] h-full flex flex-col" onClick={e=>e.stopPropagation()}>
         <div className="p-3 border-b flex justify-between items-center"><strong>{roleLabel}</strong><button type="button" className="min-h-11 min-w-11" onClick={()=>setMobileMenuOpen(false)} aria-label="Close menu">✕</button></div>
+        {inboxOpen&&<section className="p-3 border-b max-h-48 overflow-y-auto" aria-label="Notifications">
+          <h2 className="font-semibold text-sm mb-2">Notifications</h2>
+          {!notifications.length?<p className="text-xs text-gray-500">No notifications.</p>:notifications.slice(0,8).map(n=><div key={n.id} className="text-sm border-b py-2">
+            <div>{n.reference} — {n.status==='fulfilled'?'Completed':n.status}</div>
+            <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700 underline" onClick={()=>setMobileMenuOpen(false)}>View request</Link>
+            {!n.read_at&&<button type="button" className="ml-3 text-blue-700 underline" onClick={async()=>{const result=await markWarehouseNotificationRead(n.id);if(result.success)router.refresh()}}>Mark read</button>}
+          </div>)}
+        </section>}
         {nav}<button type="button" className="min-h-11 border-t" onClick={handleSignOut}>Sign out</button>
       </div>
     </div>}
