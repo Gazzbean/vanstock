@@ -16,6 +16,7 @@ import { markWarehouseNotificationRead, signOut } from '@/lib/actions'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard',      icon: '⊞' },
+  { href: '/actions', label: 'My Actions', icon: '☑' },
   { href: '/stock',     label: 'My Van Stock',   icon: '📦' },
   { href: '/fleet',     label: 'Fleet Stock',    icon: '🚐' },
   { href: '/receive',   label: 'Receive Stock',   icon: '↓'  },
@@ -24,7 +25,13 @@ const navItems = [
   { href: '/logs',      label: 'Transaction History',   icon: '☰'  },
   { href: '/warehouse', label: 'Warehouse', icon: '▣' },
   { href: '/admin',     label: 'Admin',          icon: '⚙'  },
+  { href: '/help', label: 'Help & SOPs', icon: '?' },
 ]
+
+const sectionName = (href:string) =>
+  ['/dashboard','/actions','/stock'].includes(href)?'My Work':
+  ['/logs','/help'].includes(href)?'Records & Help':
+  href==='/admin'?'Administration':'Stock Operations'
 
 interface UserDisplay {
   full_name: string
@@ -34,7 +41,7 @@ interface UserDisplay {
 }
 
 type WarehouseNotification = {
-  id:string;event_type:string;reference:string;status:string;created_at:string;read_at:string|null
+  id:string;request_id:string;event_type:string;reference:string;status:string;created_at:string;read_at:string|null
 }
 
 export default function SidebarNav({ user, notifications=[] }: {
@@ -43,6 +50,7 @@ export default function SidebarNav({ user, notifications=[] }: {
   const pathname = usePathname()
   const router = useRouter()
   const [inboxOpen,setInboxOpen]=useState(false)
+  const [mobileMenuOpen,setMobileMenuOpen]=useState(false)
   const unread=notifications.filter(n=>!n.read_at).length
   // Invite acceptance is a standalone auth flow, not an authenticated app screen.
   if (pathname.startsWith('/auth/accept-invite')) return null
@@ -61,13 +69,36 @@ export default function SidebarNav({ user, notifications=[] }: {
     router.push('/login')
   }
 
-  return (
-    <aside className="w-48 min-w-[192px] bg-white border-r border-gray-200 flex flex-col">
+  const navAvailable = (href:string) => {
+    if (href === '/receive' && !user?.access?.receive_stock) return false
+    if (href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return false
+    if (href === '/warehouse' && !user?.access?.office_access) return false
+    if (href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin') return false
+    if ((href === '/stock' || href === '/transfer') && !user?.access?.technician_access) return false
+    if (href === '/van-transfers' && !user?.access?.technician_access && !user?.access?.office_access) return false
+    return true
+  }
+  const availableItems=navItems.filter(item=>navAvailable(item.href))
+  const groups=['My Work','Stock Operations','Administration','Records & Help']
+  const nav=<nav className="flex-1 overflow-y-auto py-2" aria-label="Main navigation">
+    {groups.map(group => {
+      const items=availableItems.filter(item=>sectionName(item.href)===group)
+      return items.length?<div key={group} className="mb-3">
+        <h2 className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{group}</h2>
+        {items.map(item=><Link key={item.href} href={item.href} onClick={()=>setMobileMenuOpen(false)}
+          className={`flex items-center gap-2.5 px-4 py-3 min-h-11 text-sm ${pathname.startsWith(item.href)?'bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600':'text-gray-600 hover:bg-gray-50 border-l-2 border-transparent'}`}>
+          <span aria-hidden>{item.icon}</span>{item.label}
+        </Link>)}
+      </div>:null
+    })}
+  </nav>
+  return (<>
+    <aside className="hidden md:flex w-56 min-w-[224px] bg-white border-r border-gray-200 flex-col">
 
       {/* Logo */}
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="text-sm font-medium text-gray-900">🚐 VanStock</div>
-        <div className="text-xs text-gray-400 mt-0.5">Stock Control System</div>
+        <div className="text-xs text-gray-400 mt-0.5">Simplicity Air stock control</div>
         {(user?.access?.office_access||user?.access?.technician_access) && <div className="mt-3">
           <button type="button" className="btn btn-sm w-full justify-between" onClick={()=>setInboxOpen(v=>!v)}
             aria-expanded={inboxOpen} aria-label={`Warehouse notifications, ${unread} unread`}>
@@ -77,9 +108,9 @@ export default function SidebarNav({ user, notifications=[] }: {
           {inboxOpen&&<div className="mt-2 max-h-64 overflow-y-auto rounded border border-gray-200 bg-white p-2">
             {notifications.length===0?<p className="text-xs text-gray-500">No notifications.</p>:
               notifications.slice(0,12).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
-                <p>{n.reference} — {n.event_type}</p>
+                <p>{n.reference} — {n.status==='fulfilled'?'Completed':n.status==='issued'?'Awaiting van receipt':n.status==='approved'?'Approved':n.status==='rejected'?'Rejected':n.event_type}</p>
                 <div className="mt-1 flex gap-2">
-                  <Link href={user?.access?.office_access?'/warehouse':'/stock'} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
+                  <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
                   {!n.read_at&&<button type="button" className="text-blue-700 underline" onClick={async()=>{
                     const result=await markWarehouseNotificationRead(n.id)
                     if(result.success)router.refresh()
@@ -91,32 +122,7 @@ export default function SidebarNav({ user, notifications=[] }: {
       </div>
 
       {/* Navigation links */}
-      <nav className="flex-1 py-2">
-        {navItems.map((item) => {
-          if (item.href === '/receive' && !user?.access?.receive_stock) return null
-          if (item.href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return null
-          if (item.href === '/warehouse' && !user?.access?.office_access) return null
-          if (item.href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin') return null
-          if ((item.href === '/stock' || item.href === '/transfer') && !user?.access?.technician_access) return null
-          if (item.href === '/van-transfers' && !user?.access?.technician_access && !user?.access?.office_access) return null
-          const isActive = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={[
-                'flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors',
-                isActive
-                  ? 'bg-blue-50 text-blue-700 font-medium border-l-2 border-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-2 border-transparent',
-              ].join(' ')}
-            >
-              <span className="text-base" aria-hidden>{item.icon}</span>
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
+      {nav}
 
       {/* Real logged-in user info + sign out */}
       <div className="px-4 py-3 border-t border-gray-100">
@@ -139,5 +145,18 @@ export default function SidebarNav({ user, notifications=[] }: {
       </div>
 
     </aside>
-  )
+    <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 bg-white border-b flex items-center justify-between px-4">
+      <strong>🚐 VanStock</strong><button type="button" onClick={()=>setMobileMenuOpen(true)} className="border rounded-lg min-h-11 min-w-11" aria-label="Open menu">☰</button>
+    </header>
+    {mobileMenuOpen&&<div className="md:hidden fixed inset-0 z-50 bg-black/40" onClick={()=>setMobileMenuOpen(false)}>
+      <div className="bg-white w-[min(88vw,340px)] h-full flex flex-col" onClick={e=>e.stopPropagation()}>
+        <div className="p-3 border-b flex justify-between items-center"><strong>{roleLabel}</strong><button type="button" className="min-h-11 min-w-11" onClick={()=>setMobileMenuOpen(false)} aria-label="Close menu">✕</button></div>
+        {nav}<button type="button" className="min-h-11 border-t" onClick={handleSignOut}>Sign out</button>
+      </div>
+    </div>}
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-white flex justify-around pb-[env(safe-area-inset-bottom)]" aria-label="Mobile quick navigation">
+      {[{href:'/dashboard',label:'Home',icon:'⌂'},{href:'/actions',label:'Actions',icon:'☑'},{href:user?.access?.technician_access?'/stock':'/warehouse',label:'Stock',icon:'📦'}].map(item=><Link key={item.href} href={item.href} className={`flex-1 flex flex-col min-h-14 justify-center items-center text-xs ${pathname.startsWith(item.href)?'text-blue-700 font-semibold':'text-gray-600'}`}><span className="text-xl">{item.icon}</span>{item.label}</Link>)}
+      <button type="button" onClick={()=>setMobileMenuOpen(true)} className="flex-1 flex flex-col min-h-14 justify-center items-center text-xs"><span className="text-xl">☰</span>More</button>
+    </nav>
+  </>)
 }

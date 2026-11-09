@@ -4,14 +4,17 @@
 // Sets up fonts, global styles, and the sidebar navigation.
 // ============================================================
 
-import type { Metadata } from 'next'
+import type { Metadata,Viewport } from 'next'
 import './globals.css'
 import Sidebar from '@/components/Sidebar'
+import AutoRefresh from '@/components/AutoRefresh'
 
 export const metadata: Metadata = {
   title: 'VanStock — Stock Control System',
   description: 'Service van stock management',
 }
+
+export const viewport:Viewport={width:'device-width',initialScale:1,viewportFit:'cover'}
 
 export default function RootLayout({
   children,
@@ -21,9 +24,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex h-[100dvh] bg-gray-50 overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto">
+          <AutoRefresh />
+          <main className="flex-1 min-w-0 overflow-y-auto pt-14 pb-20 md:pt-0 md:pb-0">
             {children}
           </main>
         </div>

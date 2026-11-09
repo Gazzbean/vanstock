@@ -42,7 +42,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       }catch{setError('Receipt status is uncertain. Refresh and check the request before retrying.')}
     })
   }
-  return <section className="card mt-4">
+  return <section id="warehouse-requests" className="card mt-4 scroll-mt-4">
     <h2 className="text-sm font-medium mb-2">{canManage?'Warehouse replenishment requests':'My warehouse replenishment requests'}</h2>
     <p className="text-xs text-gray-500 mb-3">Warehouse approval and issue do not move stock. Both balances change only when the receiving van confirms receipt.</p>
     <div className="mb-3"><label className="form-label" htmlFor="warehouse-request-filter">Show requests</label><select id="warehouse-request-filter" className="form-input max-w-xs" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="open">Pending, approved & awaiting receipt</option><option value="all">All requests</option><option value="fulfilled">Received</option><option value="rejected">Rejected</option></select></div>
@@ -54,7 +54,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       const available=Number(balances.find(b=>b.warehouse_id===r.warehouse_id&&b.product_id===r.product_id)?.quantity??0)
       const shortage=r.status==='approved'&&r.quantity>available
       const unit=products.find(p=>p.id===r.product_id)?.unit??'ea'
-      return <tr key={r.id} className={shortage?'bg-amber-50':''}>
+      return <tr key={r.id} id={`warehouse-request-${r.id}`} className={`${shortage?'bg-amber-50':''} scroll-mt-5`}>
       <td className="table-cell">{new Date(r.created_at).toLocaleDateString('en-AU',{timeZone:'Australia/Perth'})}</td>
       <td className="table-cell">{name(warehouses,r.warehouse_id)}</td><td className="table-cell">{name(vans,r.van_id)}</td>
       <td className="table-cell">{name(products,r.product_id)}</td><td className="table-cell">{r.quantity} {unit}<p className={'text-xs mt-1 '+(shortage?'font-semibold text-amber-900':'text-gray-500')}>Warehouse available: {available} {unit}</p>{shortage&&<div className="mt-2 rounded-lg border-2 border-amber-500 bg-amber-50 p-2 text-xs text-amber-950" role="alert"><strong>⚠ Insufficient warehouse stock.</strong> Short by {(r.quantity-available).toLocaleString('en-AU')} {unit}. <a className="underline font-semibold" href="/receive">Receive warehouse stock</a> or wait for replenishment before issuing.</div>}</td>

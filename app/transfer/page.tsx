@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation'
 import { getMyStock, getProducts, getActivityLog, getWorkingVans, getCurrentUserDisplay, getConsumablesAssignments, getJobMaterialAllocations } from '@/lib/actions'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import TransferForm from '@/components/TransferForm'
+import WorkflowGuide from '@/components/WorkflowGuide'
 
 function processorLabel(name:string|null|undefined){return name?name+' ('+name.trim().split(/\s+/).map(p=>p[0]?.toUpperCase()??'').join('')+')':'Unknown user'}
 
@@ -46,12 +47,13 @@ export default async function TransferPage({searchParams}:{searchParams:{van?:st
       </div>
 
       <div className="p-5">
+        <WorkflowGuide title="Materials used · 3 steps" stages={[{label:'Details'},{label:'Review'},{label:'Confirm'}]} current={0} help={['Check the working van and product quantities.','Record the job reference and items used, or materials left on site.','Review the stock deduction, then confirm once.']} helpHref="/help#used"/>
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
         <div className="alert alert-info">
           ℹ️ Record parts and consumables used on jobs here. Materials left on site stay allocated until used or returned.
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Transfer form — Client Component */}
           {working.selectedId&&<TransferForm key={working.selectedId} selectedVanId={working.selectedId} selectedVanNumber={working.vans.find(v=>v.id===working.selectedId)?.van_number??'Working Van'} products={products} stockItems={stockItems} consumables={consumables} allocations={allocations} />}
 
