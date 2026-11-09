@@ -840,9 +840,10 @@ export async function getWarehouseRequests() {
   const columns='id,warehouse_id,van_id,product_id,quantity,reference,status,requested_by,reviewed_by,fulfilled_by,issued_by,received_by,created_at,reviewed_at,issued_at,received_at,fulfilled_at'
   const base=()=>db.from('warehouse_replenishment_requests').select(columns)
     .eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(100)
-  const working=rights.canManageRequests?null:await getWorkingVans()
-  if (!rights.canRequest && !rights.canManageRequests && !working?.vans.length) return []
-  const own=rights.canManageRequests?await base():await base().eq('requested_by',profile.id)
+  const canViewAll=rights.canManageRequests||rights.canReceiveRequests
+  const working=canViewAll?null:await getWorkingVans()
+  if (!rights.canRequest && !canViewAll && !working?.vans.length) return []
+  const own=canViewAll?await base():await base().eq('requested_by',profile.id)
   const inbound=working?.vans.length?await base().eq('status','issued').in('van_id',working.vans.map(v=>v.id)):null
   const error=own.error??inbound?.error
   if (error) {
