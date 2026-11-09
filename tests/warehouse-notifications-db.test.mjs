@@ -4,6 +4,7 @@ import test from 'node:test'
 import {PGlite} from '@electric-sql/pglite'
 
 const migration=new URL('../supabase/migrations/20261105093000_warehouse_notifications.sql',import.meta.url)
+const dismissal=new URL('../supabase/migrations/20261109130000_notification_inbox_dismissal.sql',import.meta.url)
 const ids={
  company:'00000000-0000-4000-8000-000000000001',
  other:'00000000-0000-4000-8000-000000000002',
@@ -35,6 +36,7 @@ test('warehouse notifications target responsible staff, deduplicate events and p
    ($1,$5,'technician',true),($2,$5,'admin',true),($3,$5,'manager',true),
    ($4,$6,'admin',true)`, [ids.requester,ids.admin,ids.manager,ids.outsider,ids.company,ids.other])
   await db.exec(await readFile(migration,'utf8'))
+  await db.exec(await readFile(dismissal,'utf8'))
   const inbox=async()=> (await db.query('select user_id,event_type,read_at from warehouse_notifications order by event_type,user_id')).rows
   await db.query("insert into warehouse_replenishment_requests(id,company_id,requested_by,status) values($1,$2,$3,'pending')",[ids.request,ids.company,ids.requester])
   assert.deepEqual((await inbox()).filter(n=>n.event_type==='requested').map(n=>n.user_id).sort(),[ids.admin,ids.manager].sort())
@@ -55,5 +57,19 @@ test('warehouse notifications target responsible staff, deduplicate events and p
   await db.query("select set_config('test.user_id',$1,false)",[ids.requester])
   assert.equal((await db.query('select vanstock_mark_warehouse_notification_read($1) as updated',[notice])).rows[0].updated,true)
   assert.ok((await inbox()).find(n=>n.user_id===ids.requester&&n.read_at))
+  const otherNotice=(await db.query('select id from warehouse_notifications where user_id=$1 limit 1',[ids.admin])).rows[0].id
+  await assert.equal((await db.query('select vanstock_dismiss_warehouse_notification($1) as dismissed',[otherNotice])).rows[0].dismissed,false)
+  assert.equal((await db.query('select vanstock_dismiss_warehouse_notification($1) as dismissed',[notice])).rows[0].dismissed,true)
+  const marked=(await db.query('select read_at,dismissed_at from warehouse_notifications where id=$1',[notice])).rows[0]
+  assert.ok(marked.read_at&&marked.dismissed_at)
+  assert.equal((await db.query('select vanstock_clear_read_warehouse_notifications() as count')).rows[0].count,0)
+  const secondNotice=(await db.query('select id from warehouse_notifications where user_id=$1 and id<>$2 limit 1',[ids.requester,notice])).rows[0].id
+  await db.query('select vanstock_mark_warehouse_notification_read($1)',[secondNotice])
+  assert.equal((await db.query('select vanstock_clear_read_warehouse_notifications() as count')).rows[0].count,1)
+  assert.equal((await db.query('select dismissed_at from warehouse_notifications where id=$1',[secondNotice])).rows[0].dismissed_at!==null,true)
+  assert.equal((await db.query('select count(*)::int as total from warehouse_notifications where user_id=$1',[ids.requester])).rows[0].total,3)
+  await db.query("select set_config('test.user_id',$1,false)",[ids.admin])
+  assert.equal((await db.query('select vanstock_clear_read_warehouse_notifications() as count')).rows[0].count,0)
+  assert.equal((await db.query('select dismissed_at from warehouse_notifications where id=$1',[otherNotice])).rows[0].dismissed_at,null)
  }finally{await db.close()}
 })

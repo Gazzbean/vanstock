@@ -906,9 +906,9 @@ export async function getMyWarehouseNotifications() {
   const profile=await getCurrentProfile()
   const db=createServerClient()
   const {data,error}=await db.from('warehouse_notifications')
-    .select('id,request_id,event_type,created_at,read_at')
+    .select('id,request_id,event_type,created_at,read_at,dismissed_at')
     .eq('company_id',profile.company_id).eq('user_id',profile.id)
-    .order('created_at',{ascending:false}).limit(30)
+    .order('created_at',{ascending:false}).limit(100)
   if(error){
     if(error.code==='42P01'||error.code==='PGRST205')return []
     throw new Error('Could not load notifications')
@@ -934,6 +934,23 @@ export async function markWarehouseNotificationRead(id:string){
   revalidatePath('/dashboard')
   revalidatePath('/warehouse')
   return {success:true}
+}
+
+export async function dismissWarehouseNotification(id:string){
+ if(!id)return {error:'Missing notification'}
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('vanstock_dismiss_warehouse_notification',{p_id:id})
+ if(error||!data)return {error:'Could not dismiss this notification'}
+ revalidatePath('/dashboard');revalidatePath('/warehouse');revalidatePath('/stock');revalidatePath('/actions')
+ return {success:true}
+}
+
+export async function clearReadWarehouseNotifications(){
+ const session=await createSessionClient()
+ const {data,error}=await session.rpc('vanstock_clear_read_warehouse_notifications')
+ if(error)return {error:'Could not clear read notifications'}
+ revalidatePath('/dashboard');revalidatePath('/warehouse');revalidatePath('/stock');revalidatePath('/actions')
+ return {success:true,count:Number(data??0)}
 }
 
 export async function getWarehouseRequestLocations() {
