@@ -42,7 +42,6 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
  const validAmount=Boolean(amount.trim()&&Number.isFinite(amountNumber)&&amountNumber>0&&
   amountNumber<1000000000&&Math.abs(amountNumber*100-Math.round(amountNumber*100))<1e-7&&
   (mode==='loose'||Number.isInteger(amountNumber)))
- const insufficientSourceStock=Boolean(product&&validAmount&&(mode==='loose'||chosenPack)&&stockQty>sourceBalance)
  const valid=Boolean(source&&destination&&source!==destination&&product&&validAmount&&
   (mode==='loose'||chosenPack)&&stockQty>0&&stockQty<1000000000&&
   Math.abs(stockQty*100-Math.round(stockQty*100))<1e-7&&
@@ -129,11 +128,10 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
    </div>
   </section>
 
-  <section className={'card space-y-3 border-2 '+(insufficientSourceStock?'border-amber-500':valid?'border-green-500':'border-gray-200')}>
+  <section className={'card space-y-3 border-2 '+(valid?'border-green-500':'border-gray-200')}>
    <div className="flex items-center justify-between gap-2 flex-wrap">
     <h2 className="text-base font-semibold">B. Transfer details</h2>
     {valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
-    {insufficientSourceStock&&<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">⚠ Insufficient stock</span>}
    </div>
    <p className="text-sm text-gray-600">Choose the source and receiving vans. The transfer is requested first; no stock moves until the receiving van confirms it.</p>
    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -142,7 +140,7 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
     <div className="md:col-span-2"><label className="form-label" htmlFor="vt-product">Product *</label><select id="vt-product" className="form-input" value={product} onChange={e=>{setProduct(e.target.value);setPackId('');changed()}}><option value="">Select product</option>{products.filter(p=>balances.some(b=>b.van_id===source&&b.product_id===p.id&&b.quantity>0)).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>{product&&<p className="text-xs text-gray-500 mt-1">Recorded source van balance: {sourceBalance} {unit}</p>}</div>
     {mode==='pack'&&<div className="md:col-span-2"><label className="form-label" htmlFor="vt-package">Full pack size *</label><select id="vt-package" className="form-input" value={packId} disabled={!product} onChange={e=>{setPackId(e.target.value);changed()}}><option value="">Select a configured package</option>{matchingPacks.map(p=><option key={p.id} value={p.id}>{p.package_label} — {p.units_per_package} {unit} per {p.purchase_unit}</option>)}</select>{product&&matchingPacks.length===0&&<p className="mt-1 text-sm text-amber-700">No pack conversion is configured for this product. Select loose items or ask an administrator to configure the package.</p>}</div>}
     <div><label className="form-label" htmlFor="vt-qty">{mode==='pack'?'Number of full packs':'Quantity of loose items'} *</label><input id="vt-qty" className="form-input" type="number" min={mode==='pack'||wholeUnit?'1':'0.01'} step={mode==='pack'||wholeUnit?'1':'0.01'} value={amount} onChange={e=>{setAmount(e.target.value);changed()}}/></div>
-    <div className={'rounded-lg border p-3 '+(insufficientSourceStock?'border-2 border-amber-500 bg-amber-50':'border-gray-200 bg-gray-50')}><p className="text-xs text-gray-500">Stock units to transfer</p><p className="text-lg font-semibold">{validAmount&&(mode==='loose'||chosenPack)?stockQty.toLocaleString('en-AU'):'—'} {unit}</p><p className="text-xs text-gray-500">Available: {product?sourceBalance+' '+unit:'Select a product'}</p>{insufficientSourceStock&&<p className="text-xs font-semibold text-red-700" role="alert">Insufficient source van stock. Reduce the quantity or select another source van.</p>}</div>
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Stock units to transfer</p><p className="text-lg font-semibold">{validAmount&&(mode==='loose'||chosenPack)?stockQty.toLocaleString('en-AU'):'—'} {unit}</p><p className="text-xs text-gray-500">Available: {product?sourceBalance+' '+unit:'Select a product'}</p>{validAmount&&stockQty>sourceBalance&&<p className="text-xs font-semibold text-red-700">Insufficient source van stock</p>}</div>
     <div className="md:col-span-2"><label className="form-label" htmlFor="vt-reason">Reason / job reference (required) *</label><input id="vt-reason" className="form-input" maxLength={350} value={reason} onChange={e=>{setReason(e.target.value);changed()}} placeholder="e.g. Parts needed on Van #4 for job 12345"/></div>
    </div>
    {valid&&!requestReady&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
@@ -171,7 +169,7 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
      const canDecide=receiver||managed
      const needsReason=!receiver&&managed
      const reviewing=reviewDecision?.id===r.id
-     return <div key={r.id} className={'rounded-lg border-2 p-3 space-y-2 '+(reviewing?'border-green-500 bg-green-50':'border-amber-400 bg-amber-50')}>
+     return <div key={r.id} id={`van-transfer-${r.id}`} className={'scroll-mt-5 rounded-lg border-2 p-3 space-y-2 '+(reviewing?'border-green-500 bg-green-50':'border-amber-400 bg-amber-50')}>
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">{vanName(r.source_van_id)} → {vanName(r.destination_van_id)} · {r.quantity} {products.find(p=>p.id===r.product_id)?.stock_unit??'ea'} {productName(r.product_id)}</p><span className="rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-xs font-semibold">{reviewing?'Stage 2 — Confirm decision':'Stage 1 — Pending approval'}</span></div>
       <p className="text-sm text-gray-700">Reason: {r.reason}</p>
       <p className="text-xs text-amber-900">Awaiting receiving-van confirmation. Neither balance has changed.</p>

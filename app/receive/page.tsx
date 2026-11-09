@@ -3,6 +3,7 @@ import Link from 'next/link'
 import {getCurrentUserDisplay,getReceivingSetup,getRecentStockReceipts,getWorkingVans} from '@/lib/actions'
 import ReceiveStockWorkflow from '@/components/ReceiveStockWorkflow'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
+import WorkflowGuide from '@/components/WorkflowGuide'
 
 export default async function ReceiveStockPage({searchParams}:{searchParams:{van?:string}}){
  const user=await getCurrentUserDisplay()
@@ -23,6 +24,7 @@ export default async function ReceiveStockPage({searchParams}:{searchParams:{van
  return <div>
   <div className="topbar"><h1 className="topbar-title">Receive Stock</h1></div>
   <div className="p-5 space-y-4">
+   <WorkflowGuide title="Supplier receipt · 3 steps" stages={[{label:'Details'},{label:'Review'},{label:'Confirm'}]} current={0} help={['Check products and quantities against the supplier docket.','Select full packs or loose items and the receiving location.','Review the stock-unit conversion, then confirm the actual receipt.']} helpHref="/help#supplier"/>
    {working&&<WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId}/>}
    <div className="flex flex-wrap gap-3 items-center justify-between">
     <p className="text-sm text-gray-600">Record incoming stock in three steps. Pack setup remains in Administration.</p>
