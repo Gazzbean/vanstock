@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ResetWelcomeButton from '@/components/ResetWelcomeButton'
 
 const guides=[
  {id:'supplier',code:'VS-SOP-001',title:'Receive stock from a supplier',steps:['Check the supplier delivery docket against the goods.','Select full packs or loose items, the product and destination.','Enter the supplier reference and review the converted stock quantity.','Confirm once. Verify the receipt appears in History.']},
@@ -21,5 +22,6 @@ export default function HelpPage(){return <div>
    <p className="text-xs text-gray-500 mt-3">Guidance for the trial application. If goods or recorded quantities differ, stop and report the discrepancy before confirming.</p>
   </details>)}
   <Link href="/actions" className="inline-block text-blue-700 underline">Return to My Actions</Link>
+  <div><ResetWelcomeButton/></div>
  </div>
  </div>}

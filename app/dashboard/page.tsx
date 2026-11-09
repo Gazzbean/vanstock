@@ -13,6 +13,8 @@ import { getDashboardStats, getMyStock, getActivityLog, getCurrentUserDisplay, g
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import WarehousePendingActions from '@/components/WarehousePendingActions'
+import WelcomeGuide from '@/components/WelcomeGuide'
+import Link from 'next/link'
 
 const typeLabels: Record<string, string> = {
   issue:       'Issued to customer',
@@ -31,6 +33,8 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
     return <div>
       <div className="topbar"><h1 className="topbar-title">Office Dashboard</h1></div>
       <div className="p-5 space-y-4">
+        <WelcomeGuide technician={false}/>
+        <Link href="/actions" className="block rounded-xl border-2 border-blue-200 bg-blue-50 p-4 text-sm hover:border-blue-500"><strong>☑ My Actions</strong><p className="text-gray-600 mt-1">Review approvals, warehouse issues and other tasks requiring your attention →</p></Link>
         <WarehousePendingActions requests={requests} canManage={rights.canManageRequests}/>
         <div className="card">
           <h2 className="text-sm font-semibold">Office stock management</h2>
@@ -88,6 +92,8 @@ export default async function DashboardPage({searchParams}:{searchParams:{van?:s
       </div>
 
       <div className="p-5">
+        <WelcomeGuide technician={Boolean(user?.access?.technician_access)}/>
+        <Link href="/actions" className="block rounded-xl border-2 border-blue-200 bg-blue-50 p-4 text-sm mb-4 hover:border-blue-500"><strong>☑ My Actions</strong><p className="text-gray-600 mt-1">Check deliveries and transfers awaiting your confirmation →</p></Link>
         {user?.access?.office_access&&<WarehousePendingActions requests={warehouseRequests} canManage={warehouseRights.canManageRequests}/>}
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId}/>
 
