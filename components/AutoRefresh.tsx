@@ -13,7 +13,7 @@ export default function AutoRefresh(){
       last=Date.now()
       router.refresh()
     }
-    const interval=window.setInterval(refresh,120_000)
+    const interval=window.setInterval(refresh,30_000)
     const focused=()=>refresh()
     window.addEventListener('focus',focused)
     document.addEventListener('visibilitychange',focused)

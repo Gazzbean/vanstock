@@ -12,7 +12,6 @@ import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
-import WorkflowGuide from '@/components/WorkflowGuide'
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
   const user=await getCurrentUserDisplay()
@@ -37,7 +36,6 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
 
       <div className="p-5">
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
-        <WorkflowGuide title="Warehouse replenishment · 4 stages" stages={[{label:'Request'},{label:'Approve'},{label:'Issue'},{label:'Receive'}]} current={0} help={['Request stock for an authorised working van.','An authorised manager or office user approves the request.','Warehouse personnel physically issue the stock.','Check goods delivered and confirm receipt. Both stock balances update at this point.']} helpHref="/help#replenishment"/>
         {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
         <div className="card">
           <h2 className="text-sm font-semibold mb-3">Current van stock</h2>

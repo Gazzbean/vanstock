@@ -12,7 +12,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { markWarehouseNotificationRead, signOut } from '@/lib/actions'
+import { markWarehouseNotificationRead, dismissWarehouseNotification, clearReadWarehouseNotifications, signOut } from '@/lib/actions'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard',      icon: '⊞' },
@@ -42,7 +42,7 @@ interface UserDisplay {
 }
 
 type WarehouseNotification = {
-  id:string;request_id:string;event_type:string;reference:string;status:string;created_at:string;read_at:string|null
+  id:string;request_id:string;event_type:string;reference:string;status:string;created_at:string;read_at:string|null;dismissed_at:string|null
 }
 
 export default function SidebarNav({ user, notifications=[] }: {
@@ -52,7 +52,20 @@ export default function SidebarNav({ user, notifications=[] }: {
   const router = useRouter()
   const [inboxOpen,setInboxOpen]=useState(false)
   const [mobileMenuOpen,setMobileMenuOpen]=useState(false)
-  const unread=notifications.filter(n=>!n.read_at&&n.status!=='fulfilled').length
+  const [showHistory,setShowHistory]=useState(false)
+  const [hiddenIds,setHiddenIds]=useState<string[]>([])
+  const inbox=notifications.filter(n=>!hiddenIds.includes(n.id) && (showHistory||!n.dismissed_at))
+  const unread=notifications.filter(n=>!hiddenIds.includes(n.id)&&!n.dismissed_at&&!n.read_at).length
+  const readCount=inbox.filter(n=>n.read_at&&!n.dismissed_at).length
+  const eventLabel=(n:WarehouseNotification)=>({requested:'New request — awaiting approval',approved:'Request approved',issued:'Issued — awaiting van receipt',fulfilled:'Receipt confirmed',rejected:'Request rejected',discrepancy:'Receiving discrepancy — review required'} as Record<string,string>)[n.event_type]??n.event_type
+  async function dismiss(id:string){
+    const result=await dismissWarehouseNotification(id)
+    if(result.success){setHiddenIds(ids=>[...ids,id]);router.refresh()}
+  }
+  async function clearRead(){
+    const result=await clearReadWarehouseNotifications()
+    if(result.success){setHiddenIds(ids=>[...ids,...inbox.filter(n=>n.read_at).map(n=>n.id)]);router.refresh()}
+  }
   // Invite acceptance is a standalone auth flow, not an authenticated app screen.
   if (pathname.startsWith('/auth/accept-invite')) return null
 
@@ -106,16 +119,19 @@ export default function SidebarNav({ user, notifications=[] }: {
             <span>🔔 Notifications</span>
             {unread>0&&<span className="rounded-full bg-red-600 px-2 text-xs text-white">{unread}</span>}
           </button>
-          {inboxOpen&&<div className="mt-2 max-h-64 overflow-y-auto rounded border border-gray-200 bg-white p-2">
-            {notifications.length===0?<p className="text-xs text-gray-500">No notifications.</p>:
-              notifications.slice(0,12).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
-                <p>{n.reference} — {n.event_type==='discrepancy'?'Receiving discrepancy — review required':n.status==='fulfilled'?'Completed':n.status==='issued'?'Awaiting van receipt':n.status==='approved'?'Approved':n.status==='rejected'?'Rejected':n.event_type}</p>
+          {inboxOpen&&<div className="mt-2 max-h-72 overflow-y-auto rounded border border-gray-200 bg-white p-2">
+            <div className="mb-2 flex flex-wrap gap-2 justify-between items-center text-xs"><button type="button" className="text-blue-700 underline" onClick={()=>setShowHistory(v=>!v)}>{showHistory?'Active':'History'}</button><button type="button" className="text-blue-700 underline disabled:text-gray-400" disabled={!readCount} onClick={clearRead}>Clear read</button></div>
+            {inbox.length===0?<p className="text-xs text-gray-500">No {showHistory?'recent':'active'} notifications.</p>:
+              inbox.slice(0,20).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
+                <p>{n.reference} — {eventLabel(n)}</p>
+                <p className="mt-1 text-[11px] text-gray-400">{new Date(n.created_at).toLocaleString('en-AU',{timeZone:'Australia/Perth'})}</p>
                 <div className="mt-1 flex gap-2">
                   <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
                   {!n.read_at&&<button type="button" className="text-blue-700 underline" onClick={async()=>{
                     const result=await markWarehouseNotificationRead(n.id)
                     if(result.success)router.refresh()
                   }}>Mark read</button>}
+                  {!n.dismissed_at&&<button type="button" className="text-blue-700 underline" onClick={()=>dismiss(n.id)} aria-label={`Dismiss ${n.reference}`}>Dismiss</button>}
                 </div>
               </div>)}
           </div>}
@@ -153,11 +169,13 @@ export default function SidebarNav({ user, notifications=[] }: {
       <div className="bg-white w-[min(88vw,340px)] h-full flex flex-col" onClick={e=>e.stopPropagation()}>
         <div className="p-3 border-b flex justify-between items-center"><strong>{roleLabel}</strong><button type="button" className="min-h-11 min-w-11" onClick={()=>setMobileMenuOpen(false)} aria-label="Close menu">✕</button></div>
         {inboxOpen&&<section className="p-3 border-b max-h-48 overflow-y-auto" aria-label="Notifications">
-          <h2 className="font-semibold text-sm mb-2">Notifications</h2>
-          {!notifications.length?<p className="text-xs text-gray-500">No notifications.</p>:notifications.slice(0,8).map(n=><div key={n.id} className="text-sm border-b py-2">
-            <div>{n.reference} — {n.event_type==='discrepancy'?'Receiving discrepancy — review required':n.status==='fulfilled'?'Completed':n.status}</div>
+          <div className="flex justify-between gap-2 mb-2"><h2 className="font-semibold text-sm">Notifications</h2><button type="button" className="text-blue-700 underline text-xs" onClick={()=>setShowHistory(v=>!v)}>{showHistory?'Active':'History'}</button><button type="button" className="text-blue-700 underline text-xs disabled:text-gray-400" disabled={!readCount} onClick={clearRead}>Clear read</button></div>
+          {!inbox.length?<p className="text-xs text-gray-500">No active notifications.</p>:inbox.slice(0,15).map(n=><div key={n.id} className="text-sm border-b py-2">
+            <div>{n.reference} — {eventLabel(n)}</div>
+            <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString('en-AU',{timeZone:'Australia/Perth'})}</p>
             <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700 underline" onClick={()=>setMobileMenuOpen(false)}>View request</Link>
             {!n.read_at&&<button type="button" className="ml-3 text-blue-700 underline" onClick={async()=>{const result=await markWarehouseNotificationRead(n.id);if(result.success)router.refresh()}}>Mark read</button>}
+            {!n.dismissed_at&&<button type="button" className="ml-3 text-blue-700 underline" onClick={()=>dismiss(n.id)}>Dismiss</button>}
           </div>)}
         </section>}
         {nav}<button type="button" className="min-h-11 border-t" onClick={handleSignOut}>Sign out</button>
