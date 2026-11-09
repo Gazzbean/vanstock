@@ -37,6 +37,7 @@ interface UserDisplay {
   full_name: string
   role: string
   access?: {office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean;manage_users:boolean}
+  manager_operations?: {maintain_catalogue:boolean;maintain_vehicles:boolean}
   van_number: string | null
 }
 
@@ -71,7 +72,7 @@ export default function SidebarNav({ user, notifications=[] }: {
 
   const navAvailable = (href:string) => {
     if (href === '/receive' && !user?.access?.receive_stock) return false
-    if (href === '/admin' && user?.role !== 'manager' && user?.role !== 'admin') return false
+    if (href === '/admin' && user?.role !== 'admin' && !user?.manager_operations?.maintain_catalogue && !user?.manager_operations?.maintain_vehicles) return false
     if (href === '/warehouse' && !user?.access?.office_access) return false
     if (href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin') return false
     if ((href === '/stock' || href === '/transfer') && !user?.access?.technician_access) return false
