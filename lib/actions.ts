@@ -1918,6 +1918,17 @@ export async function saveUserVanAssignments(userId:string,vanIds:string[],defau
  return {success:true}
 }
 
+export async function saveUserBaseRole(userId:string,isActive:boolean,role:'technician'|'manager'|'admin'){
+ const profile=await getCurrentProfile()
+ if(profile.role!=='admin')return {error:'Administrator required'}
+ if(!userId||typeof isActive!=='boolean'||!['technician','manager','admin'].includes(role))return {error:'Invalid account role'}
+ const session=await createSessionClient()
+ const {error}=await session.rpc('configure_user_base_role',{p_user_id:userId,p_is_active:isActive,p_role:role})
+ if(error)return {error:error.message}
+ revalidatePath('/admin');revalidatePath('/logs');revalidatePath('/actions')
+ return {success:true}
+}
+
 export async function saveUserStatusAndAdmin(userId:string,isActive:boolean,isAdmin:boolean){
  const profile=await getCurrentProfile()
  if(profile.role!=='admin')return {error:'Administrator required'}
@@ -1935,7 +1946,7 @@ export async function saveUserStatusAndAdmin(userId:string,isActive:boolean,isAd
 // The invitation email is sent by Supabase, never by a browser-held secret.
 export async function inviteVanStockUser(details:{
  full_name:string;email:string;initials:string;
- is_active:boolean;technician:boolean;office:boolean;admin:boolean;
+ is_active:boolean;technician:boolean;office:boolean;role:'technician'|'manager'|'admin';
  van_ids:string[];default_van_id:string|null;
 }):Promise<{success?:true;error?:string}>{
  const actor=await getCurrentProfile()
@@ -1946,7 +1957,7 @@ export async function inviteVanStockUser(details:{
  const initials=typeof details.initials==='string'?details.initials.trim().toUpperCase():''
  if(name.length<3||name.length>120||!name.includes(' ')||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))||
     !(/^[A-Z]{2,5}$/.test(initials)))return {error:'Enter a full name, valid email and 2–5 letter initials'}
- if([details.is_active,details.technician,details.office,details.admin].some(v=>typeof v!=='boolean'))
+ if([details.is_active,details.technician,details.office].some(v=>typeof v!=='boolean')||!['technician','manager','admin'].includes(details.role))
   return {error:'Invalid access settings'}
  const ids=details.van_ids
  if(!Array.isArray(ids)||ids.length!==new Set(ids).size||ids.some(v=>typeof v!=='string'||!(/^[0-9a-f-]{36}$/i.test(v))))
@@ -1972,10 +1983,10 @@ export async function inviteVanStockUser(details:{
  if(inviteError)return {error:'Invitation could not be sent: '+inviteError.message}
  if(!invited.user?.id)return {error:'Supabase did not return the invited account. Check Auth users before retrying.'}
  const session=await createSessionClient()
- const {error:setupError}=await session.rpc('vanstock_setup_invited_user',{
+ const {error:setupError}=await session.rpc('vanstock_setup_invited_user_with_role',{
   p_user_id:invited.user.id,p_full_name:name,p_initials:initials,p_email:email,
   p_active:details.is_active,p_technician:details.technician,
-  p_office:details.office,p_admin:details.admin,
+  p_office:details.office,p_role:details.role,
   p_van_ids:ids,p_default_van:details.default_van_id,
  })
  if(setupError){
