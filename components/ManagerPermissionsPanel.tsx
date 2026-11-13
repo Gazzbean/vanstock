@@ -6,6 +6,16 @@ import {saveManagerOperationPermissions} from '@/lib/actions'
 type Grants={approve_requests:boolean;issue_warehouse:boolean;receive_returns:boolean;adjust_stock:boolean;maintain_catalogue:boolean;maintain_vehicles:boolean}
 type Entry=Grants&{user_id:string}
 const initial:Grants={approve_requests:false,issue_warehouse:false,receive_returns:false,adjust_stock:false,maintain_catalogue:false,maintain_vehicles:false}
+function cleanGrants(entry?:Partial<Grants>):Grants {
+ return {
+  approve_requests:entry?.approve_requests??false,
+  issue_warehouse:entry?.issue_warehouse??false,
+  receive_returns:entry?.receive_returns??false,
+  adjust_stock:entry?.adjust_stock??false,
+  maintain_catalogue:entry?.maintain_catalogue??false,
+  maintain_vehicles:entry?.maintain_vehicles??false,
+ }
+}
 const fields:{key:keyof Grants;label:string}[]=[
  {key:'approve_requests',label:'Approve or reject replenishment requests'},
  {key:'issue_warehouse',label:'Authorise warehouse issues'},
@@ -17,12 +27,12 @@ const fields:{key:keyof Grants;label:string}[]=[
 export default function ManagerPermissionsPanel({managers,initialGrants}:{managers:{id:string;full_name:string}[];initialGrants:Entry[]}){
  const [selected,setSelected]=useState(managers[0]?.id??'')
  const [rows,setRows]=useState(initialGrants)
- const [draft,setDraft]=useState<Grants>(()=>({...initial,...initialGrants.find(x=>x.user_id===managers[0]?.id)}))
+ const [draft,setDraft]=useState<Grants>(()=>cleanGrants(initialGrants.find(x=>x.user_id===managers[0]?.id)))
  const [pending,start]=useTransition()
  const [message,setMessage]=useState('')
- function choose(id:string){setSelected(id);setDraft({...initial,...rows.find(x=>x.user_id===id)});setMessage('')}
+ function choose(id:string){setSelected(id);setDraft(cleanGrants(rows.find(x=>x.user_id===id)));setMessage('')}
  function save(){setMessage('');start(async()=>{
-  const result=await saveManagerOperationPermissions(selected,draft)
+  const result=await saveManagerOperationPermissions(selected,cleanGrants(draft))
   if(result.error){setMessage(result.error);return}
   setRows(old=>[...old.filter(x=>x.user_id!==selected),{user_id:selected,...draft}])
   setMessage('Manager permission settings saved and audited.')
