@@ -11,11 +11,11 @@ import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 export default async function WarehousePage() {
   const user = await getCurrentUserDisplay()
   if (!user) redirect('/login')
-  if (!user.access?.office_access) {
+  if (!user.access?.office_access && !user.manager_operations?.warehouse_access) {
     return (
       <div className="p-5">
         <h1 className="text-lg font-semibold">Warehouse</h1>
-        <p className="text-sm text-gray-600 mt-2">Office access required.</p>
+        <p className="text-sm text-gray-600 mt-2">Warehouse permission required.</p>
       </div>
     )
   }
