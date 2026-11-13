@@ -61,7 +61,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
       <h3 className="text-sm font-semibold mb-2">A. How are you requesting stock?</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <button type="button" aria-pressed={mode==='pack'} onClick={()=>{setMode('pack');setQuantity('1');setPackId('');changed()}} className={'rounded-lg border-2 p-3 text-left text-sm '+(mode==='pack'?'border-green-600 bg-green-50':'border-gray-200')}><strong>📦 Full packs, boxes or cartons</strong><p className="text-xs mt-1">1 pack of 500 cable ties requests 500 ea.</p></button>
-        <button type="button" aria-pressed={mode==='loose'} onClick={()=>{setMode('loose');setQuantity('1');setPackId('');setMessage('')}} className={'rounded-lg border-2 p-3 text-left text-sm '+(mode==='loose'?'border-green-600 bg-green-50':'border-gray-200')}><strong>🔩 Individual or loose items</strong><p className="text-xs mt-1">1 loose cable tie requests 1 ea.</p></button>
+        <button type="button" aria-pressed={mode==='loose'} onClick={()=>{setMode('loose');setQuantity('1');setPackId('');changed()}} className={'rounded-lg border-2 p-3 text-left text-sm '+(mode==='loose'?'border-green-600 bg-green-50':'border-gray-200')}><strong>🔩 Individual or loose items</strong><p className="text-xs mt-1">1 loose cable tie requests 1 ea.</p></button>
       </div>
     </div>
     <h3 className="text-sm font-semibold mb-2">B. Replenishment details</h3>
