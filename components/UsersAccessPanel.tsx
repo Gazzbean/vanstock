@@ -2,18 +2,18 @@
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import AddUserInvite from './AddUserInvite'
-import {saveStaffInitials,saveUserStatusAndAdmin,saveUserAccessCapabilities,sendExistingUserSetupLink} from '@/lib/actions'
+import {saveStaffInitials,saveUserBaseRole,saveUserAccessCapabilities,sendExistingUserSetupLink} from '@/lib/actions'
 
 type Van={id:string;van_number:string}
 type User={id:string;full_name:string;initials:string|null;role:string;is_active:boolean;van_number:string|null}
 type Cap={user_id:string;office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean;manage_users:boolean}
-type Fields={initials:string;active:boolean;tech:boolean;office:boolean;admin:boolean}
+type Fields={initials:string;active:boolean;tech:boolean;office:boolean;role:'technician'|'manager'|'admin'}
 export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{users:User[];capabilities:Cap[];canEdit:boolean;vans:Van[]}){
  const router=useRouter()
  const defaults:Record<string,Fields>=Object.fromEntries(users.map(u=>{
   const cap=capabilities.find(c=>c.user_id===u.id)
   return [u.id,{initials:u.initials??'',active:u.is_active!==false,tech:cap?.technician_access??false,
-   office:cap?.office_access??false,admin:u.role==='admin'}]
+   office:cap?.office_access??false,role:(['technician','manager','admin'].includes(u.role)?u.role:'technician') as Fields['role']}]
  }))
  const [draft,setDraft]=useState<Record<string,Fields>>(defaults)
  const [messages,setMessages]=useState<Record<string,string>>({})
@@ -47,12 +47,12 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
      const r=await saveUserAccessCapabilities(user.id,{
       technician_access:v.tech,office_access:v.office,
       receive_stock:v.office?true:(old?.receive_stock??false),
-      manage_catalogue:v.admin?true:(old?.manage_catalogue??false),
+      manage_catalogue:v.role==='admin'?true:(old?.manage_catalogue??false),
      })
      if(r.error){setMessages(m=>({...m,[user.id]:r.error??'Unable to save access'}));return}
     }
-    if(v.active!==(user.is_active!==false)||v.admin!==(user.role==='admin')){
-     const r=await saveUserStatusAndAdmin(user.id,v.active,v.admin)
+    if(v.active!==(user.is_active!==false)||v.role!==user.role){
+     const r=await saveUserBaseRole(user.id,v.active,v.role)
      if(r.error){setMessages(m=>({...m,[user.id]:r.error??'Unable to save account status'}));return}
     }
     setMessages(m=>({...m,[user.id]:'Saved'}))
@@ -65,7 +65,7 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
   <p className="text-xs text-gray-500 mb-3">Tick multiple responsibilities for one person. Active controls application access. Default and authorised vans are managed below. Initials appear in transaction history.</p>
   <div className="overflow-x-auto"><table className="w-full">
    <thead><tr>
-    {['Full name','Active','Initials','Technician','Office','Admin','Default van',...(canEdit?['Action']:[])].map(t=><th key={t} className="table-header">{t}</th>)}
+    {['Full name','Active','Initials','Technician','Office','Base role','Default van',...(canEdit?['Action']:[])].map(t=><th key={t} className="table-header">{t}</th>)}
    </tr></thead>
    <tbody>{users.map(u=>{
     const v=draft[u.id]??defaults[u.id]
@@ -75,9 +75,10 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
       checked={v.active} disabled={!canEdit||pending} onChange={e=>update(u.id,'active',e.target.checked)}/></td>
      <td className="table-cell">{canEdit?<input aria-label={'Initials for '+u.full_name} className="form-input w-20 uppercase" maxLength={5}
        value={v.initials} onChange={e=>update(u.id,'initials',e.target.value.toUpperCase())}/>:<strong>{v.initials}</strong>}</td>
-     {(['tech','office','admin'] as const).map(k=><td key={k} className="table-cell text-center">
+     {(['tech','office'] as const).map(k=><td key={k} className="table-cell text-center">
       <input type="checkbox" aria-label={k+' for '+u.full_name} checked={v[k]} disabled={!canEdit||pending} onChange={e=>update(u.id,k,e.target.checked)}/>
      </td>)}
+     <td className="table-cell"><select aria-label={'Base role for '+u.full_name} className="form-input min-w-32" value={v.role} disabled={!canEdit||pending} onChange={e=>update(u.id,'role',e.target.value)}><option value="technician">Technician</option><option value="manager">Manager</option><option value="admin">Administrator</option></select></td>
      <td className="table-cell whitespace-nowrap text-gray-600">{u.van_number??'None'}</td>
      {canEdit&&<td className="table-cell">
       <div className="flex flex-wrap gap-2">

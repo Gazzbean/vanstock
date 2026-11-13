@@ -13,7 +13,7 @@ export default function AddUserInvite({vans}:{vans:Van[]}){
  const [active,setActive]=useState(true)
  const [technician,setTechnician]=useState(false)
  const [office,setOffice]=useState(true)
- const [admin,setAdmin]=useState(false)
+ const [role,setRole]=useState<'technician'|'manager'|'admin'>('technician')
  const [allowed,setAllowed]=useState<string[]>([])
  const [defaultId,setDefaultId]=useState('')
  const [message,setMessage]=useState('')
@@ -37,7 +37,7 @@ export default function AddUserInvite({vans}:{vans:Van[]}){
   start(async()=>{
    try{
     const result=await inviteVanStockUser({
-     full_name:name,email,initials,is_active:active,technician,office,admin,
+     full_name:name,email,initials,is_active:active,technician,office,role,
      van_ids:technician?allowed:[],default_van_id:technician&&defaultId?defaultId:null,
     })
     if(result.error){setMessage(result.error);return}
@@ -71,7 +71,7 @@ export default function AddUserInvite({vans}:{vans:Van[]}){
        <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)}/>Active</label>
        <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={technician} onChange={e=>{setTechnician(e.target.checked);if(!e.target.checked){setAllowed([]);setDefaultId('')}}}/>Technician</label>
        <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={office} onChange={e=>setOffice(e.target.checked)}/>Office</label>
-       <label className="text-sm flex gap-2 items-center"><input type="checkbox" checked={admin} onChange={e=>setAdmin(e.target.checked)}/>Admin</label>
+       <label className="text-sm flex flex-col gap-1 col-span-2">Base role<select className="form-input" value={role} onChange={e=>setRole(e.target.value as typeof role)}><option value="technician">Technician</option><option value="manager">Manager</option><option value="admin">Administrator</option></select></label>
       </div>
      </div>
      {technician&&<>
