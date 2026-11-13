@@ -738,11 +738,12 @@ export async function reactivateVehicle(id:string):Promise<{error?:string;succes
 export async function getCurrentUserDisplay() {
   try {
     const profile = await getCurrentProfile()
+    const managerRights = profile.role === 'manager' ? await getMyWarehouseRights() : null
     const manager_operations = profile.role === 'admin'
-      ? {maintain_catalogue:true,maintain_vehicles:true}
+      ? {maintain_catalogue:true,maintain_vehicles:true,warehouse_access:true}
       : profile.role === 'manager'
-        ? {maintain_catalogue:await managerOperationAllowed(profile,'maintain_catalogue'),maintain_vehicles:await managerOperationAllowed(profile,'maintain_vehicles')}
-        : {maintain_catalogue:false,maintain_vehicles:false}
+        ? {maintain_catalogue:await managerOperationAllowed(profile,'maintain_catalogue'),maintain_vehicles:await managerOperationAllowed(profile,'maintain_vehicles'),warehouse_access:Boolean(managerRights?.canManageRequests || managerRights?.canReceiveRequests || managerRights?.canAdjust)}
+        : {maintain_catalogue:false,maintain_vehicles:false,warehouse_access:false}
     return {
       full_name: profile.full_name,
       role: profile.role,
@@ -1100,8 +1101,10 @@ export async function saveWarehousePermissions(
 // Never return cross-company warehouse records.
 export async function getWarehouseOverview() {
   const profile = await getCurrentProfile()
-  if (!(await accessFor(profile)).office_access) {
-    throw new Error('Office access required')
+  const access = await accessFor(profile)
+  const rights = await getMyWarehouseRights()
+  if (!access.office_access && !rights.canManageRequests && !rights.canReceiveRequests && !rights.canAdjust) {
+    throw new Error('Warehouse permission required')
   }
 
   const db = createServerClient()

@@ -37,7 +37,7 @@ interface UserDisplay {
   full_name: string
   role: string
   access?: {office_access:boolean;technician_access:boolean;receive_stock:boolean;manage_catalogue:boolean;manage_users:boolean}
-  manager_operations?: {maintain_catalogue:boolean;maintain_vehicles:boolean}
+  manager_operations?: {maintain_catalogue:boolean;maintain_vehicles:boolean;warehouse_access:boolean}
   van_number: string | null
 }
 
@@ -69,10 +69,11 @@ export default function SidebarNav({ user, notifications=[] }: {
   // Invite acceptance is a standalone auth flow, not an authenticated app screen.
   if (pathname.startsWith('/auth/accept-invite')) return null
 
-  const roleLabel = user?.access
-    ? [user.access.manage_users ? 'Administrator' : user.access.office_access ? 'Office' : '',
-       user.access.technician_access ? 'Technician' : ''].filter(Boolean).join(' + ') || 'User'
-    : user?.role ?? '—'
+  const roleLabel = [
+    user?.role === 'admin' ? 'Administrator' : user?.role === 'manager' ? 'Manager' : '',
+    user?.access?.office_access && user?.role !== 'admin' ? 'Office' : '',
+    user?.access?.technician_access ? 'Technician' : '',
+  ].filter(Boolean).join(' + ') || 'User'
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -86,8 +87,8 @@ export default function SidebarNav({ user, notifications=[] }: {
   const navAvailable = (href:string) => {
     if (href === '/receive' && !user?.access?.receive_stock) return false
     if (href === '/admin' && user?.role !== 'admin' && !user?.manager_operations?.maintain_catalogue && !user?.manager_operations?.maintain_vehicles) return false
-    if (href === '/warehouse' && !user?.access?.office_access) return false
-    if (href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin') return false
+    if (href === '/warehouse' && !user?.access?.office_access && !user?.manager_operations?.warehouse_access) return false
+    if (href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin' && user?.role !== 'manager') return false
     if ((href === '/stock' || href === '/transfer') && !user?.access?.technician_access) return false
     if (href === '/van-transfers' && !user?.access?.technician_access && !user?.access?.office_access) return false
     return true
