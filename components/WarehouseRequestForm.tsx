@@ -47,7 +47,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
       }catch{setError('Could not submit request. Please retry.')}
     })
   }
-  return <section className={'card mt-4 border-2 '+(shortage?'border-amber-500':'border-gray-200')}>
+  return <section className={'card mt-4 border-2 '+(shortage||ready?'border-amber-500':'border-gray-200')}>
     <h2 className="text-sm font-medium mb-2">Request warehouse replenishment</h2>
     <p className="text-xs text-gray-500 mb-3">Request stock for an authorised van. Warehouse staff review and issue the goods; the receiving van confirms delivery before stock balances change.</p>
     <div className={'rounded-lg border-2 p-3 mb-4 '+(mode?'border-green-500':'border-gray-200')}>
@@ -72,6 +72,11 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
       </div>}
       <div className="md:col-span-2"><label className="form-label" htmlFor="request-reference">Reference / reason</label><input id="request-reference" className="form-input" maxLength={500} value={reference} onChange={e=>setReference(e.target.value)} placeholder="Job number or replenishment reference"/></div>
     </div>
+    {ready&&!message&&!error&&<div className="mt-3 rounded-lg border-2 border-amber-500 bg-amber-50 p-3" role="status">
+      <p className="text-sm font-semibold text-amber-900">Ready to submit — review replenishment request</p>
+      <p className="text-sm text-amber-900 mt-1">{stockQty.toLocaleString('en-AU')} {unit} of {products.find(p=>p.id===product)?.name??'selected product'} → {vans.find(v=>v.id===van)?.van_number??'selected van'} · Reference: {reference.trim()}</p>
+      <p className="text-xs text-amber-900 mt-1">{shortage?'Warehouse stock is insufficient; the request can be submitted but cannot be issued until stock is received.':'Submitting sends the request for warehouse review. No stock will move yet.'}</p>
+    </div>}
     {error&&<p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
     {message&&<p role="status" className="text-sm text-green-700 mt-3">{message}</p>}
     <button type="button" className="btn btn-primary mt-3" disabled={!ready||pending} onClick={submit}>{pending?'Submitting…':'Submit request'}</button>
