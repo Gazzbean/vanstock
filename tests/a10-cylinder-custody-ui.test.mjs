@@ -67,7 +67,7 @@ test('A10 register: explicit physical identity, supplier evidence and location b
  tree=h.render(props)
  assert.match(readySection(tree).props.className,/border-green-600/)
  assert.equal(button(tree,'Custody recorded').props.disabled,true)
- assert.match(textOf(tree),/immutable history/)
+ assert.match(textOf(tree),/Cylinder registered\. Verify the physical serial and location/)
  assert.equal(h.refreshCount,1)
 })
 
