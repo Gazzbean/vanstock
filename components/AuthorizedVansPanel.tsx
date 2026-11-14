@@ -23,7 +23,7 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
     const r=await saveUserVanAssignments(user.id,allowed,defaultId||null)
     if(r.error){setMessageError(true);setMessage(r.error);return}
     setCurrent(old=>[...old.filter(x=>x.user_id!==selected),...allowed.map(van_id=>({van_id,user_id:selected}))])
-    setMessage('Van permissions and default saved. Select a working van on the stock screen to use it.')
+    setMessageError(false);setMessage('Van permissions and default saved. Select a working van on the stock screen to use it.')
    }catch{setMessageError(true);setMessage('Could not save van permissions.')}
   })
  }
@@ -32,7 +32,7 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
   <p className="text-xs text-gray-600 mb-3">Choose which vehicles a technician may work on. Apprentices can have multiple authorised vans and no default. Changing the working van later does not transfer any stock.</p>
   <div className="max-w-xl space-y-3">
    <div><label className="form-label" htmlFor="assignment-staff">Staff member</label>
-    <select id="assignment-staff" className="form-input" value={selected} onChange={e=>{setSelected(e.target.value);setMessage('')}}>{users.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.initials??'—'})</option>)}</select></div>
+    <select id="assignment-staff" className="form-input" value={selected} onChange={e=>{setSelected(e.target.value);setMessage('');setMessageError(false)}}>{users.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.initials??'—'})</option>)}</select></div>
    <div><label className="form-label">Authorised service vans</label>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
      {vans.map(v=><label key={v.id} className="text-sm flex items-center gap-2">

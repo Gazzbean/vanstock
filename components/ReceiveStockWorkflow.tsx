@@ -165,7 +165,7 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
    <div>
     <div className="flex flex-wrap items-center justify-between gap-2">
      <h2 className="font-semibold text-base text-gray-900">B. Receipt details</h2>
-     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Possible duplicate</span>:valid&&<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Ready to review</span>}
+     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Possible duplicate</span>:success?<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Saved</span>:valid&&<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Ready to review</span>}
     </div>
     <p className="text-xs text-gray-500 mt-1">Choose the product first, then the supplier. Package options will be filtered automatically.</p>
    </div>
