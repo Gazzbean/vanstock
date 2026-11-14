@@ -16,6 +16,8 @@ function loadJS(source,file,requireModule){
 }
 const borderSource=await readFile(new URL('../../lib/transaction-confirmation.ts',import.meta.url),'utf8')
 const transaction=loadJS(borderSource,'transaction-confirmation.ts',()=>{throw new Error('Unexpected import')})
+const cylinderSource=await readFile(new URL('../../lib/cylinder-custody.ts',import.meta.url),'utf8')
+const cylinder=loadJS(cylinderSource,'cylinder-custody.ts',()=>{throw new Error('Unexpected import')})
 
 const jsx=(type,props,key)=>({type,props:props??{},key})
 const jsxRuntime={jsx,jsxs:jsx,Fragment:Symbol.for('react.fragment')}
@@ -48,6 +50,7 @@ export async function createHarness(file,actions={}){
   if(id==='react/jsx-runtime')return jsxRuntime
   if(id==='next/navigation')return {useRouter:()=>({refresh:()=>{refreshCount++}})}
   if(id==='@/lib/transaction-confirmation')return transaction
+  if(id==='@/lib/cylinder-custody')return cylinder
   if(id==='@/lib/actions')return actions
   if(id.startsWith('./'))return {__esModule:true,default:mockComponent}
   throw new Error('Unexpected component import: '+id)
