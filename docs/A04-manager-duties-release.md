@@ -29,7 +29,7 @@ A four-eyes policy can be added later only with explicit business approval.
   default **false**; do not silently inherit the old mixed rights.
 - Admin or Manager+Technician may have van assignments, but Manager-role
   final receipt still requires explicit `confirm_van_receipt` grant.
-- Technicians may receive into authorised vans, not arbitrary company vans.
+- Technicians may receive into authorised vans only with active Technician capability; historical van assignments alone do not qualify. Office-only users with a Technician base role cannot bypass the capability gate.
 - Warehouse Manager new flags are Admin-controlled and recorded in the
   existing `manager_permission_audit` with previous/new values.
 - Database gate, request transition trigger, direct receipt RPC,
