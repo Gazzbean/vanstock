@@ -8,7 +8,7 @@ import {
 } from '@/lib/cylinder-custody'
 import {transactionBorder} from '@/lib/transaction-confirmation'
 type Option={id:string;name?:string;van_number?:string;active?:boolean}
-type Row=CylinderInput&{id:string;version:number;updated_at:string;
+type Row=Omit<CylinderInput,'nominal_capacity_kg'|'supplier_id'|'warehouse_id'|'van_id'|'site_reference'|'rent_free_until'|'return_due_on'|'rental_review_on'|'rental_terms_reference'|'cylinder_test_due_on'|'last_leak_check_on'|'notes'>&{id:string;version:number;updated_at:string;
  nominal_capacity_kg:number|null;
  supplier_id:string|null;warehouse_id:string|null;van_id:string|null;site_reference:string|null;
  rent_free_until:string|null;return_due_on:string|null;rental_review_on:string|null;
