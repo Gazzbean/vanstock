@@ -1,0 +1,26 @@
+name: A09 Materials and Billing Controls
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'components/TransferForm.tsx'
+      - 'lib/actions.ts'
+      - 'tests/a09-*'
+      - 'docs/A09-*'
+      - '.github/workflows/a09-materials.yml'
+  push:
+    branches: [audit-a09-job-billing-control]
+jobs:
+  material-reconciliation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npx tsc --noEmit
