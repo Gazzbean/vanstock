@@ -6,6 +6,7 @@ import {processWarehouseRequest,confirmWarehouseReceipt} from '@/lib/actions'
 import WarehouseReceiptExceptionActions from './WarehouseReceiptExceptionActions'
 import RequestProgress from './RequestProgress'
 import WorkflowHelp from './WorkflowHelp'
+import StatusNotice from './StatusNotice'
 
 type Request={id:string;warehouse_id:string;van_id:string;product_id:string;quantity:number;reference:string;status:string;created_at:string;requested_by_label:string;reviewed_by_label:string;fulfilled_by_label:string;issued_by_label:string;received_by_label:string;discrepancy:{observed_quantity:number;reason:string;resolved_at:string|null;resolution_note:string|null}|null}
 const requestKey=(request:Request)=>`${request.id}:${request.status}`
@@ -80,7 +81,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
             <p className="text-sm">{name(warehouses,r.warehouse_id)} → {name(vans,r.van_id)}</p>
             <p className="font-semibold">{r.quantity} {unit}</p><p className="text-xs text-gray-500">Reference: {r.reference}</p>
             <RequestProgress status={r.status} hasDiscrepancy={receiptBlocked}/>
-            {shortage&&<p role="alert" className="text-sm text-red-700">Insufficient warehouse stock: {available} {unit} available.</p>}
+            {shortage&&<StatusNotice tone="warning" title="Insufficient warehouse stock"><p>Only {available} {unit} available. The request cannot be issued until warehouse stock is received.</p></StatusNotice>}
             {canApprove&&!completed.includes(requestKey(r))&&r.status==='pending'&&<div className="flex gap-2"><button className="btn btn-primary flex-1 min-h-11" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button><button className="btn min-h-11" disabled={busy} onClick={()=>act(r.id,'reject')}>Reject</button></div>}
             {canIssue&&!completed.includes(requestKey(r))&&r.status==='approved'&&<button className="btn btn-primary w-full min-h-11" disabled={busy||!writesEnabled||shortage} onClick={()=>act(r.id,'fulfil')}>Confirm warehouse issue</button>}
             {(canReceive||receiverVanIds.includes(r.van_id))&&!receiptBlocked&&!completed.includes(requestKey(r))&&r.status==='issued'&&(
@@ -100,7 +101,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       return <tr key={r.id} id={`warehouse-request-${r.id}`} className={`${shortage?'bg-amber-50':''} scroll-mt-5`}>
       <td className="table-cell">{new Date(r.created_at).toLocaleDateString('en-AU',{timeZone:'Australia/Perth'})}</td>
       <td className="table-cell">{name(warehouses,r.warehouse_id)}</td><td className="table-cell">{name(vans,r.van_id)}</td>
-      <td className="table-cell">{name(products,r.product_id)}</td><td className="table-cell">{r.quantity} {unit}<p className={'text-xs mt-1 '+(shortage?'font-semibold text-amber-900':'text-gray-500')}>Warehouse available: {available} {unit}</p>{shortage&&<div className="mt-2 rounded-lg border-2 border-amber-500 bg-amber-50 p-2 text-xs text-amber-950" role="alert"><strong>⚠ Insufficient warehouse stock.</strong> Short by {(r.quantity-available).toLocaleString('en-AU')} {unit}. <a className="underline font-semibold" href="/receive">Receive warehouse stock</a> or wait for replenishment before issuing.</div>}</td>
+      <td className="table-cell">{name(products,r.product_id)}</td><td className="table-cell">{r.quantity} {unit}<p className={'text-xs mt-1 '+(shortage?'font-semibold text-amber-900':'text-gray-500')}>Warehouse available: {available} {unit}</p>{shortage&&<div className="mt-2"><StatusNotice tone="warning" title="Insufficient warehouse stock"><p>Short by {(r.quantity-available).toLocaleString('en-AU')} {unit}. <a className="underline font-semibold" href="/receive">Receive warehouse stock</a> or wait for replenishment before issuing.</p></StatusNotice></div>}</td>
       <td className="table-cell min-w-52"><span className="font-medium">{r.reference}</span><RequestProgress status={r.status} hasDiscrepancy={Boolean(r.discrepancy&&!r.discrepancy.resolved_at)}/></td><td className="table-cell whitespace-nowrap">{r.requested_by_label}</td><td className="table-cell whitespace-nowrap">{r.reviewed_by_label}</td><td className="table-cell whitespace-nowrap">{r.issued_by_label}</td><td className="table-cell whitespace-nowrap">{r.received_by_label}</td><td className="table-cell"><span className={'rounded-full px-2 py-1 text-xs font-semibold '+(r.status==='fulfilled'?'bg-green-100 text-green-800':r.status==='rejected'?'bg-red-100 text-red-800':'bg-amber-100 text-amber-900')}>{r.status==='issued'?'Awaiting van receipt':r.status==='fulfilled'?'✓ Received':r.status==='approved'?'Approved — ready to issue':r.status==='pending'?'Awaiting review':'Rejected'}</span></td>
       <td className="table-cell"><div className="flex gap-1">{canApprove&&!completed.includes(requestKey(r))&&r.status==='pending'&&<>
         <button type="button" className="btn btn-primary" disabled={busy} onClick={()=>act(r.id,'approve')}>Approve</button>
