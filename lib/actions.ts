@@ -2158,7 +2158,7 @@ export async function getCylinderCustodyOverview(){
  const admin=profile.role==='admin'
  const companyWide=admin||Boolean(access.office_access)
  if(!companyWide&&!access.technician_access)
-  return {records:[],suppliers:[],warehouses:[],vans:[],canEdit:false}
+  return {records:[],events:[],suppliers:[],warehouses:[],vans:[],canEdit:false}
  const db=createServerClient()
  const [supplierResult,warehouseResult,vanResult]=await Promise.all([
   db.from('suppliers').select('id,name,active').eq('company_id',profile.company_id).order('name'),
@@ -2172,7 +2172,7 @@ export async function getCylinderCustodyOverview(){
   const working=await getWorkingVans()
   authorisedVanId=working.selectedId
   if(!authorisedVanId)return {
-   records:[],suppliers:[],warehouses:[],vans:working.vans,canEdit:false,
+   records:[],events:[],suppliers:[],warehouses:[],vans:working.vans,canEdit:false,
   }
  }
  const result=await readAllWarehousePages<any>(async(from,to)=>{
@@ -2187,8 +2187,25 @@ export async function getCylinderCustodyOverview(){
    throw new Error('Cylinder custody register has not been installed.')
   throw new Error('Could not read cylinder custody: '+result.error.message)
  }
+ const events:any[]=[]
+ if(companyWide){
+  const [{data:latest,error:historyError},{data:staff,error:staffError}]=await Promise.all([
+   db.from('cylinder_custody_events').select('id,cylinder_id,event_kind,audit_reference,actor_id,occurred_at,after_state')
+    .eq('company_id',profile.company_id).order('occurred_at',{ascending:false}).order('id',{ascending:false}).limit(100),
+   db.from('profiles').select('id,full_name').eq('company_id',profile.company_id),
+  ])
+  if(historyError||staffError)throw new Error('Could not load cylinder custody audit history.')
+  const names=new Map((staff??[]).map(p=>[p.id,p.full_name]))
+  for(const item of latest??[])events.push({
+   id:item.id,cylinder_id:item.cylinder_id,event_kind:item.event_kind,
+   audit_reference:item.audit_reference,actor_name:names.get(item.actor_id)??'Staff',
+   occurred_at:item.occurred_at,serial:item.after_state?.cylinder_serial??'—',
+   status:item.after_state?.status??'unknown',
+  })
+ }
  return {
   records:result.data??[],
+  events,
   suppliers:companyWide?supplierResult.data??[]:[],
   warehouses:companyWide?warehouseResult.data??[]:[],
   vans:companyWide?vanResult.data??[]:vanResult.data?.filter(v=>v.id===authorisedVanId)??[],
