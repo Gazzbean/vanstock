@@ -24,6 +24,7 @@ const navItems = [
   { href: '/van-transfers', label: 'Van Transfers', icon: '🚚' },
   { href: '/logs',      label: 'Transaction History',   icon: '☰'  },
   { href: '/warehouse', label: 'Warehouse', icon: '▣' },
+  { href: '/cylinders', label: 'Cylinders', icon: '🧯' },
   { href: '/admin',     label: 'Admin',          icon: '⚙'  },
   { href: '/help', label: 'Help & SOPs', icon: '?' },
 ]
@@ -93,6 +94,7 @@ export default function SidebarNav({ user, notifications=[] }: {
     if (href === '/admin' && user?.role !== 'admin' && !user?.manager_operations?.maintain_catalogue && !user?.manager_operations?.maintain_vehicles) return false
     if (href === '/warehouse' && !user?.access?.office_access && !user?.manager_operations?.warehouse_access) return false
     if (href === '/fleet' && !user?.access?.office_access && user?.role !== 'admin' && user?.role !== 'manager') return false
+    if (href === '/cylinders' && user?.role !== 'admin' && !user?.access?.office_access && !user?.access?.technician_access) return false
     if ((href === '/stock' || href === '/transfer') && !user?.access?.technician_access) return false
     if (href === '/van-transfers' && !user?.access?.technician_access && !user?.access?.office_access) return false
     return true
