@@ -3,7 +3,9 @@ import {getCylinderCustodyOverview,getCurrentUserDisplay} from '@/lib/actions'
 import CylinderCustodyRegister from '@/components/CylinderCustodyRegister'
 
 function perthDay(){
- return new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Perth',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
+ const items=new Intl.DateTimeFormat('en-GB',{timeZone:'Australia/Perth',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date())
+ const part=(kind:string)=>items.find(x=>x.type===kind)?.value??''
+ return `${part('year')}-${part('month')}-${part('day')}`
 }
 
 export default async function CylindersPage(){
