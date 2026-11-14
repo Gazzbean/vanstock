@@ -10,19 +10,22 @@ type Product = { id: string; name: string; unit: string }
 type Balance = { warehouse_id: string; product_id: string; quantity: number; committed_quantity?: number }
 
 export default function WarehouseCorrections({
-  warehouses, vans, products, balances, enabled,
+  warehouses, vans, products, balances, enabled, canReceive, canAdjust, canStocktake,
 }: {
   warehouses: Warehouse[]
   vans: Van[]
   products: Product[]
   balances: Balance[]
   enabled: boolean
+  canReceive: boolean
+  canAdjust: boolean
+  canStocktake: boolean
 }) {
-  const [mode, setMode] = useState<'return'|'adjust'>('return')
+  const [mode, setMode] = useState<'return'|'adjust'>(canReceive ? 'return' : 'adjust')
   const [warehouseId, setWarehouseId] = useState('')
   const [vanId, setVanId] = useState('')
   const [productId, setProductId] = useState('')
-  const [operation, setOperation] = useState<'add'|'remove'|'set'>('add')
+  const [operation, setOperation] = useState<'add'|'remove'|'set'>(canAdjust ? 'add' : 'set')
   const [qty, setQty] = useState('1')
   const [reference, setReference] = useState('')
   const [error, setError] = useState('')
@@ -36,8 +39,8 @@ export default function WarehouseCorrections({
   const valid = enabled && !!warehouseId && !!productId && validPrecision &&
     Number.isFinite(amount) && amount >= 0 && !!reference.trim() &&
     (mode === 'return'
-      ? !!vanId && amount > 0
-      : !!current && (operation === 'set' || amount > 0) &&
+      ? canReceive && !!vanId && amount > 0
+      : (operation==='set' ? canStocktake : canAdjust) && !!current && (operation === 'set' || amount > 0) &&
         (operation !== 'remove' || amount <= current.quantity - (current.committed_quantity??0)) &&
         (operation !== 'set' || (amount !== current.quantity && amount >= (current.committed_quantity??0))))
   const availableProducts = mode === 'adjust'
@@ -45,7 +48,8 @@ export default function WarehouseCorrections({
     : products
 
   function changeMode(next: 'return'|'adjust') {
-    setMode(next); setProductId(''); setQty('1'); setError(''); setSuccess('')
+    if(next==='return' && !canReceive)return
+    setMode(next); setOperation(canAdjust ? 'add' : 'set');setProductId(''); setQty('1'); setError(''); setSuccess('')
   }
 
   function submit() {
@@ -72,10 +76,10 @@ export default function WarehouseCorrections({
     <section className="card mt-4">
       <h2 className="text-sm font-medium mb-2">Warehouse returns &amp; adjustments</h2>
       <p className="text-xs text-gray-500 mb-4">
-        Returns transfer stock from a van to the warehouse. Adjustments correct an existing warehouse balance with a required audit reason. Quantities already committed to issued replenishment requests cannot be removed or overwritten.
+        Returns, stock adjustments and verified stocktakes require separate permissions and an audit reference. Committed stock cannot be removed or overwritten.
       </p>
       <div className="flex gap-4 mb-4">
-        <label className="text-sm"><input type="radio" checked={mode === 'return'} onChange={() => changeMode('return')} /> Van → Warehouse return</label>
+        {canReceive && <label className="text-sm"><input type="radio" checked={mode === 'return'} onChange={() => changeMode('return')} /> Van → Warehouse return</label>}
         <label className="text-sm"><input type="radio" checked={mode === 'adjust'} onChange={() => changeMode('adjust')} /> Warehouse adjustment</label>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -101,9 +105,9 @@ export default function WarehouseCorrections({
             <label className="form-label" htmlFor="adjust-op">Adjustment</label>
             <select id="adjust-op" className="form-input" value={operation}
               onChange={e => setOperation(e.target.value as 'add'|'remove'|'set')}>
-              <option value="add">Add to recorded stock</option>
-              <option value="remove">Remove from recorded stock</option>
-              <option value="set">Set verified physical count</option>
+              {canAdjust && <option value="add">Add to recorded stock</option>}
+              {canAdjust && <option value="remove">Remove from recorded stock</option>}
+              {canStocktake && <option value="set">Set verified physical count</option>}
             </select>
           </div>
         )}
