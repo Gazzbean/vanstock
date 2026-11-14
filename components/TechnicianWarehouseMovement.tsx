@@ -3,6 +3,7 @@
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {transactionBorder} from '@/lib/transaction-confirmation'
+import StatusNotice from './StatusNotice'
 import {returnVanStockToWarehouse,transferWarehouseToVan} from '@/lib/actions'
 
 export default function TechnicianWarehouseMovement({warehouses,products,defaultVanId,canIssue,canReceive,vans,enabled=false}:{
@@ -48,7 +49,8 @@ export default function TechnicianWarehouseMovement({warehouses,products,default
   return <section className={'card mt-4 border-2 '+transactionBorder(completed?'success':error?'error':pending?'pending':ready&&enabled?'ready':'idle')}>
     <h2 className="text-sm font-medium mb-2">Authorised warehouse stock movement</h2>
     <p className="text-xs text-gray-500 mb-3">{vans?'Select the receiving or returning van. Every movement is logged under your account.':'These actions require a separate administrator-granted warehouse permission. Movements apply only to your selected, authorised Working Van.'}</p>
-    {!enabled&&<p className="text-xs text-amber-800 mb-3">Warehouse stock movements remain disabled until the controlled release is approved.</p>}
+    {!enabled&&<div className="mb-3"><StatusNotice tone="warning" title="Warehouse stock movements unavailable"><p>Warehouse stock movements are temporarily disabled pending controlled-release approval. Warehouse inventory remains available for viewing.</p><p className="mt-2">If access is required, please contact your <strong>System Administrator</strong>.</p></StatusNotice></div>}
+    {enabled&&<>
     <div className="flex gap-4 mb-3">
       {canIssue&&<label className="text-sm"><input type="radio" checked={mode==='issue'} onChange={()=>{setMode('issue');changed()}}/> Warehouse → van</label>}
       {canReceive&&<label className="text-sm"><input type="radio" checked={mode==='return'} onChange={()=>{setMode('return');changed()}}/> Van → warehouse</label>}
@@ -63,6 +65,7 @@ export default function TechnicianWarehouseMovement({warehouses,products,default
     {error&&<p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
     {success&&<p role="status" className="alert alert-success mt-3">{success}</p>}
     {!completed&&ready&&enabled&&!pending&&!error&&<p className="text-sm text-amber-800 mt-3">Ready for confirmation. Check the van, warehouse, quantity and reference before proceeding.</p>}
-    <button type="button" className="btn btn-primary mt-3" onClick={submit} disabled={!enabled||!ready||pending||completed}>{completed?'Movement completed':pending?'Recording…':'Confirm movement'}</button>
+    <button type="button" className="btn btn-primary mt-3 disabled:opacity-50 disabled:cursor-not-allowed" onClick={submit} disabled={!enabled||!ready||pending||completed}>{completed?'Movement completed':pending?'Recording…':'Confirm movement'}</button>
+    </>}
   </section>
 }
