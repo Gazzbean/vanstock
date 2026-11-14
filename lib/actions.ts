@@ -963,21 +963,36 @@ export async function resolveWarehouseReceiptDiscrepancy(id:string,note:string){
 export async function getMyWarehouseNotifications() {
   const profile=await getCurrentProfile()
   const db=createServerClient()
-  const {data,error}=await db.from('warehouse_notifications')
+  const base=()=>db.from('warehouse_notifications')
     .select('id,request_id,event_type,created_at,read_at,dismissed_at')
     .eq('company_id',profile.company_id).eq('user_id',profile.id)
-    .order('created_at',{ascending:false}).limit(100)
+  // All undismissed notifications remain actionable, even if hundreds of
+  // older dismissed events exist. History is a separate recent-100 view;
+  // neither read nor dismissal deletes database audit records.
+  const [active,history]=await Promise.all([
+    readAllWarehousePages((from,to)=>base().is('dismissed_at',null)
+      .order('created_at',{ascending:false}).order('id',{ascending:false}).range(from,to)),
+    base().not('dismissed_at','is',null)
+      .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100),
+  ])
+  const error=active.error??history.error
   if(error){
     if(error.code==='42P01'||error.code==='PGRST205')return []
-    throw new Error('Could not load notifications')
+    throw new Error('Could not load notifications: '+error.message)
   }
-  if(!data?.length)return []
+  const data=[...(active.data??[]),...(history.data??[])]
+    .sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.id.localeCompare(a.id))
+  if(!data.length)return []
   const ids=[...new Set(data.map(n=>n.request_id))]
-  const {data:requests,error:requestError}=await db.from('warehouse_replenishment_requests')
-    .select('id,reference,quantity,status,van_id,product_id')
-    .eq('company_id',profile.company_id).in('id',ids)
-  if(requestError)throw new Error('Could not load notification details')
-  const details=new Map((requests??[]).map(r=>[r.id,r]))
+  const requests:any[]=[]
+  for(let from=0;from<ids.length;from+=150){
+    const {data:batch,error:requestError}=await db.from('warehouse_replenishment_requests')
+      .select('id,reference,quantity,status,van_id,product_id')
+      .eq('company_id',profile.company_id).in('id',ids.slice(from,from+150))
+    if(requestError)throw new Error('Could not load notification details')
+    requests.push(...(batch??[]))
+  }
+  const details=new Map(requests.map(r=>[r.id,r]))
   return data.filter(n=>details.has(n.request_id)).map(n=>({
     ...n,reference:details.get(n.request_id)?.reference??'Warehouse request',
     status:details.get(n.request_id)?.status??'',
