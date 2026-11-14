@@ -8,7 +8,7 @@ import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import { getCurrentUserDisplay, getWarehouseOverview, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels, getWarehouseRequestPackages } from '@/lib/actions'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
-export default async function WarehousePage() {
+export default async function WarehousePage({searchParams}:{searchParams?:{request?:string}}) {
   const user = await getCurrentUserDisplay()
   if (!user) redirect('/login')
   if (!user.access?.office_access && !user.manager_operations?.warehouse_access) {
@@ -23,7 +23,7 @@ export default async function WarehousePage() {
   const rights = await getMyWarehouseRights()
   const canManage = rights.canManageRequests || rights.canAdjust || rights.canStocktake || rights.canReceiveRequests
   const [overview, products,requests,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
-    getWarehouseOverview(), getProducts(),getWarehouseRequests(),
+    getWarehouseOverview(), getProducts(),getWarehouseRequests(searchParams?.request),
     getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),getWarehouseRequestPackages(),
   ])
   const writesEnabled = warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && !overview.setupRequired
@@ -130,8 +130,8 @@ export default async function WarehousePage() {
             ))}
           </div>
         )}
-        {(rights.canRequest || rights.canManageRequests) && <WarehouseRequestQueue
-          requests={requests} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
+        {(rights.canRequest || rights.canManageRequests || rights.canReceiveRequests || (Boolean(searchParams?.request)&&requests.length>0)) && <WarehouseRequestQueue
+          requests={requests} focusRequestId={searchParams?.request} warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
           vans={companyVans.map(v=>({id:v.id,van_number:v.van_number}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           canManage={rights.canManageRequests} canApprove={rights.canApproveRequests} canIssue={rights.canIssueRequests} canReceive={rights.canReceiveRequests} writesEnabled={writesEnabled}
