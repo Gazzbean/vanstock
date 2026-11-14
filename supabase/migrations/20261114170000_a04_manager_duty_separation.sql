@@ -60,6 +60,9 @@ begin
     raise exception 'Manager permission required for warehouse %',p_action;
   end if;
   if v_role<>'technician' then raise exception 'Warehouse operation not authorised'; end if;
+  if not exists(select 1 from public.user_access_capabilities
+    where user_id=v_user and company_id=v_company and technician_access=true) then
+    raise exception 'Technician access required for warehouse movements'; end if;
   if p_action in ('adjust','stocktake') then
     raise exception 'Warehouse adjustments and stocktakes require management approval';
   end if;
@@ -154,10 +157,15 @@ begin
  if v_req.status <> 'issued' then raise exception 'Warehouse has not issued this request, or receipt is already recorded'; end if;
  if v_role='manager' and not public.vanstock_manager_has_permission('confirm_van_receipt') then
   raise exception 'Manager permission required to confirm van receipt'; end if;
- if v_role not in ('admin','manager') and not exists (
-   select 1 from public.profiles where id=v_actor and van_id=v_req.van_id
-   union all
-   select 1 from public.user_authorized_vans where user_id=v_actor and van_id=v_req.van_id
+ if v_role not in ('admin','manager') and (
+    v_role<>'technician'
+    or not exists(select 1 from public.user_access_capabilities c
+      where c.user_id=v_actor and c.company_id=v_company and c.technician_access=true)
+    or not exists (
+      select 1 from public.profiles where id=v_actor and van_id=v_req.van_id
+      union all
+      select 1 from public.user_authorized_vans where user_id=v_actor and van_id=v_req.van_id
+    )
  ) then raise exception 'You are not authorised to receive stock into this van'; end if;
  -- Use the same lock order as the movement engine. The receiver is authorised
  -- to accept into this van but does not require warehouse-issue permission.
@@ -213,10 +221,14 @@ begin
  if not found or v_req.status<>'issued' then raise exception 'Only issued requests can be reported'; end if;
  if v_role<>'admin' and not (
   (v_role='manager' and public.vanstock_manager_has_permission('confirm_van_receipt')) or
-  (v_role='technician' and (
-    exists(select 1 from public.profiles where id=v_actor and van_id=v_req.van_id)
-    or exists(select 1 from public.user_authorized_vans where user_id=v_actor and van_id=v_req.van_id)
-  ))
+  (v_role='technician'
+    and exists(select 1 from public.user_access_capabilities c
+      where c.user_id=v_actor and c.company_id=v_company and c.technician_access=true)
+    and (
+      exists(select 1 from public.profiles where id=v_actor and van_id=v_req.van_id)
+      or exists(select 1 from public.user_authorized_vans where user_id=v_actor and van_id=v_req.van_id)
+    )
+  )
  ) then raise exception 'Not authorised for the receiving van'; end if;
  if p_observed_quantity is null or p_observed_quantity<0 or p_observed_quantity>v_req.quantity then
   raise exception 'Reported quantity must be between zero and the issued quantity';
