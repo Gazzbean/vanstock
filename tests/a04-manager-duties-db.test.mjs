@@ -40,6 +40,7 @@ test('A04 manager duties preserve existing receiving and committed-stock control
    create table user_access_capabilities(user_id uuid,company_id uuid,office_access boolean);
    create function public.adjust_warehouse_stock(uuid,uuid,text,numeric,text) returns numeric language sql as 'select 1::numeric';
    create function public.post_warehouse_opening_stock(uuid,uuid,numeric,text) returns void language plpgsql as $f$begin null;end;$f$;
+   create function public.vanstock_next_stock_reference(text) returns text language sql as 'select ''TEST''::text';
   `)
   await db.query('insert into companies values($1)',[ids.company])
   await db.query("insert into profiles values($1,$4,'manager',null,true),($2,$4,'technician',$5,true),($3,$4,'technician',null,true)",
@@ -81,6 +82,7 @@ test('A04 manager duties preserve existing receiving and committed-stock control
   // the full outstanding issue before any further warehouse action.
   await db.exec(await readFile(commitments,'utf8'))
   await db.exec(await readFile(duties,'utf8'))
+  await db.exec(`create function public.vanstock_warehouse_opening_stock(uuid,uuid,numeric,text) returns void language plpgsql as $f$ begin perform public.vanstock_warehouse_require_permission('stocktake'); end; $f$;`)
   await t.test('migration backfills outstanding issued stock',async()=>{
     const wh=(await db.query('select quantity,committed_quantity from warehouse_stock')).rows[0]
     assert.equal(Number(wh.quantity),500)
@@ -194,7 +196,7 @@ test('A04 manager duties preserve existing receiving and committed-stock control
   await t.test('Only Administrator may save eight grants, with audit history and legacy setter removed',async()=>{
    const admin='00000000-0000-4000-8000-000000000018'
    await db.query("insert into profiles(id,company_id,role,van_id,is_active) values($1,$2,'admin',null,true)",[admin,ids.company])
-   const setter=()=>db.query('select set_manager_operation_permissions($1,$2,$3,$4,$5,$6,$7,$8,$9)',[ids.manager,true,false,false,true,false,true,false,false])
+   const setter=()=>db.query('select set_manager_operation_permissions($1,$2,$3,$4,$5,$6,$7,$8,$9)',[ids.manager,true,false,false,false,false,false,true,true])
    await db.query("select set_config('test.user_id',$1,false)",[ids.manager])
    await assert.rejects(setter(),/Administrator permission required/)
    await db.query("select set_config('test.user_id',$1,false)",[admin])
