@@ -1,0 +1,29 @@
+name: A07 Warehouse Queue and Notifications
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'lib/actions.ts'
+      - 'lib/warehouse-queue-paging.ts'
+      - 'components/WarehouseRequestQueue.tsx'
+      - 'components/SidebarNav.tsx'
+      - 'app/actions/page.tsx'
+      - 'app/warehouse/page.tsx'
+      - 'app/stock/page.tsx'
+      - 'tests/a07-*'
+      - '.github/workflows/a07-queue.yml'
+  push:
+    branches: [audit-a07-queue-visibility]
+jobs:
+  request-visibility:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
