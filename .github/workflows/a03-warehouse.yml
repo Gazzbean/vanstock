@@ -1,0 +1,23 @@
+name: A03 Warehouse Commitments Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20261114160000_a03_warehouse_stock_commitments.sql'
+      - 'tests/a03-*'
+      - '.github/workflows/a03-warehouse.yml'
+  push:
+    branches: [audit-a03-warehouse-commitments]
+jobs:
+  warehouse-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/a03-warehouse-commitments-db.test.mjs tests/a03-warehouse-ui.test.mjs
