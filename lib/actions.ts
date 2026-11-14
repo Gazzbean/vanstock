@@ -972,7 +972,7 @@ export async function getMyWarehouseNotifications() {
   const [active,history]=await Promise.all([
     readAllWarehousePages((from,to)=>base().is('dismissed_at',null)
       .order('created_at',{ascending:false}).order('id',{ascending:false}).range(from,to)),
-    base().not('dismissed_at','is',null)
+    base().not('dismissed_at','is','null')
       .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100),
   ])
   const error=active.error??history.error
