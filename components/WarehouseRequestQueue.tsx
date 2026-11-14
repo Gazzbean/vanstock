@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect,useState,useTransition} from 'react'
+import {useEffect,useRef,useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {processWarehouseRequest,rejectWarehouseRequest,confirmWarehouseReceipt} from '@/lib/actions'
 import WarehouseReceiptExceptionActions from './WarehouseReceiptExceptionActions'
@@ -18,6 +18,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
   balances?:{warehouse_id:string;product_id:string;quantity:number}[]
 }){
   const [busy,start]=useTransition()
+  const lockedActions=useRef(new Set<string>())
   const [error,setError]=useState('')
   const [success,setSuccess]=useState('')
   const [completed,setCompleted]=useState<string[]>([])
@@ -36,34 +37,46 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
   const name=(list:{id:string;name?:string;van_number?:string}[],id:string)=>{
     const item=list.find(x=>x.id===id);return item?.name??item?.van_number??'Unknown'
   }
+  function lockAction(id:string){
+    const r=requests.find(x=>x.id===id)
+    if(!r||busy)return null
+    const key=requestKey(r)
+    if(lockedActions.current.has(key)||completed.includes(key))return null
+    lockedActions.current.add(key)
+    return key
+  }
   function act(id:string,action:'approve'|'fulfil'){
+    const key=lockAction(id)
+    if(!key)return
     setError('');setSuccess('')
     start(async()=>{
       try{
         const result=await processWarehouseRequest(id,action)
-        if(result.error)setError(result.error)
-        else{setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`]);setSuccess(action==='approve'?'Request approved. No stock has moved.':'Warehouse issue recorded. Quantity is committed and unavailable for another issue. Awaiting receiving-van confirmation; recorded balances have not moved.');router.refresh()}
-      }catch{setError('Request could not be processed. Refresh before retrying.')}
+        if(result.error){lockedActions.current.delete(key);setError(result.error)}
+        else{setCompleted(prev=>[...prev,key]);setSuccess(action==='approve'?'Request approved. No stock has moved.':'Warehouse issue recorded. Quantity is committed and unavailable for another issue. Awaiting receiving-van confirmation; recorded balances have not moved.');router.refresh()}
+      }catch{lockedActions.current.delete(key);setError('Request could not be processed. Refresh before retrying.')}
     })
   }
   function reject(id:string){
+    if(busy)return
     const reason=(rejectionReasons[id]??'').trim()
     if(reason.length<3||reason.length>500){
       setError('Enter a rejection reason between 3 and 500 characters.')
       return
     }
-    if(busy)return
+    const key=lockAction(id)
+    if(!key)return
     setError('');setSuccess('')
     start(async()=>{
       try{
         const result=await rejectWarehouseRequest(id,reason)
-        if(result.error){setError(result.error);return}
-        setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`])
+        if(result.error){lockedActions.current.delete(key);setError(result.error);return}
+        setCompleted(prev=>[...prev,key])
         setRejectReview(null)
         setRejectionReasons(prev=>{const next={...prev};delete next[id];return next})
         setSuccess('Request rejected. The reason and reviewer have been recorded.')
         router.refresh()
-      }catch{setError('Rejection status is uncertain. Refresh and review the request before retrying.')}
+      }catch{lockedActions.current.delete(key);setError('Rejection status is uncertain. Refresh and review the request before retrying.')}
     })
   }
   function rejectionReview(r:Request,scope:'mobile'|'desktop'){
@@ -86,13 +99,15 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
     </div>
   }
   function receive(id:string){
+    const key=lockAction(id)
+    if(!key)return
     setError('');setSuccess('')
     start(async()=>{
       try{
         const result=await confirmWarehouseReceipt(id)
-        if(result.error)setError(result.error)
-        else{setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`]);setReceiptReview(null);setSuccess('Receipt confirmed. Warehouse and van balances have been updated.');router.refresh()}
-      }catch{setError('Receipt status is uncertain. Refresh and check the request before retrying.')}
+        if(result.error){lockedActions.current.delete(key);setError(result.error)}
+        else{setCompleted(prev=>[...prev,key]);setReceiptReview(null);setSuccess('Receipt confirmed. Warehouse and van balances have been updated.');router.refresh()}
+      }catch{lockedActions.current.delete(key);setError('Receipt status is uncertain. Refresh and check the request before retrying.')}
     })
   }
   return <section id="warehouse-requests" className="card mt-4 scroll-mt-4">
