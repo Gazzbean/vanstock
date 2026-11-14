@@ -1,0 +1,23 @@
+name: A02 Access Security Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20261114050000_a02_access_boundary_hardening.sql'
+      - 'tests/a02-access-boundary*.test.mjs'
+      - '.github/workflows/a02-security.yml'
+  push:
+    branches: [audit-a02-access-hardening]
+jobs:
+  access-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/a02-access-boundary.test.mjs tests/a02-access-boundary-db.test.mjs
