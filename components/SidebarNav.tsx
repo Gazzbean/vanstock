@@ -53,10 +53,14 @@ export default function SidebarNav({ user, notifications=[] }: {
   const [inboxOpen,setInboxOpen]=useState(false)
   const [mobileMenuOpen,setMobileMenuOpen]=useState(false)
   const [showHistory,setShowHistory]=useState(false)
+  const [visibleCount,setVisibleCount]=useState(20)
   const [hiddenIds,setHiddenIds]=useState<string[]>([])
-  const inbox=notifications.filter(n=>!hiddenIds.includes(n.id) && (showHistory||!n.dismissed_at))
+  const inbox=notifications.filter(n=>showHistory||(!hiddenIds.includes(n.id)&&!n.dismissed_at))
+  const visibleInbox=inbox.slice(0,visibleCount)
   const unread=notifications.filter(n=>!hiddenIds.includes(n.id)&&!n.dismissed_at&&!n.read_at).length
   const readCount=inbox.filter(n=>n.read_at&&!n.dismissed_at).length
+  const notificationDestination=user?.role==='admin'||user?.access?.office_access||user?.manager_operations?.warehouse_access?'/warehouse':'/stock'
+  const notificationHref=(id:string)=>`${notificationDestination}?request=${encodeURIComponent(id)}#warehouse-request-${id}`
   const eventLabel=(n:WarehouseNotification)=>({requested:'New request — awaiting approval',approved:'Request approved',issued:'Issued — awaiting van receipt',fulfilled:'Receipt confirmed',rejected:'Request rejected',discrepancy:'Receiving discrepancy — review required'} as Record<string,string>)[n.event_type]??n.event_type
   async function dismiss(id:string){
     const result=await dismissWarehouseNotification(id)
@@ -123,11 +127,11 @@ export default function SidebarNav({ user, notifications=[] }: {
           {inboxOpen&&<div className="mt-2 max-h-72 overflow-y-auto rounded border border-gray-200 bg-white p-2">
             <div className="mb-2 flex flex-wrap gap-2 justify-between items-center text-xs"><button type="button" className="text-blue-700 underline" onClick={()=>setShowHistory(v=>!v)}>{showHistory?'Active':'History'}</button><button type="button" className="text-blue-700 underline disabled:text-gray-400" disabled={!readCount} onClick={clearRead}>Clear read</button></div>
             {inbox.length===0?<p className="text-xs text-gray-500">No {showHistory?'recent':'active'} notifications.</p>:
-              inbox.slice(0,20).map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
+              visibleInbox.map(n=><div key={n.id} className={`border-b border-gray-100 py-2 text-xs ${n.read_at?'text-gray-500':'font-semibold text-gray-900'}`}>
                 <p>{n.reference} — {eventLabel(n)}</p>
                 <p className="mt-1 text-[11px] text-gray-400">{new Date(n.created_at).toLocaleString('en-AU',{timeZone:'Australia/Perth'})}</p>
                 <div className="mt-1 flex gap-2">
-                  <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
+                  <Link href={notificationHref(n.request_id)} className="text-blue-700" onClick={()=>setInboxOpen(false)}>View request</Link>
                   {!n.read_at&&<button type="button" className="text-blue-700 underline" onClick={async()=>{
                     const result=await markWarehouseNotificationRead(n.id)
                     if(result.success)router.refresh()
@@ -135,6 +139,7 @@ export default function SidebarNav({ user, notifications=[] }: {
                   {!n.dismissed_at&&<button type="button" className="text-blue-700 underline" onClick={()=>dismiss(n.id)} aria-label={`Dismiss ${n.reference}`}>Dismiss</button>}
                 </div>
               </div>)}
+            {inbox.length>visibleCount&&<button type="button" className="mt-2 text-xs text-blue-700 underline" onClick={()=>setVisibleCount(v=>v+20)}>Show more notifications ({inbox.length-visibleCount} remaining)</button>}
           </div>}
         </div>}
       </div>
@@ -171,13 +176,14 @@ export default function SidebarNav({ user, notifications=[] }: {
         <div className="p-3 border-b flex justify-between items-center"><strong>{roleLabel}</strong><button type="button" className="min-h-11 min-w-11" onClick={()=>setMobileMenuOpen(false)} aria-label="Close menu">✕</button></div>
         {inboxOpen&&<section className="p-3 border-b max-h-48 overflow-y-auto" aria-label="Notifications">
           <div className="flex justify-between gap-2 mb-2"><h2 className="font-semibold text-sm">Notifications</h2><button type="button" className="text-blue-700 underline text-xs" onClick={()=>setShowHistory(v=>!v)}>{showHistory?'Active':'History'}</button><button type="button" className="text-blue-700 underline text-xs disabled:text-gray-400" disabled={!readCount} onClick={clearRead}>Clear read</button></div>
-          {!inbox.length?<p className="text-xs text-gray-500">No active notifications.</p>:inbox.slice(0,15).map(n=><div key={n.id} className="text-sm border-b py-2">
+          {!inbox.length?<p className="text-xs text-gray-500">No active notifications.</p>:visibleInbox.map(n=><div key={n.id} className="text-sm border-b py-2">
             <div>{n.reference} — {eventLabel(n)}</div>
             <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString('en-AU',{timeZone:'Australia/Perth'})}</p>
-            <Link href={`${user?.access?.office_access?'/warehouse':'/stock'}#warehouse-request-${n.request_id}`} className="text-blue-700 underline" onClick={()=>setMobileMenuOpen(false)}>View request</Link>
+            <Link href={notificationHref(n.request_id)} className="text-blue-700 underline" onClick={()=>setMobileMenuOpen(false)}>View request</Link>
             {!n.read_at&&<button type="button" className="ml-3 text-blue-700 underline" onClick={async()=>{const result=await markWarehouseNotificationRead(n.id);if(result.success)router.refresh()}}>Mark read</button>}
             {!n.dismissed_at&&<button type="button" className="ml-3 text-blue-700 underline" onClick={()=>dismiss(n.id)}>Dismiss</button>}
           </div>)}
+          {inbox.length>visibleCount&&<button type="button" className="text-blue-700 underline text-sm mt-2" onClick={()=>setVisibleCount(v=>v+20)}>Show more notifications ({inbox.length-visibleCount} remaining)</button>}
         </section>}
         {nav}<button type="button" className="min-h-11 border-t" onClick={handleSignOut}>Sign out</button>
       </div>

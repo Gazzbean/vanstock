@@ -11,11 +11,11 @@ import StatusNotice from './StatusNotice'
 type Request={id:string;warehouse_id:string;van_id:string;product_id:string;quantity:number;reference:string;status:string;created_at:string;requested_by_label:string;reviewed_by_label:string;reviewed_at:string|null;rejection_reason:string|null;fulfilled_by_label:string;issued_by_label:string;received_by_label:string;discrepancy:{observed_quantity:number;reason:string;resolved_at:string|null;resolution_note:string|null}|null}
 const requestKey=(request:Request)=>`${request.id}:${request.status}`
 
-export default function WarehouseRequestQueue({requests,warehouses,vans,products,canManage,canApprove=canManage,canIssue=canManage,canReceive=canManage,writesEnabled,receiverVanIds=[],balances=[]}:{
+export default function WarehouseRequestQueue({requests,warehouses,vans,products,canManage,canApprove=canManage,canIssue=canManage,canReceive=canManage,writesEnabled,receiverVanIds=[],balances=[],focusRequestId}:{
   requests:Request[];warehouses:{id:string;name:string}[];
   vans:{id:string;van_number:string}[];products:{id:string;name:string;unit:string}[];
   canManage:boolean;canApprove?:boolean;canIssue?:boolean;canReceive?:boolean;writesEnabled:boolean;receiverVanIds?:string[];
-  balances?:{warehouse_id:string;product_id:string;quantity:number}[]
+  balances?:{warehouse_id:string;product_id:string;quantity:number}[];focusRequestId?:string
 }){
   const [busy,start]=useTransition()
   const lockedActions=useRef(new Set<string>())
@@ -25,15 +25,26 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
   const [receiptReview,setReceiptReview]=useState<string|null>(null)
   const [rejectReview,setRejectReview]=useState<string|null>(null)
   const [rejectionReasons,setRejectionReasons]=useState<Record<string,string>>({})
-  const [filter,setFilter]=useState<'open'|'all'|'fulfilled'|'rejected'>('open')
+  const [filter,setFilter]=useState<'open'|'all'|'fulfilled'|'rejected'>(()=>
+    focusRequestId&&requests.some(r=>r.id===focusRequestId&&!['pending','approved','issued'].includes(r.status))?'all':'open'
+  )
   const visible=requests.filter(r=>filter==='all'||(filter==='open'?['pending','approved','issued'].includes(r.status):r.status===filter))
   const router=useRouter()
   useEffect(()=>{
-    if(window.innerWidth<768&&window.location.hash.startsWith('#warehouse-request-')){
-      const id=window.location.hash.slice('#warehouse-request-'.length)
-      document.getElementById(`warehouse-request-mobile-${id}`)?.scrollIntoView({block:'start'})
+    const legacyHash=window.location.hash.startsWith('#warehouse-request-')
+      ?window.location.hash.slice('#warehouse-request-'.length):null
+    const id=focusRequestId??legacyHash
+    if(!id)return
+    const target=requests.find(r=>r.id===id)
+    if(!target)return
+    if(filter==='open'&&!['pending','approved','issued'].includes(target.status)){
+      setFilter('all')
+      return
     }
-  },[])
+    if(filter!=='all'&&filter!=='open'&&filter!==target.status)return
+    const elementId=window.innerWidth<768?`warehouse-request-mobile-${id}`:`warehouse-request-${id}`
+    document.getElementById(elementId)?.scrollIntoView({block:'center'})
+  },[focusRequestId,filter,requests])
   const name=(list:{id:string;name?:string;van_number?:string}[],id:string)=>{
     const item=list.find(x=>x.id===id);return item?.name??item?.van_number??'Unknown'
   }
@@ -123,6 +134,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
     </div>
     <p className="text-xs text-gray-500 mb-3">Issue commits stock and reduces warehouse availability immediately. Recorded warehouse and van balances change only after the receiving van confirms the full delivery. Missing or damaged goods must be reconciled first.</p>
     <div className="mb-3"><label className="form-label" htmlFor="warehouse-request-filter">Show requests</label><select id="warehouse-request-filter" className="form-input max-w-xs" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="open">Pending, approved & awaiting receipt</option><option value="all">All requests</option><option value="fulfilled">Received</option><option value="rejected">Rejected</option></select></div>
+    {focusRequestId&&!requests.some(r=>r.id===focusRequestId)&&<div className="mb-3"><StatusNotice tone="warning" title="Request not available">This request could not be found in your authorised warehouse records.</StatusNotice></div>}
     {error&&<div className="mb-3"><StatusNotice tone="error" title="Warehouse request action failed">{error}</StatusNotice></div>}
     {success&&<div className="mb-3"><StatusNotice tone="success" title="Warehouse request updated">{success}</StatusNotice></div>}
     {visible.length===0?<p className="text-sm text-gray-500">No requests match this filter.</p>:<>
@@ -132,7 +144,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
           const available=Number(balances.find(b=>b.warehouse_id===r.warehouse_id&&b.product_id===r.product_id)?.quantity??0)
           const shortage=r.status==='approved'&&r.quantity>available
           const receiptBlocked=Boolean(r.discrepancy&&!r.discrepancy.resolved_at)
-          return <article id={`warehouse-request-mobile-${r.id}`} key={r.id} className="rounded-xl border-2 border-amber-200 p-3 space-y-3">
+          return <article id={`warehouse-request-mobile-${r.id}`} key={r.id} className={'rounded-xl border-2 p-3 space-y-3 '+(r.id===focusRequestId?'border-blue-500 bg-blue-50':'border-amber-200')}>
             <div className="flex items-start justify-between gap-2"><strong className="text-sm">{name(products,r.product_id)}</strong><span className="text-xs rounded-full bg-amber-100 text-amber-900 px-2 py-1">{r.status==='issued'?'Awaiting receipt':r.status==='approved'?'Ready to issue':r.status==='pending'?'Awaiting approval':r.status==='fulfilled'?'Received':'Rejected'}</span></div>
             <p className="text-sm">{name(warehouses,r.warehouse_id)} → {name(vans,r.van_id)}</p>
             <p className="font-semibold">{r.quantity} {unit}</p><p className="text-xs text-gray-500">Reference: {r.reference}</p>
@@ -160,7 +172,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       const available=Number(balances.find(b=>b.warehouse_id===r.warehouse_id&&b.product_id===r.product_id)?.quantity??0)
       const shortage=r.status==='approved'&&r.quantity>available
       const unit=products.find(p=>p.id===r.product_id)?.unit??'ea'
-      return <tr key={r.id} id={`warehouse-request-${r.id}`} className={`${shortage?'bg-amber-50':''} scroll-mt-5`}>
+      return <tr key={r.id} id={`warehouse-request-${r.id}`} className={`${r.id===focusRequestId?'bg-blue-50 ring-1 ring-blue-300':shortage?'bg-amber-50':''} scroll-mt-5`}>
       <td className="table-cell">{new Date(r.created_at).toLocaleDateString('en-AU',{timeZone:'Australia/Perth'})}</td>
       <td className="table-cell">{name(warehouses,r.warehouse_id)}</td><td className="table-cell">{name(vans,r.van_id)}</td>
       <td className="table-cell">{name(products,r.product_id)}</td><td className="table-cell">{r.quantity} {unit}<p className={'text-xs mt-1 '+(shortage?'font-semibold text-amber-900':'text-gray-500')}>Warehouse available: {available} {unit}</p>{shortage&&<div className="mt-2"><StatusNotice tone="warning" title="Insufficient warehouse stock"><p>Short by {(r.quantity-available).toLocaleString('en-AU')} {unit}. <a className="underline font-semibold" href="/receive">Receive warehouse stock</a> or wait for replenishment before issuing.</p></StatusNotice></div>}</td>

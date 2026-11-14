@@ -12,7 +12,7 @@ export default async function MyActions(){
  const [rights,requests,transfers]=await Promise.all([
   getMyWarehouseRights(),getWarehouseRequests(),getVanTransferWorkspace(),
  ])
- const warehouse=requests.filter(r=>(rights.canManageRequests&&['pending','approved'].includes(r.status))||(r.status==='issued'&&(rights.canManageRequests||transfers.receiverVanIds.includes(r.van_id))))
+ const warehouse=requests.filter(r=>(r.status==='pending'&&rights.canApproveRequests)||(r.status==='approved'&&rights.canIssueRequests)||(r.status==='issued'&&(rights.canReceiveRequests||transfers.receiverVanIds.includes(r.van_id))))
  const vanTransfers=transfers.requests.filter(r=>r.status==='pending'&&(transfers.managed||transfers.receiverVanIds.includes(r.destination_van_id)))
  const count=warehouse.length+vanTransfers.length
  return <div>
@@ -22,7 +22,7 @@ export default async function MyActions(){
     <h2 className="text-lg font-semibold">{count===0?'You’re up to date':`${count} action${count===1?'':'s'} need your attention`}</h2>
     <p className="text-sm text-gray-600 mt-1">Select an action to go straight to the relevant request. Completed items remain in Transaction History.</p>
    </div>
-   {warehouse.map(r=><Link key={r.id} href={`${rights.canManageRequests?'/warehouse':'/stock'}#warehouse-request-${r.id}`} className="block rounded-xl border-2 border-amber-200 bg-white p-4 hover:border-blue-400 focus:outline-blue-600">
+   {warehouse.map(r=><Link key={r.id} href={`${rights.canManageRequests||rights.canReceiveRequests?'/warehouse':'/stock'}?request=${encodeURIComponent(r.id)}#warehouse-request-${r.id}`} className="block rounded-xl border-2 border-amber-200 bg-white p-4 hover:border-blue-400 focus:outline-blue-600">
     <div className="flex items-center justify-between flex-wrap gap-2"><strong className="text-sm">📦 Warehouse replenishment</strong><span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">{warehouseStatus[r.status]}</span></div>
     <p className="text-sm mt-2">{r.reference} · {r.quantity} stock units</p>
     <p className="text-blue-700 font-semibold text-sm mt-3">Review request →</p>
