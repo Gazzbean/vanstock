@@ -21,7 +21,7 @@ export default async function WarehousePage() {
   }
 
   const rights = await getMyWarehouseRights()
-  const canManage = rights.canManageRequests || rights.canAdjust || rights.canReceiveRequests
+  const canManage = rights.canManageRequests || rights.canAdjust || rights.canStocktake || rights.canReceiveRequests
   const [overview, adminData, products,requests,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
     getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),
     getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),getWarehouseRequestPackages(),
@@ -151,21 +151,20 @@ export default async function WarehousePage() {
           canIssue={false} canReceive={rights.canReceive}
           enabled={writesEnabled}
         />}
-        {rights.canAdjust ? <>
-        <WarehouseCorrections
-          enabled={writesEnabled}
+        {(rights.canAdjust || rights.canStocktake) && <WarehouseCorrections
+          enabled={writesEnabled} canReceive={rights.canReceive} canAdjust={rights.canAdjust} canStocktake={rights.canStocktake}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           vans={(adminData?.vans??[]).map(v => ({ id: v.id, van_number: v.van_number }))}
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity,committed_quantity:i.committed_quantity }))}
-        />
-        <WarehouseOpeningStockForm
+        />}
+        {rights.canStocktake && <WarehouseOpeningStockForm
           enabled={writesEnabled}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
-        />
-        </> : <p className="text-xs text-gray-500 mt-4">Office stock overview is read-only. Transfers, adjustments and stocktakes require warehouse-management authorisation.</p>}
+        />}
+        {!rights.canManageRequests && !rights.canReceiveRequests && !rights.canReceive && !rights.canAdjust && !rights.canStocktake && <p className="text-xs text-gray-500 mt-4">Warehouse stock overview is read-only. Transfers, adjustments and stocktakes require specific warehouse permissions.</p>}
       </div>
     </div>
   )

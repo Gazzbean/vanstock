@@ -36,7 +36,7 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
 
       <div className="p-5">
         <WorkingVanSelector vans={working.vans} selectedId={working.selectedId} defaultId={working.defaultId} />
-        {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
+        {(warehouseRights.canRequest||requests.length>0)&&<WarehouseRequestQueue requests={requests} warehouses={requestWarehouses} vans={working.vans} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} canManage={false} writesEnabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)} receiverVanIds={user.role==='manager' && !warehouseRights.canReceiveRequests ? [] : working.vans.map(v=>v.id)} balances={warehouseBalances}/>}
         <div className="card">
           <h2 className="text-sm font-semibold mb-3">Current van stock</h2>
           <div className="md:hidden space-y-2">

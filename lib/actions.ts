@@ -742,7 +742,7 @@ export async function getCurrentUserDisplay() {
     const manager_operations = profile.role === 'admin'
       ? {maintain_catalogue:true,maintain_vehicles:true,warehouse_access:true}
       : profile.role === 'manager'
-        ? {maintain_catalogue:await managerOperationAllowed(profile,'maintain_catalogue'),maintain_vehicles:await managerOperationAllowed(profile,'maintain_vehicles'),warehouse_access:Boolean(managerRights?.canManageRequests || managerRights?.canReceiveRequests || managerRights?.canAdjust)}
+        ? {maintain_catalogue:await managerOperationAllowed(profile,'maintain_catalogue'),maintain_vehicles:await managerOperationAllowed(profile,'maintain_vehicles'),warehouse_access:Boolean(managerRights?.canManageRequests || managerRights?.canReceiveRequests || managerRights?.canReceive || managerRights?.canAdjust || managerRights?.canStocktake)}
         : {maintain_catalogue:false,maintain_vehicles:false,warehouse_access:false}
     return {
       full_name: profile.full_name,
@@ -781,20 +781,21 @@ export async function getManagerOperationPermissions(){
  if(profile.role!=='admin')return []
  const db=createServerClient()
  const {data,error}=await db.from('manager_operation_permissions')
-  .select('user_id,approve_requests,issue_warehouse,receive_returns,adjust_stock,maintain_catalogue,maintain_vehicles')
+  .select('user_id,approve_requests,issue_warehouse,receive_returns,confirm_van_receipt,adjust_stock,stocktake_warehouse,maintain_catalogue,maintain_vehicles')
   .eq('company_id',profile.company_id)
  if(error)throw new Error('Could not load Manager permissions: '+error.message)
  return data??[]
 }
 
-export async function saveManagerOperationPermissions(userId:string,grants:{approve_requests:boolean;issue_warehouse:boolean;receive_returns:boolean;adjust_stock:boolean;maintain_catalogue:boolean;maintain_vehicles:boolean}){
+export async function saveManagerOperationPermissions(userId:string,grants:{approve_requests:boolean;issue_warehouse:boolean;receive_returns:boolean;confirm_van_receipt:boolean;adjust_stock:boolean;stocktake_warehouse:boolean;maintain_catalogue:boolean;maintain_vehicles:boolean}){
  const actor=await getCurrentProfile()
  if(actor.role!=='admin')return {error:'Administrator authorisation required'}
- if(!userId||Object.values(grants).length!==6||Object.values(grants).some(v=>typeof v!=='boolean'))return {error:'Invalid Manager permission settings'}
+ if(!userId||Object.values(grants).length!==8||Object.values(grants).some(v=>typeof v!=='boolean'))return {error:'Invalid Manager permission settings'}
  const session=await createSessionClient()
  const {error}=await session.rpc('set_manager_operation_permissions',{
   p_user_id:userId,p_approve_requests:grants.approve_requests,p_issue_warehouse:grants.issue_warehouse,
-  p_receive_returns:grants.receive_returns,p_adjust_stock:grants.adjust_stock,
+  p_receive_returns:grants.receive_returns,p_confirm_van_receipt:grants.confirm_van_receipt,
+  p_adjust_stock:grants.adjust_stock,p_stocktake_warehouse:grants.stocktake_warehouse,
   p_maintain_catalogue:grants.maintain_catalogue,p_maintain_vehicles:grants.maintain_vehicles,
  })
  if(error)return {error:error.message}
@@ -807,10 +808,11 @@ export async function saveManagerOperationPermissions(userId:string,grants:{appr
 export async function getMyWarehouseRights() {
   const profile = await getCurrentProfile()
   const admin = profile.role === 'admin'
+  const access=await accessFor(profile)
   const db = createServerClient()
   const managerGrants = profile.role === 'manager'
     ? await db.from('manager_operation_permissions')
-        .select('approve_requests,issue_warehouse,receive_returns,adjust_stock')
+        .select('approve_requests,issue_warehouse,receive_returns,confirm_van_receipt,adjust_stock,stocktake_warehouse')
         .eq('company_id',profile.company_id).eq('user_id',profile.id).maybeSingle()
     : null
   if (managerGrants?.error) throw new Error('Could not check Manager permissions: '+managerGrants.error.message)
@@ -821,15 +823,15 @@ export async function getMyWarehouseRights() {
   if (error) throw new Error('Could not check warehouse permissions: '+error.message)
   return {
     canRequest: admin || profile.role === 'manager' || Boolean(data?.can_request),
-    canIssue: admin || Boolean(grants?.issue_warehouse) || (profile.role==='technician' && Boolean(data?.can_issue)),
-    canReceive: admin || Boolean(grants?.receive_returns) || (profile.role==='technician' && Boolean(data?.can_receive)),
+    canIssue: admin || Boolean(grants?.issue_warehouse) || (profile.role==='technician' && access.technician_access && Boolean(data?.can_issue)),
+    canReceive: admin || Boolean(grants?.receive_returns) || (profile.role==='technician' && access.technician_access && Boolean(data?.can_receive)),
     // Physical count reconciliation remains management-only until the
     // independent technician stocktake workflow is designed and tested.
     canAdjust: admin || Boolean(grants?.adjust_stock),
-    canStocktake: admin || Boolean(grants?.adjust_stock),
+    canStocktake: admin || Boolean(grants?.stocktake_warehouse),
     canApproveRequests: admin || Boolean(grants?.approve_requests),
     canIssueRequests: admin || Boolean(grants?.issue_warehouse),
-    canReceiveRequests: admin || Boolean(grants?.receive_returns),
+    canReceiveRequests: admin || Boolean(grants?.confirm_van_receipt),
     canManageRequests: admin || Boolean(grants?.approve_requests) || Boolean(grants?.issue_warehouse),
   }
 }
@@ -1130,7 +1132,7 @@ export async function getWarehouseOverview() {
   const profile = await getCurrentProfile()
   const access = await accessFor(profile)
   const rights = await getMyWarehouseRights()
-  if (!access.office_access && !rights.canManageRequests && !rights.canReceiveRequests && !rights.canAdjust) {
+  if (!access.office_access && !rights.canManageRequests && !rights.canReceiveRequests && !rights.canReceive && !rights.canAdjust && !rights.canStocktake) {
     throw new Error('Warehouse permission required')
   }
 
@@ -1187,8 +1189,8 @@ export async function postWarehouseOpeningStock(
     return { error: 'Opening stock posting is not yet enabled.' }
   }
   const profile = await getCurrentProfile()
-  if (!['admin', 'manager'].includes(profile.role)) {
-    return { error: 'Administrator or Manager access required.' }
+  if (!['admin', 'manager'].includes(profile.role) || !(await getMyWarehouseRights()).canStocktake) {
+    return { error: 'Warehouse stocktake permission required.' }
   }
   if (!warehouseId || !productId || !stocktakeReference?.trim() ||
       !Number.isFinite(quantity) || quantity < 0) {
@@ -1253,7 +1255,9 @@ export async function adjustWarehouseStock(
 ) {
   if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)) return { error: 'Warehouse operations disabled.' }
   const profile = await getCurrentProfile()
-  if (!['admin','manager'].includes(profile.role)) return { error: 'Manager access required.' }
+  const rights=await getMyWarehouseRights()
+  if (!['admin','manager'].includes(profile.role) || (operation==='set' ? !rights.canStocktake : !rights.canAdjust))
+    return { error: operation==='set' ? 'Warehouse stocktake permission required.' : 'Warehouse adjustment permission required.' }
   if (!warehouseId || !productId || !['add','remove','set'].includes(operation) ||
       !reference?.trim() || reference.length>450 || !Number.isFinite(quantity) || quantity < 0 ||
       (operation !== 'set' && quantity === 0) ||
