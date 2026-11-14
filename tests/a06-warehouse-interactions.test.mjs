@@ -206,7 +206,7 @@ test('A06 van receipt queue: amber review, one confirmed receiving action, succe
  let tree=h.render(props)
  button(tree,'Review receiving confirmation').props.onClick()
  tree=h.render(props)
- assert.match(textOf(tree),/Confirm 2 ea received into Van 1/)
+ assert.match(textOf(tree),/Confirm\s+2\s+ea\s+received into\s+Van 1/)
  assert.ok(nodes(tree).some(x=>typeof x.props?.className==='string'&&x.props.className.includes('border-amber-500')))
  const confirm=button(tree,'Confirm received & move stock')
  confirm.props.onClick();confirm.props.onClick()
