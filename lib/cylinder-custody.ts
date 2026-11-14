@@ -54,6 +54,7 @@ export function validateCylinderInput(value:CylinderInput){
  if(['unknown','supplier'].includes(loc)&&(warehouse||van||site))return {error:'Clear the old location before changing custody.'} as const
  if(value.status==='returned'&&(loc!=='supplier'||!supplier))return {error:'Returned cylinders must have a supplier destination.'} as const
  if(value.status==='unaccounted'&&loc!=='unknown')return {error:'Unaccounted cylinder must have unknown location.'} as const
+ if(loc==='unknown'&&value.status!=='unaccounted')return {error:'Unknown cylinder location requires an unaccounted investigation status.'} as const
  if(['in_custody','return_pending'].includes(value.status)&&['supplier'].includes(loc))
   return {error:'A cylinder held by its supplier must be marked returned.'} as const
  if(value.nominal_capacity_kg!==''&&value.nominal_capacity_kg!==null){
