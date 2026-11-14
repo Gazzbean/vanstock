@@ -808,6 +808,7 @@ export async function saveManagerOperationPermissions(userId:string,grants:{appr
 export async function getMyWarehouseRights() {
   const profile = await getCurrentProfile()
   const admin = profile.role === 'admin'
+  const access=await accessFor(profile)
   const db = createServerClient()
   const managerGrants = profile.role === 'manager'
     ? await db.from('manager_operation_permissions')
@@ -822,8 +823,8 @@ export async function getMyWarehouseRights() {
   if (error) throw new Error('Could not check warehouse permissions: '+error.message)
   return {
     canRequest: admin || profile.role === 'manager' || Boolean(data?.can_request),
-    canIssue: admin || Boolean(grants?.issue_warehouse) || (profile.role==='technician' && Boolean(data?.can_issue)),
-    canReceive: admin || Boolean(grants?.receive_returns) || (profile.role==='technician' && Boolean(data?.can_receive)),
+    canIssue: admin || Boolean(grants?.issue_warehouse) || (profile.role==='technician' && access.technician_access && Boolean(data?.can_issue)),
+    canReceive: admin || Boolean(grants?.receive_returns) || (profile.role==='technician' && access.technician_access && Boolean(data?.can_receive)),
     // Physical count reconciliation remains management-only until the
     // independent technician stocktake workflow is designed and tested.
     canAdjust: admin || Boolean(grants?.adjust_stock),
