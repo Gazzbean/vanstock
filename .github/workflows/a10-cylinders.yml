@@ -1,0 +1,28 @@
+name: A10 Cylinder Custody Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20261115010000_a10_cylinder_custody.sql'
+      - 'lib/cylinder-custody.ts'
+      - 'lib/actions.ts'
+      - 'components/CylinderCustodyRegister.tsx'
+      - 'app/cylinders/**'
+      - 'tests/a10-*'
+      - '.github/workflows/a10-cylinders.yml'
+  push:
+    branches: [audit-a10-cylinder-custody]
+jobs:
+  cylinder-custody:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npx tsc --noEmit
