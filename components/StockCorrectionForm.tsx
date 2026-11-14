@@ -1,5 +1,6 @@
 'use client'
 
+import StatusNotice from './StatusNotice'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitStockCorrection } from '@/lib/stock-adjustment-actions'
@@ -77,11 +78,11 @@ export default function StockCorrectionForm({ vans, warehouses, products, balanc
     {location && product && <div className="rounded-lg border bg-blue-50 p-4 mt-4 text-sm">
       <div className="flex flex-wrap gap-8"><span>Current balance: <strong>{current} {product.stock_unit??'ea'}</strong></span>
         <span>Proposed balance: <strong>{validQuantity ? `${next} ${product.stock_unit??'ea'}` : '—'}</strong></span></div>
-      {warehouseWithoutBalance&&<p className="text-amber-700 mt-2">This warehouse product has no opening balance. Complete an authorised opening stocktake first.</p>}
+      {warehouseWithoutBalance&&<div className="mt-2"><StatusNotice tone="warning" title="Opening stock required">This warehouse product has no opening balance. Complete an authorised opening stocktake first.</StatusNotice></div>}
       {validQuantity&&next<0&&<p className="text-red-700 mt-2">This would create negative stock and is not permitted.</p>}
     </div>}
-    {error&&<p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
-    {success&&<p role="status" className="text-sm text-green-700 mt-3">{success}</p>}
+    {error&&<div className="mt-3"><StatusNotice tone="error" title="Stock adjustment not confirmed">{error}</StatusNotice></div>}
+    {success&&<div className="mt-3"><StatusNotice tone="success" title="Stock adjustment recorded">{success}</StatusNotice></div>}
     <button type="button" className="btn btn-primary mt-4" disabled={!valid||pending} onClick={submit}>{pending?'Saving…':'Review and confirm adjustment'}</button>
   </section>
 }

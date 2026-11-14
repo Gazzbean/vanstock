@@ -161,11 +161,11 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
     </button>
    </div>
   </section>
-  <section className={'card space-y-4 border-2 '+(duplicateReference?'border-red-500':valid?'border-green-500':'border-gray-200')}>
+  <section className={'card space-y-4 border-2 '+(duplicateReference?'border-red-500':success?'border-green-500':valid?'border-amber-500':'border-gray-200')}>
    <div>
     <div className="flex flex-wrap items-center justify-between gap-2">
      <h2 className="font-semibold text-base text-gray-900">B. Receipt details</h2>
-     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Possible duplicate</span>:valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
+     {duplicateReference?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">Possible duplicate</span>:valid&&<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Ready to review</span>}
     </div>
     <p className="text-xs text-gray-500 mt-1">Choose the product first, then the supplier. Package options will be filtered automatically.</p>
    </div>
@@ -218,18 +218,18 @@ export default function ReceiveStockWorkflow({products,suppliers,packages,vans,w
      <p className="mt-1">Check the earlier receipt in Transaction History. If this is another delivery of the same item under the same docket, ask an administrator to review it before recording additional stock.</p>
     </div>}
    </div>
-   {valid&&!confirm&&!success&&!duplicateReference&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
-    <p className="text-sm font-semibold text-green-900">✓ Receipt details complete</p>
-    <p className="text-sm text-green-800">All required information has been entered. Continue to <strong>C. Review and confirm</strong> to check the quantities before recording the receipt.</p>
+   {valid&&!confirm&&!success&&!duplicateReference&&<div className="rounded-lg border border-amber-400 bg-amber-50 p-4 space-y-2" role="status">
+    <p className="text-sm font-semibold text-amber-950">Receipt details ready for review — not saved</p>
+    <p className="text-sm text-amber-900">All required information has been entered. Continue to <strong>C. Review and confirm</strong> to check the quantities before recording the receipt.</p>
     <button type="button" className="btn btn-primary" disabled={pending} onClick={continueToReview}>Continue to Review ↓</button>
-    <p className="text-xs text-green-800">This button only moves you to the review. No stock will be saved.</p>
+    <p className="text-xs text-amber-900">This button only moves you to the review. No stock will be saved.</p>
    </div>}
   </section>
-  <section ref={reviewSectionRef} tabIndex={-1} aria-label="Review and confirm receipt" className={'card space-y-3 scroll-mt-4 focus:outline-none border-2 '+(success?'border-green-500':confirm?'border-green-500':valid?'border-amber-500':'border-gray-200')+(reviewHighlighted&&!confirm?' ring-2 ring-amber-300':'')}>
+  <section ref={reviewSectionRef} tabIndex={-1} aria-label="Review and confirm receipt" className={'card space-y-3 scroll-mt-4 focus:outline-none border-2 '+(success?'border-green-500':valid?'border-amber-500':'border-gray-200')+(reviewHighlighted&&!confirm?' ring-2 ring-amber-300':'')}>
    <div className="flex flex-wrap items-center justify-between gap-2">
     <h2 className="font-semibold text-base text-gray-900">C. Review and confirm</h2>
     {success?<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Receipt saved</span>:
-     valid?<span className={'rounded-full px-3 py-1 text-xs font-semibold '+(confirm?'bg-green-100 text-green-800':'bg-amber-100 text-amber-900')}>
+     valid?<span className={'rounded-full px-3 py-1 text-xs font-semibold '+('bg-amber-100 text-amber-900')}>
       {confirm?'Stage 2 — Ready to save':'Stage 1 — Review (not saved)'}
      </span>:<span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">Awaiting receipt details</span>}
    </div>

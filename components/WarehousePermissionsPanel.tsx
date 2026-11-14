@@ -1,5 +1,6 @@
 'use client'
 
+import StatusNotice from './StatusNotice'
 import { useEffect, useState, useTransition } from 'react'
 import { saveWarehousePermissions } from '@/lib/actions'
 
@@ -94,8 +95,8 @@ export default function WarehousePermissionsPanel({ users, saved }: { users: Use
               </label>
             ))}
           </div>
-          {error && <p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
-          {message && <p role="status" className="text-sm text-green-700 mt-3">{message}</p>}
+          {error && <div className="mt-3"><StatusNotice tone="error" title="Warehouse permissions not saved">{error}</StatusNotice></div>}
+          {message && <div className="mt-3"><StatusNotice tone="success" title="Warehouse permissions saved">{message}</StatusNotice></div>}
           <p className="text-xs text-gray-500 mt-3">Warehouse stock-changing operations require both the saved permission and applicable server/database authorisation. Use Users & Access to enable or disable Office access.</p>
           <button type="button" className="btn btn-primary mt-4"
             disabled={isPending || !userId} onClick={save}>

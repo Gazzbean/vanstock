@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import AddUserInvite from './AddUserInvite'
@@ -17,19 +18,21 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
  }))
  const [draft,setDraft]=useState<Record<string,Fields>>(defaults)
  const [messages,setMessages]=useState<Record<string,string>>({})
+ const [messageErrors,setMessageErrors]=useState<Record<string,boolean>>({})
+ function flagError(id:string,error:boolean){setMessageErrors(prev=>({...prev,[id]:error}))}
  const [pending,start]=useTransition()
  function update(id:string,key:keyof Fields,value:string|boolean){
   setDraft(old=>({...old,[id]:{...old[id],[key]:value}}))
-  setMessages(old=>({...old,[id]:''}))
+  setMessages(old=>({...old,[id]:''}));flagError(id,false)
  }
  function sendSetup(user:User){
   if(!window.confirm('Send a new account setup email for '+user.full_name+'? This does not change their permissions or password.'))return
-  setMessages(m=>({...m,[user.id]:''}))
+  setMessages(m=>({...m,[user.id]:''}));flagError(user.id,false)
   start(async()=>{
    try{
     const result=await sendExistingUserSetupLink(user.id)
-    setMessages(m=>({...m,[user.id]:result.error??'Setup email sent. Ask the recipient to use the latest link.'}))
-   }catch{setMessages(m=>({...m,[user.id]:'Could not confirm email delivery. Check before sending again.'}))}
+    flagError(user.id,Boolean(result.error));setMessages(m=>({...m,[user.id]:result.error??'Setup email sent. Ask the recipient to use the latest link.'}))
+   }catch{flagError(user.id,true);setMessages(m=>({...m,[user.id]:'Could not confirm email delivery. Check before sending again.'}))}
   })
  }
  function save(user:User){
@@ -41,7 +44,7 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
     const priorInitial=user.initials??''
     if(v.initials!==priorInitial){
      const r=await saveStaffInitials(user.id,v.initials)
-     if(r.error){setMessages(m=>({...m,[user.id]:r.error??'Unable to save initials'}));return}
+     if(r.error){flagError(user.id,true);setMessages(m=>({...m,[user.id]:r.error??'Unable to save initials'}));return}
     }
     if(v.tech!==(old?.technician_access??false)||v.office!==(old?.office_access??false)){
      const r=await saveUserAccessCapabilities(user.id,{
@@ -49,15 +52,15 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
       receive_stock:v.office?true:(old?.receive_stock??false),
       manage_catalogue:v.role==='admin'?true:(old?.manage_catalogue??false),
      })
-     if(r.error){setMessages(m=>({...m,[user.id]:r.error??'Unable to save access'}));return}
+     if(r.error){flagError(user.id,true);setMessages(m=>({...m,[user.id]:r.error??'Unable to save access'}));return}
     }
     if(v.active!==(user.is_active!==false)||v.role!==user.role){
      const r=await saveUserBaseRole(user.id,v.active,v.role)
-     if(r.error){setMessages(m=>({...m,[user.id]:r.error??'Unable to save account status'}));return}
+     if(r.error){flagError(user.id,true);setMessages(m=>({...m,[user.id]:r.error??'Unable to save account status'}));return}
     }
-    setMessages(m=>({...m,[user.id]:'Saved'}))
+    flagError(user.id,false);setMessages(m=>({...m,[user.id]:'Saved'}))
     router.refresh()
-   }catch{setMessages(m=>({...m,[user.id]:'Could not confirm changes; refresh before trying again'}))}
+   }catch{flagError(user.id,true);setMessages(m=>({...m,[user.id]:'Could not confirm changes; refresh before trying again'}))}
   })
  }
  return <section className="card">
@@ -85,7 +88,7 @@ export default function UsersAccessPanel({users,capabilities,canEdit,vans}:{user
        <button className="btn btn-sm" type="button" disabled={pending||!(/^[A-Z]{2,5}$/.test(v.initials))} onClick={()=>save(u)}>Save</button>
        <button className="btn btn-sm" type="button" disabled={pending||!v.active} onClick={()=>sendSetup(u)}>Send setup link</button>
       </div>
-      {messages[u.id]&&<p role="status" className="text-xs mt-1">{messages[u.id]}</p>}
+      {messages[u.id]&&<div className="mt-2 min-w-52"><StatusNotice tone={messageErrors[u.id]?'error':'success'} title={messageErrors[u.id]?'User update failed':'User update confirmed'}>{messages[u.id]}</StatusNotice></div>}
      </td>}
     </tr>
    })}{users.length===0&&<tr><td colSpan={canEdit?8:7} className="table-cell text-gray-500">No users configured.</td></tr>}</tbody>

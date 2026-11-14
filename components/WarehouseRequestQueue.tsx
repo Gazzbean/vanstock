@@ -42,7 +42,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       try{
         const result=await processWarehouseRequest(id,action)
         if(result.error)setError(result.error)
-        else{setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`]);setSuccess('Request updated successfully.');router.refresh()}
+        else{setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`]);setSuccess(action==='approve'?'Request approved. No stock has moved.':'Warehouse issue recorded. Awaiting receiving-van confirmation; stock has not moved.');router.refresh()}
       }catch{setError('Request could not be processed. Refresh before retrying.')}
     })
   }
@@ -108,8 +108,8 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
     </div>
     <p className="text-xs text-gray-500 mb-3">Warehouse approval and issue do not move stock. Both balances change only when the receiving van confirms receipt.</p>
     <div className="mb-3"><label className="form-label" htmlFor="warehouse-request-filter">Show requests</label><select id="warehouse-request-filter" className="form-input max-w-xs" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="open">Pending, approved & awaiting receipt</option><option value="all">All requests</option><option value="fulfilled">Received</option><option value="rejected">Rejected</option></select></div>
-    {error&&<p role="alert" className="text-sm text-red-700 mb-2">{error}</p>}
-    {success&&<p role="status" className="text-sm text-green-700 mb-2">{success}</p>}
+    {error&&<div className="mb-3"><StatusNotice tone="error" title="Warehouse request action failed">{error}</StatusNotice></div>}
+    {success&&<div className="mb-3"><StatusNotice tone="success" title="Warehouse request updated">{success}</StatusNotice></div>}
     {visible.length===0?<p className="text-sm text-gray-500">No requests match this filter.</p>:<>
       <div className="md:hidden space-y-3">
         {visible.map(r=>{

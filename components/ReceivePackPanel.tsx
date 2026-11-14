@@ -1,4 +1,6 @@
 'use client'
+
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {receiveSupplierPack} from '@/lib/actions'
 
@@ -67,8 +69,8 @@ export default function ReceivePackPanel({products,suppliers,packages,vans,wareh
    </div>
    <p className="text-xs text-gray-600 my-3">Supplier: {supplier?.name??'—'} · Package: {pkg?.package_label??'—'} · Conversion: {pkg?.units_per_package??0} {product?.stock_unit??'ea'} per pack · <strong>Receipt quantity: {Number.isFinite(qty)?qty:'—'} {product?.stock_unit??'ea'}</strong></p>
    <button type="button" className="btn btn-primary" disabled={busy||!valid} onClick={submit}>{busy?'Receiving…':'Confirm supplier receipt'}</button>
-   {error&&<p role="alert" className="text-sm text-red-700 mt-2">{error}</p>}
-   {success&&<p role="status" className="text-sm text-green-700 mt-2">{success}</p>}
+   {error&&<div className="mt-3"><StatusNotice tone="error" title="Supplier receipt not confirmed">{error}</StatusNotice></div>}
+   {success&&<div className="mt-3"><StatusNotice tone="success" title="Supplier receipt recorded">{success}</StatusNotice></div>}
   </>:<p className="text-xs text-gray-500">No supplier purchase packages configured. First create a synthetic supplier and product package above.</p>}
  </section>
 }

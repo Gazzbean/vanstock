@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import { useState, useTransition } from 'react'
 import { saveCatalogueSettings, saveConsumablesGroup } from '@/lib/actions'
 import { validQuickUseOptions } from '@/lib/consumable-presets'
@@ -85,10 +86,10 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
    <input className="form-input mb-3" id="sm8-code" value={sm8code} onChange={e=>setSm8code(e.target.value)} maxLength={120}/>
    <label className="form-label" htmlFor="sm8-uuid">ServiceM8 material UUID (required when linked)</label>
    <input className="form-input mb-3" id="sm8-uuid" value={sm8uuid} onChange={e=>setSm8uuid(e.target.value)} maxLength={120}/>
-   <p className="text-xs text-amber-700 mb-3">Enter only verified ServiceM8 references. No ServiceM8 connection is active.</p>
+   <div className="mb-3"><StatusNotice tone="info" title="ServiceM8 integration not connected">Enter only verified ServiceM8 references. No ServiceM8 connection is active.</StatusNotice></div>
    <button className="btn btn-primary" type="button" disabled={productBusy} onClick={saveProduct}>{productBusy?'Saving…':'Save classification'}</button>
    </>:<p className="text-sm text-gray-500">No products available.</p>}
-   {(productError||productMessage)&&<p role={productError?'alert':'status'} className={productError?'text-sm text-red-700 mt-3':'text-sm text-green-700 mt-3'}>{productError||productMessage}</p>}
+   {(productError||productMessage)&&<div className="mt-3"><StatusNotice tone={productError?'error':'success'} title={productError?'Catalogue settings not saved':'Catalogue settings saved'}>{productError||productMessage}</StatusNotice></div>}
   </section>
   <section className="card">
     <h2 className="text-sm font-medium mb-2">Consumables group quick-use presets</h2>
@@ -107,7 +108,7 @@ export default function CatalogueSettingsPanel({ products,settings,groups }:{
       </div>
       <button className="btn btn-primary" type="button" disabled={groupBusy} onClick={saveGroup}>{groupBusy?'Saving…':'Save four options'}</button>
     </>:<p className="text-sm text-gray-500">No groups configured.</p>}
-    {(groupError||groupMessage)&&<p role={groupError?'alert':'status'} className={groupError?'text-sm text-red-700 mt-3':'text-sm text-green-700 mt-3'}>{groupError||groupMessage}</p>}
+    {(groupError||groupMessage)&&<div className="mt-3"><StatusNotice tone={groupError?'error':'success'} title={groupError?'Consumables group not saved':'Consumables group saved'}>{groupError||groupMessage}</StatusNotice></div>}
   </section>
  </div>
 }

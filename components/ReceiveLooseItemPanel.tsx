@@ -1,4 +1,6 @@
 'use client'
+
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {receiveLooseItem} from '@/lib/actions'
 type Product={id:string;name:string;stock_unit:string|null;archived_at?:string|null}
@@ -61,9 +63,9 @@ export default function ReceiveLooseItemPanel({products,suppliers,vans,warehouse
     </div>
     <p className="text-xs text-gray-600 mt-3">Will receive <strong>{valid?amount:'—'} {unit}</strong> as individual stock units. Supplier pack conversions are not applied.</p>
     <button className="btn btn-primary mt-2" type="button" disabled={!valid||pending} onClick={post}>{pending?'Receiving…':'Confirm loose-item receipt'}</button>
-    {error&&<p className="text-sm text-red-700 mt-2" role="alert">{error}</p>}
-    {message&&<p className="text-sm text-green-700 mt-2" role="status">{message}</p>}
+    {error&&<div className="mt-3"><StatusNotice tone="error" title="Loose-item receipt not confirmed">{error}</StatusNotice></div>}
+    {message&&<div className="mt-3"><StatusNotice tone="success" title="Loose-item receipt recorded">{message}</StatusNotice></div>}
    </>:<p className="text-sm text-gray-500">An active product and supplier are required before receiving loose items.</p>}
-   <p className="text-xs text-amber-700 mt-2">Cylinders require their own serial-number receiving workflow, which is still under development. Do not use this form for physical cylinders.</p>
+   <div className="mt-3"><StatusNotice tone="warning" title="Cylinder receiving unavailable">Cylinders require a separate serial-number receiving workflow, which is still under development. Do not use this form for physical cylinders.</StatusNotice></div>
  </section>
 }

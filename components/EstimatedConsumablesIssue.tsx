@@ -1,4 +1,6 @@
 'use client'
+
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {issueEstimatedConsumable} from '@/lib/actions'
 
@@ -53,8 +55,8 @@ export default function EstimatedConsumablesIssue({products,stock,groups,assignm
       {pending?'Saving…':String(q)+' '+(product?.stock_unit??'ea')}
     </button>)}
    </div>
-   {error&&<p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
-   {message&&<p role="status" className="text-sm text-green-700 mt-3">{message}</p>}
+   {error&&<div className="mt-3"><StatusNotice tone="error" title="Materials usage not recorded">{error}</StatusNotice></div>}
+   {message&&<div className="mt-3"><StatusNotice tone="success" title="Materials usage recorded">{message}</StatusNotice></div>}
   </>:<p className="text-sm text-gray-500">No consumables have been assigned yet. An Administrator can assign products to groups in Administration. Do not use a cylinder as a test consumable.</p>}
  </section>
 }

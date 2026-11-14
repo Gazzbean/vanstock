@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useEffect,useState,useTransition} from 'react'
 import {saveVanStockStandard} from '@/lib/actions'
 
@@ -94,7 +95,7 @@ export default function VanStockStandardsPanel({products,vans,standards}:{
    </div>
    <div className="flex items-end"><button type="button" className="btn btn-primary" disabled={busy} onClick={save}>{busy?'Saving standard…':'Save van standard'}</button></div>
   </div>:<p className="text-xs text-gray-500">No vans or active products are available.</p>}
-  {(error||message)&&<p role={error?'alert':'status'} className={'text-sm mt-3 '+(error?'text-red-700':'text-green-700')}>{error||message}</p>}
+  {(error||message)&&<div className="mt-3"><StatusNotice tone={error?'error':'success'} title={error?'Van stock standard not saved':'Van stock standard saved'}>{error||message}</StatusNotice></div>}
   <p className="text-xs text-gray-500 mt-3">Optional items may still be physically held on a van. Not assigned removes the stocking requirement, not any existing inventory.</p>
  </section>
 }

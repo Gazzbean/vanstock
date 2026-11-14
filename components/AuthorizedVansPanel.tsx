@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {saveUserVanAssignments} from '@/lib/actions'
 type User={id:string;full_name:string;initials:string|null;van_id:string|null}
@@ -10,19 +11,20 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
  const [drafts,setDrafts]=useState<Record<string,{allowed:string[];defaultId:string}>>({})
  const [pending,start]=useTransition()
  const [message,setMessage]=useState('')
+ const [messageError,setMessageError]=useState(false)
  const user=users.find(x=>x.id===selected)
  const allowed=drafts[selected]?.allowed??current.filter(r=>r.user_id===selected).map(r=>r.van_id)
  const defaultId=drafts[selected]?.defaultId??user?.van_id??''
- function change(next:string[],defaultValue:string){setDrafts(d=>({...d,[selected]:{allowed:next,defaultId:defaultValue}}));setMessage('')}
+ function change(next:string[],defaultValue:string){setDrafts(d=>({...d,[selected]:{allowed:next,defaultId:defaultValue}}));setMessage('');setMessageError(false)}
  function save(){
   if(!user)return
   start(async()=>{
    try{
     const r=await saveUserVanAssignments(user.id,allowed,defaultId||null)
-    if(r.error){setMessage(r.error);return}
+    if(r.error){setMessageError(true);setMessage(r.error);return}
     setCurrent(old=>[...old.filter(x=>x.user_id!==selected),...allowed.map(van_id=>({van_id,user_id:selected}))])
     setMessage('Van permissions and default saved. Select a working van on the stock screen to use it.')
-   }catch{setMessage('Could not save van permissions.')}
+   }catch{setMessageError(true);setMessage('Could not save van permissions.')}
   })
  }
  return <section className="card mt-4">
@@ -47,7 +49,7 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
     </select>
    </div>
    {canEdit&&<button type="button" className="btn btn-primary" onClick={save} disabled={pending||!user}>{pending?'Saving…':'Save van assignments'}</button>}
-   {message&&<p role="status" className="text-xs text-gray-700">{message}</p>}
+   {message&&<StatusNotice tone={messageError?'error':'success'} title={messageError?'Van assignments not saved':'Van assignments saved'}>{message}</StatusNotice>}
   </div>
  </section>
 }
