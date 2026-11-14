@@ -37,7 +37,7 @@ test('A04 manager duties preserve existing receiving and committed-stock control
      user_id uuid,request_id uuid,event_type text,created_at timestamptz default now(),
      unique(user_id,request_id,event_type),constraint warehouse_notifications_event_type_check
        check(event_type in ('requested','approved','rejected','fulfilled')));
-   create table user_access_capabilities(user_id uuid,company_id uuid,office_access boolean);
+   create table user_access_capabilities(user_id uuid,company_id uuid,office_access boolean,technician_access boolean);
    create function public.adjust_warehouse_stock(uuid,uuid,text,numeric,text) returns numeric language sql as 'select 1::numeric';
    create function public.post_warehouse_opening_stock(uuid,uuid,numeric,text) returns void language plpgsql as $f$begin null;end;$f$;
    create function public.vanstock_next_stock_reference(text) returns text language sql as 'select ''TEST''::text';
@@ -48,6 +48,7 @@ test('A04 manager duties preserve existing receiving and committed-stock control
   await db.query("insert into vans(id,company_id,van_number) values($1,$2,'Van #3')",[ids.van,ids.company])
   await db.query("insert into products values($1,$2,'Cable ties','ea',null,2)",[ids.product,ids.company])
   await db.query('insert into user_warehouse_permissions values($1,$2,true,false,false)',[ids.receiver,ids.company])
+  await db.query('insert into user_access_capabilities values($1,$3,false,true),($2,$3,false,true)',[ids.receiver,ids.outsider,ids.company])
   await db.exec(await readFile(inventory,'utf8'))
   await db.query("insert into warehouses(id,company_id,name) values($1,$2,'Warehouse')",[ids.warehouse,ids.company])
   await db.query('insert into warehouse_stock(warehouse_id,product_id,quantity) values($1,$2,500)',[ids.warehouse,ids.product])
@@ -184,6 +185,28 @@ test('A04 manager duties preserve existing receiving and committed-stock control
    await db.query('select confirm_warehouse_replenishment_receipt($1)',[req])
    assert.equal(Number((await db.query('select committed_quantity from warehouse_stock')).rows[0].committed_quantity),0)
    await assert.rejects(db.query('select confirm_warehouse_replenishment_receipt($1)',[req]),/already recorded/)
+  })
+  await t.test('Office-only profile cannot receive even with a Technician base role and historical van assignment',async()=>{
+   const office='00000000-0000-4000-8000-000000000017'
+   await db.query("insert into profiles(id,company_id,role,van_id,is_active) values($1,$2,'technician',$3,true)",[office,ids.company,ids.van])
+   await db.query("insert into user_access_capabilities values($1,$2,true,false)",[office,ids.company])
+   await db.query("insert into user_authorized_vans values($1,$2)",[office,ids.van])
+   await db.query("select set_config('test.user_id',$1,false)",[office])
+   await assert.rejects(db.query('select vanstock_warehouse_require_permission($1,$2)',['receive',ids.van]),
+      /Technician access required/)
+   await db.query("select set_config('test.user_id',$1,false)",[ids.receiver])
+   const req=(await db.query('select create_warehouse_replenishment_request($1,$2,$3,1,$4) id',
+     [ids.warehouse,ids.van,ids.product,'A04-OFFICE-CHECK'])).rows[0].id
+   await db.query("select set_config('test.user_id',$1,false)",[ids.manager])
+   await db.query("select process_warehouse_replenishment_request($1,'approve')",[req])
+   await db.query("select process_warehouse_replenishment_request($1,'fulfil')",[req])
+   await db.query("select set_config('test.user_id',$1,false)",[office])
+   await assert.rejects(db.query('select confirm_warehouse_replenishment_receipt($1)',[req]),
+      /not authorised to receive/)
+   await assert.rejects(db.query('select report_warehouse_receipt_discrepancy($1,0,$2)',[req,'No items received']),
+      /Not authorised for the receiving van/)
+   await db.query("select set_config('test.user_id',$1,false)",[ids.receiver])
+   await db.query('select confirm_warehouse_replenishment_receipt($1)',[req])
   })
   await t.test('New stocktake grant does not restore disabled warehouse returns',async()=>{
    await db.query('update manager_operation_permissions set receive_returns=false,stocktake_warehouse=true where user_id=$1',[ids.manager])
