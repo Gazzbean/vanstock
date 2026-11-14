@@ -859,6 +859,14 @@ export async function getWarehouseRequests() {
     .eq('company_id',profile.company_id).in('request_id',data.map(r=>r.id))
   if(discrepancyError)throw new Error('Could not load receiving exceptions: '+discrepancyError.message)
   const discrepancyByRequest=new Map((discrepancies??[]).map(d=>[d.request_id,d]))
+  // Read reasons separately so a preview build remains usable before its database
+  // migration is applied. Never invent reasons for older rejected requests.
+  const {data:reasonRows,error:reasonError}=await db.from('warehouse_replenishment_requests')
+    .select('id,rejection_reason')
+    .eq('company_id',profile.company_id).in('id',data.map(r=>r.id))
+  if(reasonError && !['42703','PGRST204','PGRST205'].includes(reasonError.code))
+    throw new Error('Could not load warehouse rejection reasons: '+reasonError.message)
+  const rejectionReasons=new Map((reasonRows??[]).map(r=>[r.id,r.rejection_reason]))
   const {data:staff,error:staffError}=await db.from('profiles')
     .select('id,full_name,initials').eq('company_id',profile.company_id)
   if (staffError) throw new Error('Could not load request audit names: '+staffError.message)
@@ -870,6 +878,7 @@ export async function getWarehouseRequests() {
   return data.map(row=>({
     ...row,
     discrepancy:discrepancyByRequest.get(row.id)??null,
+    rejection_reason:rejectionReasons.get(row.id)??null,
     requested_by_label:label(row.requested_by),
     reviewed_by_label:label(row.reviewed_by),
     fulfilled_by_label:label(row.fulfilled_by),
@@ -1035,17 +1044,32 @@ export async function requestWarehouseReplenishment(
   return {success:true}
 }
 
-export async function processWarehouseRequest(id:string,action:'approve'|'reject'|'fulfil') {
+export async function processWarehouseRequest(id:string,action:'approve'|'fulfil') {
   if (!warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && action==='fulfil') {
     return {error:'Warehouse stock movements are disabled.'}
   }
   const rights=await getMyWarehouseRights()
   if (action==='fulfil' ? !rights.canIssueRequests : !rights.canApproveRequests)
     return {error:'Permission required for this warehouse action.'}
-  if (!id || !['approve','reject','fulfil'].includes(action)) return {error:'Invalid request action.'}
+  if (!id || !['approve','fulfil'].includes(action)) return {error:'Invalid request action.'}
   const session=await createSessionClient()
   const {error}=await session.rpc('process_warehouse_replenishment_request',{
     p_request_id:id,p_action:action,
+  })
+  if(error)return {error:error.message}
+  for(const path of ['/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
+  return {success:true}
+}
+
+// Record a rejected request through the reason-required, audited database RPC.
+export async function rejectWarehouseRequest(id:string,reason:string) {
+  const rights=await getMyWarehouseRights()
+  if(!rights.canApproveRequests)return {error:'Permission required to reject warehouse requests.'}
+  if(!id||typeof reason!=='string'||reason.trim().length<3||reason.trim().length>500)
+    return {error:'Enter a rejection reason between 3 and 500 characters.'}
+  const session=await createSessionClient()
+  const {error}=await session.rpc('reject_warehouse_replenishment_request',{
+    p_request_id:id,p_reason:reason.trim(),
   })
   if(error)return {error:error.message}
   for(const path of ['/warehouse','/stock','/dashboard','/logs'])revalidatePath(path)
