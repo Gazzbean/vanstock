@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createHarness,nodes,textOf,button,deferred} from './helpers/component-interaction-harness.mjs'
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`
-const props={records:[],
+const props={records:[],events:[],
  suppliers:[{id:id(100),name:'Supplier A',active:true}],
  warehouses:[{id:id(200),name:'Main Warehouse'}],
  vans:[{id:id(300),van_number:'Van 1',active:true}],
