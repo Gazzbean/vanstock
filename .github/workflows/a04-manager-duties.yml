@@ -1,0 +1,23 @@
+name: A04 Manager Duty Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20261114170000_a04_manager_duty_separation.sql'
+      - 'tests/a04-*'
+      - '.github/workflows/a04-manager-duties.yml'
+  push:
+    branches: [audit-a04-manager-duties]
+jobs:
+  manager-duties:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
