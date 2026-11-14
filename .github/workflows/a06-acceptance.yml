@@ -1,0 +1,28 @@
+name: A06 Interaction Acceptance
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'components/WarehouseRequestForm.tsx'
+      - 'components/WarehouseRequestQueue.tsx'
+      - 'components/TechnicianWarehouseMovement.tsx'
+      - 'components/WarehouseCorrections.tsx'
+      - 'components/WarehouseOpeningStockForm.tsx'
+      - 'tests/a06-*'
+      - 'tests/helpers/component-interaction-harness.mjs'
+      - '.github/workflows/a06-acceptance.yml'
+  push:
+    branches: [audit-a06-interaction-acceptance]
+jobs:
+  interaction-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
