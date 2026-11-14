@@ -10,7 +10,7 @@ warehouse return acceptance, stock adjustments and physical stocktakes.
 | Approve/reject request | Yes | `approve_requests` | No | No |
 | Physically issue request | Yes | `issue_warehouse` | No | No |
 | Confirm van receiving of issued goods | Yes | `confirm_van_receipt` | Their authorised van | No (unless separately Technician-authorised) |
-| Report receiving shortage/damage | Yes | Confirm-van-receipt grant, or authorised van | Their authorised van | No (unless explicitly authorised van) |
+| Report receiving shortage/damage | Yes | `confirm_van_receipt` | Their authorised van | No |
 | Accept Van→Warehouse return | Yes | `receive_returns` | Existing warehouse receive grant, assigned van | No |
 | Add/remove stock correction | Yes | `adjust_stock` | No | No |
 | Set verified count / opening count | Yes | `stocktake_warehouse` | No | No |
