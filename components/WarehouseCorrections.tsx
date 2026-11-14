@@ -7,7 +7,7 @@ import { adjustWarehouseStock, returnVanStockToWarehouse } from '@/lib/actions'
 type Warehouse = { id: string; name: string }
 type Van = { id: string; van_number: string }
 type Product = { id: string; name: string; unit: string }
-type Balance = { warehouse_id: string; product_id: string; quantity: number }
+type Balance = { warehouse_id: string; product_id: string; quantity: number; committed_quantity?: number }
 
 export default function WarehouseCorrections({
   warehouses, vans, products, balances, enabled,
@@ -38,8 +38,8 @@ export default function WarehouseCorrections({
     (mode === 'return'
       ? !!vanId && amount > 0
       : !!current && (operation === 'set' || amount > 0) &&
-        (operation !== 'remove' || amount <= current.quantity) &&
-        (operation !== 'set' || amount !== current.quantity))
+        (operation !== 'remove' || amount <= current.quantity - (current.committed_quantity??0)) &&
+        (operation !== 'set' || (amount !== current.quantity && amount >= (current.committed_quantity??0))))
   const availableProducts = mode === 'adjust'
     ? products.filter(p => balances.some(b => b.warehouse_id === warehouseId && b.product_id === p.id))
     : products
@@ -72,7 +72,7 @@ export default function WarehouseCorrections({
     <section className="card mt-4">
       <h2 className="text-sm font-medium mb-2">Warehouse returns &amp; adjustments</h2>
       <p className="text-xs text-gray-500 mb-4">
-        Returns transfer stock from a van to the warehouse. Adjustments correct an existing warehouse balance with a required audit reason.
+        Returns transfer stock from a van to the warehouse. Adjustments correct an existing warehouse balance with a required audit reason. Quantities already committed to issued replenishment requests cannot be removed or overwritten.
       </p>
       <div className="flex gap-4 mb-4">
         <label className="text-sm"><input type="radio" checked={mode === 'return'} onChange={() => changeMode('return')} /> Van → Warehouse return</label>
@@ -115,7 +115,7 @@ export default function WarehouseCorrections({
             {availableProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
           </select>
           {mode === 'adjust' && current && (
-            <p className="text-xs text-gray-500 mt-1">Current warehouse balance: {current.quantity} {product?.unit}</p>
+            <p className="text-xs text-gray-500 mt-1">Recorded: {current.quantity} {product?.unit} · Committed: {current.committed_quantity??0} {product?.unit} · Available: {Math.round((current.quantity-(current.committed_quantity??0))*100)/100} {product?.unit}</p>
           )}
         </div>
         <div>
