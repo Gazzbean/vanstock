@@ -2,7 +2,7 @@
 
 import StatusNotice from './StatusNotice'
 
-import {useState,useTransition} from 'react'
+import {useRef,useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {transactionBorder} from '@/lib/transaction-confirmation'
 import {requestWarehouseReplenishment} from '@/lib/actions'
@@ -28,6 +28,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
   const [completed,setCompleted]=useState(false)
   const [error,setError]=useState('')
   const [pending,start]=useTransition()
+  const submitting=useRef(false)
   const router=useRouter()
   const unit=products.find(p=>p.id===product)?.unit??'ea'
   const availablePacks=packages.filter(p=>p.product_id===product&&Number(p.units_per_package)>0)
@@ -42,7 +43,8 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
   const ready=Boolean(warehouse&&van&&product&&valid&&reference.trim())
   function changed(){setCompleted(false);setMessage('');setError('')}
   function submit(){
-    if(!ready||pending||completed)return
+    if(!ready||pending||completed||submitting.current)return
+    submitting.current=true
     setError('');setMessage('')
     start(async()=>{
       try{
@@ -54,6 +56,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
           router.refresh()
         }
       }catch{setError('Could not submit request. Please retry.')}
+      finally{submitting.current=false}
     })
   }
   return <section className={'card mt-4 border-2 '+transactionBorder(completed?'success':error?'error':pending?'pending':shortage||ready?'ready':'idle')}>
