@@ -77,6 +77,7 @@ test('A10 cylinder register enforces company boundaries, serial uniqueness and i
   await t.test('returned cylinder has supplier location; cannot silently transfer stock via custody ledger',async()=>{
    await assert.rejects(create({cylinder_serial:'CYL-5',status:'returned',location_kind:'warehouse'}),/cylinder_status_location_valid/)
    await assert.rejects(create({cylinder_serial:'CYL-6',location_kind:'van',van_id:null,warehouse_id:null}),/cylinder_location_valid/)
+   await assert.rejects(create({cylinder_serial:'CYL-7',location_kind:'unknown',warehouse_id:null}),/cylinder_status_location_valid/)
    const tables=(await db.query("select tablename from pg_tables where schemaname='public' and tablename like '%cylinder%' order by tablename")).rows
    assert.deepEqual(tables.map(x=>x.tablename),['cylinder_custody','cylinder_custody_events'])
   })
