@@ -213,8 +213,10 @@ begin
  if not found or v_req.status<>'issued' then raise exception 'Only issued requests can be reported'; end if;
  if v_role<>'admin' and not (
   (v_role='manager' and public.vanstock_manager_has_permission('confirm_van_receipt')) or
-  exists(select 1 from public.profiles where id=v_actor and van_id=v_req.van_id) or
-  exists(select 1 from public.user_authorized_vans where user_id=v_actor and van_id=v_req.van_id)
+  (v_role='technician' and (
+    exists(select 1 from public.profiles where id=v_actor and van_id=v_req.van_id)
+    or exists(select 1 from public.user_authorized_vans where user_id=v_actor and van_id=v_req.van_id)
+  ))
  ) then raise exception 'Not authorised for the receiving van'; end if;
  if p_observed_quantity is null or p_observed_quantity<0 or p_observed_quantity>v_req.quantity then
   raise exception 'Reported quantity must be between zero and the issued quantity';
