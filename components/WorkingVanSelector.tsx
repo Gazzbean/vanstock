@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {usePathname,useSearchParams} from 'next/navigation'
 import {setWorkingVanSelection} from '@/lib/actions'
@@ -42,7 +43,7 @@ export default function WorkingVanSelector({vans,selectedId,defaultId}:{vans:{id
    {isAlternate&&<span className="text-xs font-medium text-orange-800">Alternate van selected</span>}
    {pending&&<span className="text-xs text-blue-800">Switching…</span>}
   </div>
-  {error&&<p className="text-xs text-red-700 mt-2" role="alert">{error}</p>}
+  {error&&<div className="mt-3"><StatusNotice tone="error" title="Working Van not changed">{error}</StatusNotice></div>}
   <p className="text-xs text-gray-600 mt-2">Your Working Van stays selected across pages until you change it or sign out. This does not transfer stock or change your default van. Transactions record your login and the selected van.</p>
  </section>
 }

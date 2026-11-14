@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {saveVehicle,deactivateVehicle,reactivateVehicle} from '@/lib/actions'
@@ -11,12 +12,13 @@ export default function VehicleRegisterPanel({vans,canEdit}:{vans:Vehicle[];canE
   const [editing,setEditing]=useState<string|null>(null)
   const [form,setForm]=useState<Form>(blank)
   const [message,setMessage]=useState('')
+  const [messageError,setMessageError]=useState(false)
   const [pending,start]=useTransition()
-  function begin(v?:Vehicle){setEditing(v?.id??'new');setForm(v?{van_number:v.van_number,registration:v.registration??'',make:v.make??'',model:v.model??'',colour:v.colour??'',fuel_type:v.fuel_type??''}:blank);setMessage('')}
-  function save(){start(async()=>{try{const result=await saveVehicle(editing==='new'?null:editing,form);if(result.error)setMessage(result.error);else{setMessage('Vehicle saved.');setEditing(null);router.refresh()}}catch{setMessage('Vehicle could not be saved.')}})}
+  function begin(v?:Vehicle){setEditing(v?.id??'new');setForm(v?{van_number:v.van_number,registration:v.registration??'',make:v.make??'',model:v.model??'',colour:v.colour??'',fuel_type:v.fuel_type??''}:blank);setMessage('');setMessageError(false)}
+  function save(){start(async()=>{try{const result=await saveVehicle(editing==='new'?null:editing,form);if(result.error){setMessageError(true);setMessage(result.error)}else{setMessageError(false);setMessage('Vehicle saved.');setEditing(null);router.refresh()}}catch{setMessageError(true);setMessage('Vehicle could not be saved.')}})}
   function deactivate(v:Vehicle){if(!window.confirm(`Deactivate ${v.van_number}? Historical transactions will remain available.`))return
-    start(async()=>{try{const result=await deactivateVehicle(v.id);setMessage(result.error??'Vehicle deactivated.');if(!result.error)router.refresh()}catch{setMessage('Vehicle could not be deactivated.')}})}
-  function reactivate(v:Vehicle){start(async()=>{try{const result=await reactivateVehicle(v.id);setMessage(result.error??'Vehicle reactivated.');if(!result.error)router.refresh()}catch{setMessage('Vehicle could not be reactivated.')}})}
+    start(async()=>{try{const result=await deactivateVehicle(v.id);setMessageError(Boolean(result.error));setMessage(result.error??'Vehicle deactivated.');if(!result.error)router.refresh()}catch{setMessageError(true);setMessage('Vehicle could not be deactivated.')}})}
+  function reactivate(v:Vehicle){start(async()=>{try{const result=await reactivateVehicle(v.id);setMessageError(Boolean(result.error));setMessage(result.error??'Vehicle reactivated.');if(!result.error)router.refresh()}catch{setMessageError(true);setMessage('Vehicle could not be reactivated.')}})}
   return <section className="card mt-4">
     <div className="flex items-center justify-between gap-2 mb-2"><h2 className="text-sm font-semibold">Vehicle register</h2>{canEdit&&<button type="button" className="btn btn-primary" onClick={()=>begin()}>+ Add vehicle</button>}</div>
     <p className="text-xs text-gray-600 mb-3">Vehicle details identify stock locations. Deactivation preserves history and is blocked until stock and assignments are cleared.</p>
@@ -27,6 +29,6 @@ export default function VehicleRegisterPanel({vans,canEdit}:{vans:Vehicle[];canE
         <label className="form-label">Fuel type<select className="form-input mt-1" value={form.fuel_type} onChange={e=>setForm(f=>({...f,fuel_type:e.target.value}))}><option value="">Not specified</option>{['diesel','petrol','hybrid','electric','lpg','other'].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div>
       <div className="flex gap-2"><button type="button" className="btn btn-primary" disabled={pending||!form.van_number.trim()} onClick={save}>{pending?'Saving…':'Save vehicle'}</button><button type="button" className="btn" disabled={pending} onClick={()=>setEditing(null)}>Cancel</button></div>
     </div>}
-    {message&&<p role="status" className="text-xs mt-2">{message}</p>}
+    {message&&<div className="mt-3"><StatusNotice tone={messageError?'error':'success'} title={messageError?'Vehicle update failed':'Vehicle register updated'}>{message}</StatusNotice></div>}
   </section>
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import StatusNotice from './StatusNotice'
+
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {transactionBorder} from '@/lib/transaction-confirmation'
@@ -84,7 +86,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
       <p className="text-sm text-amber-900 mt-1">{stockQty.toLocaleString('en-AU')} {unit} of {products.find(p=>p.id===product)?.name??'selected product'} → {vans.find(v=>v.id===van)?.van_number??'selected van'} · Reference: {reference.trim()}</p>
       <p className="text-xs text-amber-900 mt-1">{shortage?'Warehouse stock is insufficient; the request can be submitted but cannot be issued until stock is received.':'Submitting sends the request for warehouse review. No stock will move yet.'}</p>
     </div>}
-    {error&&<p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
+    {error&&<div className="mt-3"><StatusNotice tone="error" title="Request not submitted">{error}</StatusNotice></div>}
     {message&&<p role="status" className="alert alert-success mt-3">{message}</p>}
     <button type="button" className="btn btn-primary mt-3" disabled={!ready||pending||completed} onClick={submit}>{completed?'Request submitted':pending?'Submitting…':'Submit request'}</button>
   </section>

@@ -128,10 +128,10 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
    </div>
   </section>
 
-  <section className={'card space-y-3 border-2 '+(valid?'border-green-500':'border-gray-200')}>
+  <section className={'card space-y-3 border-2 '+(valid?'border-amber-500':'border-gray-200')}>
    <div className="flex items-center justify-between gap-2 flex-wrap">
     <h2 className="text-base font-semibold">B. Transfer details</h2>
-    {valid&&<span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">✓ Complete</span>}
+    {valid&&<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Ready to review</span>}
    </div>
    <p className="text-sm text-gray-600">Choose the source and receiving vans. The transfer is requested first; no stock moves until the receiving van confirms it.</p>
    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -143,16 +143,16 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Stock units to transfer</p><p className="text-lg font-semibold">{validAmount&&(mode==='loose'||chosenPack)?stockQty.toLocaleString('en-AU'):'—'} {unit}</p><p className="text-xs text-gray-500">Available: {product?sourceBalance+' '+unit:'Select a product'}</p>{validAmount&&stockQty>sourceBalance&&<p className="text-xs font-semibold text-red-700">Insufficient source van stock</p>}</div>
     <div className="md:col-span-2"><label className="form-label" htmlFor="vt-reason">Reason / job reference (required) *</label><input id="vt-reason" className="form-input" maxLength={350} value={reason} onChange={e=>{setReason(e.target.value);changed()}} placeholder="e.g. Parts needed on Van #4 for job 12345"/></div>
    </div>
-   {valid&&!requestReady&&<div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2" role="status">
-    <p className="text-sm font-semibold text-green-900">✓ Transfer details complete</p>
-    <p className="text-sm text-green-800">Continue to <strong>C. Review and confirm</strong> to check both vans and the stock quantity.</p>
+   {valid&&!requestReady&&<div className="rounded-lg border border-amber-400 bg-amber-50 p-4 space-y-2" role="status">
+    <p className="text-sm font-semibold text-amber-950">Transfer details ready for review — not submitted</p>
+    <p className="text-sm text-amber-900">Continue to <strong>C. Review and confirm</strong> to check both vans and the stock quantity.</p>
     <button type="button" className="btn btn-primary" disabled={pending} onClick={continueToReview}>Continue to Review ↓</button>
-    <p className="text-xs text-green-800">This button only opens the review. No request is submitted and no stock moves.</p>
+    <p className="text-xs text-amber-900">This button only opens the review. No request is submitted and no stock moves.</p>
    </div>}
   </section>
 
-  <section ref={requestReviewRef} tabIndex={-1} aria-label="Review transfer request" className={'card space-y-3 border-2 scroll-mt-4 focus:outline-none '+(requestReady?'border-green-500':valid?'border-amber-500':'border-gray-200')+(reviewHighlighted&&!requestReady?' ring-2 ring-amber-300':'')}>
-   <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">C. Review and confirm request</h2><span className={'rounded-full px-3 py-1 text-xs font-semibold '+(requestReady?'bg-green-100 text-green-800':valid?'bg-amber-100 text-amber-900':'bg-gray-100 text-gray-600')}>{requestReady?'Stage 2 — Ready to submit':valid?'Stage 1 — Review (not submitted)':'Awaiting transfer details'}</span></div>
+  <section ref={requestReviewRef} tabIndex={-1} aria-label="Review transfer request" className={'card space-y-3 border-2 scroll-mt-4 focus:outline-none '+((requestReady||valid)?'border-amber-500':'border-gray-200')+(reviewHighlighted&&!requestReady?' ring-2 ring-amber-300':'')}>
+   <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">C. Review and confirm request</h2><span className={'rounded-full px-3 py-1 text-xs font-semibold '+((requestReady||valid)?'bg-amber-100 text-amber-900':'bg-gray-100 text-gray-600')}>{requestReady?'Stage 2 — Ready to submit':valid?'Stage 1 — Review (not submitted)':'Awaiting transfer details'}</span></div>
    <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-2"><p className="text-xs text-gray-500">Stock quantity to transfer</p><p className="text-2xl font-semibold">{valid?stockQty.toLocaleString('en-AU'):'—'} <span className="text-base font-normal">{unit}</span></p><p className="text-sm">{vanName(source)} → {destination?vanName(destination):'Choose receiving van'} · {productName(product)}</p>{mode==='pack'&&chosenPack&&<p className="text-xs text-gray-600">{amountNumber} packs × {chosenPack.units_per_package} {unit} per {chosenPack.purchase_unit}</p>}<div className="border-t border-gray-200 pt-2 text-sm text-gray-600">Current source balance: {product?sourceBalance+' '+unit:'—'} · Expected after approval: {valid?(sourceBalance-stockQty)+' '+unit:'—'}</div></div>
    {requestReady&&valid?<div ref={requestFinalRef} tabIndex={-1} className="rounded-lg border-2 border-amber-400 bg-amber-50 p-4 space-y-3 focus:outline-none focus:ring-2 focus:ring-amber-500">
     <p className="font-bold text-amber-950">⚠️ Stage 2 — Action required: request not yet submitted</p>
@@ -169,7 +169,7 @@ export default function VanTransferWorkflow({vans,sources,products,packages,bala
      const canDecide=receiver||managed
      const needsReason=!receiver&&managed
      const reviewing=reviewDecision?.id===r.id
-     return <div key={r.id} id={`van-transfer-${r.id}`} className={'scroll-mt-5 rounded-lg border-2 p-3 space-y-2 '+(reviewing?'border-green-500 bg-green-50':'border-amber-400 bg-amber-50')}>
+     return <div key={r.id} id={`van-transfer-${r.id}`} className={'scroll-mt-5 rounded-lg border-2 p-3 space-y-2 '+(reviewing?'border-amber-500 bg-amber-50':'border-amber-400 bg-amber-50')}>
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">{vanName(r.source_van_id)} → {vanName(r.destination_van_id)} · {r.quantity} {products.find(p=>p.id===r.product_id)?.stock_unit??'ea'} {productName(r.product_id)}</p><span className="rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-xs font-semibold">{reviewing?'Stage 2 — Confirm decision':'Stage 1 — Pending approval'}</span></div>
       <p className="text-sm text-gray-700">Reason: {r.reason}</p>
       <p className="text-xs text-amber-900">Awaiting receiving-van confirmation. Neither balance has changed.</p>

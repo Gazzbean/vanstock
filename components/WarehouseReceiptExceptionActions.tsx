@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {useRouter} from 'next/navigation'
 import {reportWarehouseReceiptDiscrepancy,resolveWarehouseReceiptDiscrepancy} from '@/lib/actions'
@@ -46,7 +47,7 @@ export default function WarehouseReceiptExceptionActions({requestId,quantity,uni
    <textarea id={`reason-${requestId}`} className="form-input w-full" value={reason} onChange={e=>setReason(e.target.value)} rows={2}/>
    <button type="button" className="btn btn-primary min-h-11" disabled={pending||reason.trim().length<5||count.trim()===''||!Number.isFinite(Number(count))||Number(count)<0||Number(count)>quantity} onClick={report}>Submit discrepancy — hold receipt</button>
    <button type="button" className="btn min-h-11 ml-2" onClick={()=>setOpen(false)}>Cancel</button>
-  </div>}</>:discrepancy?.resolved_at?<p className="text-green-700">Discrepancy reconciled. Final receipt can now be confirmed.</p>:null}
-  {error&&<p role="alert" className="text-red-700 mt-2">{error}</p>}
+  </div>}</>:discrepancy?.resolved_at?<StatusNotice tone="success" title="Discrepancy reconciled">Final receipt can now be confirmed.</StatusNotice>:null}
+  {error&&<div className="mt-3"><StatusNotice tone="error" title="Warehouse discrepancy action failed">{error}</StatusNotice></div>}
  </div>
 }

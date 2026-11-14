@@ -1,5 +1,6 @@
 'use client'
 
+import StatusNotice from './StatusNotice'
 import { useState, useTransition } from 'react'
 import { postWarehouseOpeningStock } from '@/lib/actions'
 
@@ -99,9 +100,9 @@ export default function WarehouseOpeningStockForm({
           <p className="text-xs text-gray-500 mt-1">A unique STK number is generated automatically on posting.</p>
         </div>
       </div>
-      {hasBalance && <p className="text-sm text-amber-700 mt-3">A balance already exists for this product; opening stock cannot overwrite it.</p>}
-      {error && <p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
-      {success && <p role="status" className="text-sm text-green-700 mt-3">{success}</p>}
+      {hasBalance && <div className="mt-3"><StatusNotice tone="warning" title="Opening stock already recorded">A balance already exists for this product; opening stock cannot overwrite it.</StatusNotice></div>}
+      {error && <div className="mt-3"><StatusNotice tone="error" title="Opening stock not posted">{error}</StatusNotice></div>}
+      {success && <div className="mt-3"><StatusNotice tone="success" title="Opening stock posted">{success}</StatusNotice></div>}
       <button type="button" className="btn btn-primary mt-4"
         disabled={!enabled || pending || !valid} onClick={submit}>
         {pending ? 'Posting…' : enabled ? 'Post opening stock' : 'Opening stock posting — not yet enabled'}

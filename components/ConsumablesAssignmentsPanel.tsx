@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {assignProductConsumablesGroup} from '@/lib/actions'
 
@@ -15,18 +16,19 @@ export default function ConsumablesAssignmentsPanel({products,groups,assignments
  const [groupId,setGroupId]=useState(assigned)
  const [pending,start]=useTransition()
  const [result,setResult]=useState('')
+ const [resultError,setResultError]=useState(false)
  const product=active.find(p=>p.id===productId)
  const available=groups.filter(g=>g.unit===(product?.stock_unit??'ea'))
  const selected=groups.find(g=>g.id===groupId)
- function pick(id:string){setProductId(id);setGroupId(mapped.find(x=>x.product_id===id)?.group_id??'');setResult('')}
+ function pick(id:string){setProductId(id);setGroupId(mapped.find(x=>x.product_id===id)?.group_id??'');setResult('');setResultError(false)}
  function save(){
-  setResult('')
+  setResult('');setResultError(false)
   start(async()=>{
    try{const r=await assignProductConsumablesGroup(productId,groupId)
-    if(r.error){setResult(r.error);return}
+    if(r.error){setResultError(true);setResult(r.error);return}
     setMapped(rows=>[...rows.filter(x=>x.product_id!==productId),{product_id:productId,group_id:groupId}])
     setResult('Consumables group assigned. No stock was changed.')
-   }catch{setResult('Update could not be confirmed. Refresh before retrying.')}
+   }catch{setResultError(true);setResult('Update could not be confirmed. Refresh before retrying.')}
   })
  }
  return <section className="card mt-4">
@@ -45,7 +47,7 @@ export default function ConsumablesAssignmentsPanel({products,groups,assignments
    <div className="flex items-end"><button className="btn btn-primary" type="button" disabled={!groupId||pending} onClick={save}>{pending?'Saving…':'Assign group'}</button></div>
   </div>
   {selected&&<p className="text-xs text-gray-600 mt-2">Usage selections: {[selected.quick_1,selected.quick_2,selected.quick_3,selected.quick_4].join(' / ')} {selected.unit}</p>}
-  {result&&<p role="status" className="text-sm mt-3">{result}</p>}
-  <p className="text-xs text-amber-700 mt-2">Sample configuration only. Do not reclassify cylinder or other stocked items as consumables merely to trial this screen.</p>
+  {result&&<div className="mt-3"><StatusNotice tone={resultError?'error':'success'} title={resultError?'Consumables group not assigned':'Consumables group assigned'}>{result}</StatusNotice></div>}
+  <div className="mt-3"><StatusNotice tone="warning" title="Use test products only">Sample configuration only. Do not reclassify cylinders or other stocked items as consumables merely to trial this screen.</StatusNotice></div>
  </section>
 }

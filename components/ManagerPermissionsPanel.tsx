@@ -1,5 +1,6 @@
 'use client'
 
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {saveManagerOperationPermissions} from '@/lib/actions'
 
@@ -30,10 +31,11 @@ export default function ManagerPermissionsPanel({managers,initialGrants}:{manage
  const [draft,setDraft]=useState<Grants>(()=>cleanGrants(initialGrants.find(x=>x.user_id===managers[0]?.id)))
  const [pending,start]=useTransition()
  const [message,setMessage]=useState('')
- function choose(id:string){setSelected(id);setDraft(cleanGrants(rows.find(x=>x.user_id===id)));setMessage('')}
- function save(){setMessage('');start(async()=>{
+ const [messageError,setMessageError]=useState(false)
+ function choose(id:string){setSelected(id);setDraft(cleanGrants(rows.find(x=>x.user_id===id)));setMessage('');setMessageError(false)}
+ function save(){setMessage('');setMessageError(false);start(async()=>{
   const result=await saveManagerOperationPermissions(selected,cleanGrants(draft))
-  if(result.error){setMessage(result.error);return}
+  if(result.error){setMessageError(true);setMessage(result.error);return}
   setRows(old=>[...old.filter(x=>x.user_id!==selected),{user_id:selected,...draft}])
   setMessage('Manager permission settings saved and audited.')
  })}
@@ -44,7 +46,7 @@ export default function ManagerPermissionsPanel({managers,initialGrants}:{manage
    <label className="form-label" htmlFor="manager-permission-user">Manager</label>
    <select className="form-input max-w-lg mb-3" id="manager-permission-user" value={selected} onChange={e=>choose(e.target.value)}>{managers.map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}</select>
    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{fields.map(f=><label key={f.key} className="flex items-start gap-2 text-sm border-b pb-2"><input type="checkbox" checked={draft[f.key]} onChange={e=>setDraft(old=>({...old,[f.key]:e.target.checked}))} />{f.label}</label>)}</div>
-   {message&&<p role="status" className="text-sm mt-3">{message}</p>}
+   {message&&<div className="mt-3"><StatusNotice tone={messageError?'error':'success'} title={messageError?'Manager permissions not saved':'Manager permissions saved'}>{message}</StatusNotice></div>}
    <button type="button" className="btn btn-primary min-h-11 mt-3" disabled={pending} onClick={save}>{pending?'Saving…':'Save Manager permissions'}</button>
   </>}
  </section>

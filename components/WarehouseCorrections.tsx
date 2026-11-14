@@ -1,5 +1,6 @@
 'use client'
 
+import StatusNotice from './StatusNotice'
 import { useState, useTransition } from 'react'
 import { adjustWarehouseStock, returnVanStockToWarehouse } from '@/lib/actions'
 
@@ -136,8 +137,8 @@ export default function WarehouseCorrections({
       {mode === 'adjust' && warehouseId && availableProducts.length === 0 && (
         <p className="text-xs text-amber-700 mt-3">No opening balances exist in this warehouse. Use Opening warehouse stocktake first.</p>
       )}
-      {error && <p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
-      {success && <p role="status" className="text-sm text-green-700 mt-3">{success}</p>}
+      {error && <div className="mt-3"><StatusNotice tone="error" title="Warehouse movement not confirmed">{error}</StatusNotice></div>}
+      {success && <div className="mt-3"><StatusNotice tone="success" title="Warehouse movement recorded">{success}</StatusNotice></div>}
       <button className="btn btn-primary mt-4" type="button"
         disabled={!valid || pending} onClick={submit}>
         {pending ? 'Recording…' : mode === 'return' ? 'Confirm warehouse return' : 'Record adjustment'}

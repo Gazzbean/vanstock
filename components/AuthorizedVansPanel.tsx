@@ -1,4 +1,5 @@
 'use client'
+import StatusNotice from './StatusNotice'
 import {useState,useTransition} from 'react'
 import {saveUserVanAssignments} from '@/lib/actions'
 type User={id:string;full_name:string;initials:string|null;van_id:string|null}
@@ -10,19 +11,20 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
  const [drafts,setDrafts]=useState<Record<string,{allowed:string[];defaultId:string}>>({})
  const [pending,start]=useTransition()
  const [message,setMessage]=useState('')
+ const [messageError,setMessageError]=useState(false)
  const user=users.find(x=>x.id===selected)
  const allowed=drafts[selected]?.allowed??current.filter(r=>r.user_id===selected).map(r=>r.van_id)
  const defaultId=drafts[selected]?.defaultId??user?.van_id??''
- function change(next:string[],defaultValue:string){setDrafts(d=>({...d,[selected]:{allowed:next,defaultId:defaultValue}}));setMessage('')}
+ function change(next:string[],defaultValue:string){setDrafts(d=>({...d,[selected]:{allowed:next,defaultId:defaultValue}}));setMessage('');setMessageError(false)}
  function save(){
   if(!user)return
   start(async()=>{
    try{
     const r=await saveUserVanAssignments(user.id,allowed,defaultId||null)
-    if(r.error){setMessage(r.error);return}
+    if(r.error){setMessageError(true);setMessage(r.error);return}
     setCurrent(old=>[...old.filter(x=>x.user_id!==selected),...allowed.map(van_id=>({van_id,user_id:selected}))])
-    setMessage('Van permissions and default saved. Select a working van on the stock screen to use it.')
-   }catch{setMessage('Could not save van permissions.')}
+    setMessageError(false);setMessage('Van permissions and default saved. Select a working van on the stock screen to use it.')
+   }catch{setMessageError(true);setMessage('Could not save van permissions.')}
   })
  }
  return <section className="card mt-4">
@@ -30,7 +32,7 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
   <p className="text-xs text-gray-600 mb-3">Choose which vehicles a technician may work on. Apprentices can have multiple authorised vans and no default. Changing the working van later does not transfer any stock.</p>
   <div className="max-w-xl space-y-3">
    <div><label className="form-label" htmlFor="assignment-staff">Staff member</label>
-    <select id="assignment-staff" className="form-input" value={selected} onChange={e=>{setSelected(e.target.value);setMessage('')}}>{users.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.initials??'—'})</option>)}</select></div>
+    <select id="assignment-staff" className="form-input" value={selected} onChange={e=>{setSelected(e.target.value);setMessage('');setMessageError(false)}}>{users.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.initials??'—'})</option>)}</select></div>
    <div><label className="form-label">Authorised service vans</label>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
      {vans.map(v=><label key={v.id} className="text-sm flex items-center gap-2">
@@ -47,7 +49,7 @@ export default function AuthorizedVansPanel({users,vans,initial,canEdit}:{users:
     </select>
    </div>
    {canEdit&&<button type="button" className="btn btn-primary" onClick={save} disabled={pending||!user}>{pending?'Saving…':'Save van assignments'}</button>}
-   {message&&<p role="status" className="text-xs text-gray-700">{message}</p>}
+   {message&&<StatusNotice tone={messageError?'error':'success'} title={messageError?'Van assignments not saved':'Van assignments saved'}>{message}</StatusNotice>}
   </div>
  </section>
 }
