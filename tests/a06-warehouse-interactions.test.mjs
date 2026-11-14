@@ -27,7 +27,7 @@ test('A06 Van return: disabled renders no controls, enabled requires explicit so
  tree=h.render({...props,enabled:true})
  assert.match(tree.props.className,/border-amber-500/)
  assert.match(textOf(tree),/Ready to confirm — review return/)
- assert.match(textOf(tree),/Van 2 → Main Warehouse: 2 ea/)
+ assert.match(textOf(tree),/Van 2\s*→\s*Main Warehouse\s*:\s*2\s+ea/)
  assert.equal(button(tree,'Confirm warehouse return').props.disabled,false)
  const submit=button(tree,'Confirm warehouse return')
  submit.props.onClick()
