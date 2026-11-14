@@ -186,3 +186,65 @@ test('A06 request queue: rapid duplicate approval is ignored; status and audit f
  assert.equal(nodes(tree).filter(x=>x.type==='button'&&textOf(x)==='Approve').length,0)
  assert.equal(h.refreshCount,1)
 })
+
+
+test('A06 van receipt queue: amber review, one confirmed receiving action, success feedback',async()=>{
+ let calls=0
+ const saved=deferred()
+ const request={
+  id:'q2',warehouse_id:'w1',van_id:'v1',product_id:'p1',quantity:2,reference:'REF-ISSUED',
+  status:'issued',created_at:'2026-11-14T03:00:00Z',
+  requested_by_label:'Technician',reviewed_by_label:'Manager',reviewed_at:'2026-11-14T04:00:00Z',
+  rejection_reason:null,fulfilled_by_label:'—',issued_by_label:'Warehouse',
+  received_by_label:'—',discrepancy:null
+ }
+ const props={requests:[request],warehouses,vans,products,canManage:true,canApprove:true,
+  canIssue:true,canReceive:true,writesEnabled:true,balances:[]}
+ const h=await createHarness('components/WarehouseRequestQueue.tsx',{
+  confirmWarehouseReceipt:async id=>{calls++;assert.equal(id,'q2');return saved.promise}
+ })
+ let tree=h.render(props)
+ button(tree,'Review receiving confirmation').props.onClick()
+ tree=h.render(props)
+ assert.match(textOf(tree),/Confirm 2 ea received into Van 1/)
+ assert.ok(nodes(tree).some(x=>typeof x.props?.className==='string'&&x.props.className.includes('border-amber-500')))
+ const confirm=button(tree,'Confirm received & move stock')
+ confirm.props.onClick();confirm.props.onClick()
+ await Promise.resolve()
+ assert.equal(calls,1)
+ saved.resolve({success:true})
+ await h.flush()
+ tree=h.render(props)
+ assert.match(textOf(tree),/Receipt confirmed. Warehouse and van balances have been updated/)
+ assert.equal(nodes(tree).filter(x=>x.type==='button'&&textOf(x)==='Confirm received & move stock').length,0)
+ assert.equal(h.refreshCount,1)
+})
+
+test('A06 opening stock: amber count ready, synchronous double-submit guard and green completion',async()=>{
+ let calls=0
+ const saved=deferred()
+ const props={warehouses,products,balances:[],enabled:true}
+ const h=await createHarness('components/WarehouseOpeningStockForm.tsx',{
+  postWarehouseOpeningStock:async(...args)=>{calls++;assert.deepEqual(Array.from(args),['w1','p1',8,'STK-001']);return saved.promise}
+ })
+ let tree=h.render({...props,enabled:false})
+ assert.equal(button(tree,'Opening stock posting — not yet enabled').props.disabled,true)
+ tree=h.render(props)
+ assert.equal(button(tree,'Post opening stock').props.disabled,true)
+ change(tree,'opening-warehouse','w1')
+ change(tree,'opening-product','p1')
+ change(tree,'opening-count','8')
+ change(tree,'opening-reference','STK-001')
+ tree=h.render(props)
+ assert.match(tree.props.className,/border-amber-500/)
+ const submit=button(tree,'Post opening stock')
+ submit.props.onClick();submit.props.onClick()
+ await Promise.resolve()
+ assert.equal(calls,1)
+ saved.resolve({success:true})
+ await h.flush()
+ tree=h.render(props)
+ assert.match(tree.props.className,/border-green-600/)
+ assert.match(textOf(tree),/Opening stock posted/)
+ assert.equal(button(tree,'Opening stock recorded').props.disabled,true)
+})
