@@ -54,7 +54,7 @@ create table public.cylinder_custody (
   or (location_kind in ('supplier','unknown') and warehouse_id is null and van_id is null and site_reference is null)
  ),
  constraint cylinder_status_location_valid check(
-  (status in ('in_custody','return_pending') and location_kind in ('warehouse','van','customer_site','unknown'))
+  (status in ('in_custody','return_pending') and location_kind in ('warehouse','van','customer_site'))
   or (status='returned' and location_kind='supplier' and supplier_id is not null)
   or (status='unaccounted' and location_kind='unknown')
  )
