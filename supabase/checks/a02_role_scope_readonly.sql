@@ -25,6 +25,10 @@ select set_config('request.jwt.claim.sub',(
 ),true);
 set local role authenticated;
 select
+  (select count(*) from public.vans) as visible_vans,
+  (select count(*) from public.vans v where v.id in (select van_id from public.user_authorized_vans)) as authorised_vans,
+  (select count(*) from public.vans)=
+  (select count(*) from public.vans v where v.id in (select van_id from public.user_authorized_vans)) as vans_scope_pass,
   (select count(*) from public.stock) as visible_stock,
   (select count(*) from public.stock s
     where s.van_id in (select van_id from public.user_authorized_vans)) as authorised_stock,

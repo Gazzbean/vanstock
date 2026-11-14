@@ -23,7 +23,20 @@ drop policy if exists "vans company" on public.vans;
 drop policy if exists "vans company read" on public.vans;
 create policy "vans company read" on public.vans
   for select to authenticated
-  using (company_id=(select public.my_company_id()));
+  using (
+    exists (
+      select 1 from public.profiles p
+      left join public.user_access_capabilities c on c.user_id=p.id and c.company_id=p.company_id
+      where p.id=(select auth.uid()) and p.company_id=vans.company_id and p.is_active is true
+        and (
+          p.role='admin' or coalesce(c.office_access,false)
+          or (coalesce(c.technician_access,false) and exists (
+            select 1 from public.user_authorized_vans av
+            where av.user_id=p.id and av.company_id=p.company_id and av.van_id=vans.id
+          ))
+        )
+    )
+  );
 
 drop policy if exists "products write manager" on public.products;
 -- Product changes go through permission-checked server actions.
