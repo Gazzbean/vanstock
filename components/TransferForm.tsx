@@ -117,7 +117,7 @@ export default function TransferForm({products,stockItems,selectedVanId,selected
     </>}
     {ready&&!completed&&!pending&&!error&&<div className="mt-3 rounded-lg border-2 border-amber-500 bg-amber-50 p-3" role="status">
       <p className="text-sm font-semibold text-amber-900">Ready to confirm — review VanStock deduction</p>
-      <p className="text-xs text-amber-900">Job {job.trim()} · {selectedVanNumber} · {mode==='allocated'?'Allocated on site':'Used on job'} · {[...totals.values()].reduce((a,b)=>a+b,0)} total item quantities across {totals.size} material lines</p>
+      <p className="text-xs text-amber-900">Job {job.trim()} · {selectedVanNumber} · {mode==='allocated'?'Allocated on site':'Used on job'} · {[...totals].map(([id,q])=>`${q} ${unit(id)} ${products.find(p=>p.id===id)?.name??'material'}`).join(' · ')}</p>
       <p className="text-xs text-amber-900 mt-1">No ServiceM8 billing entry or invoice item will be created.</p>
     </div>}
     <button className="btn btn-primary w-full justify-center mt-3" disabled={!ready||pending||completed} onClick={submit}>{completed?'Recorded in VanStock':pending?'Recording…':mode==='used'?'Record Materials Used':'Allocate Materials to Job'}</button>
