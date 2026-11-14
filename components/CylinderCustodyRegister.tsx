@@ -14,7 +14,8 @@ type Row=Omit<CylinderInput,'nominal_capacity_kg'|'supplier_id'|'warehouse_id'|'
  rent_free_until:string|null;return_due_on:string|null;rental_review_on:string|null;
  rental_terms_reference:string|null;cylinder_test_due_on:string|null;last_leak_check_on:string|null;
  notes:string|null;audit_reference:string}
-type Props={records:Row[];suppliers:Option[];warehouses:Option[];vans:Option[];canEdit:boolean;perthDay:string}
+type CustodyEvent={id:string;cylinder_id:string;event_kind:string;audit_reference:string;actor_name:string;occurred_at:string;serial:string;status:string}
+type Props={records:Row[];events:CustodyEvent[];suppliers:Option[];warehouses:Option[];vans:Option[];canEdit:boolean;perthDay:string}
 const empty=():CylinderInput=>({
  cylinder_serial:'',gas_label:'',nominal_capacity_kg:'',
  ownership:'' as CylinderOwner,supplier_id:'',received_on:'',
@@ -29,7 +30,7 @@ const pretty=(s:string)=>s.replaceAll('_',' ')
 const opts=(xs:Option[],label:(o:Option)=>string)=>
  xs.map(x=><option key={x.id} value={x.id}>{label(x)}</option>)
 
-export default function CylinderCustodyRegister({records,suppliers,warehouses,vans,canEdit,perthDay}:Props){
+export default function CylinderCustodyRegister({records,events,suppliers,warehouses,vans,canEdit,perthDay}:Props){
  const router=useRouter()
  const [editing,setEditing]=useState(false)
  const [form,setForm]=useState<CylinderInput>(empty())
@@ -123,6 +124,18 @@ export default function CylinderCustodyRegister({records,suppliers,warehouses,va
     </table>
    </div>}
   </section>
+  {events.length>0&&<section className="card">
+   <h2 className="text-sm font-semibold mb-2">Recent cylinder custody history</h2>
+   <p className="text-xs text-gray-500 mb-2">Last 100 audit events are shown; earlier entries remain retained in the database.</p>
+   <div className="overflow-x-auto"><table className="w-full">
+    <thead><tr>{['Date / time','Serial','Event','Staff','Reference'].map(h=><th key={h} className="table-header">{h}</th>)}</tr></thead>
+    <tbody>{events.map(x=><tr key={x.id} className="border-t">
+     <td className="table-cell text-xs">{new Date(x.occurred_at).toLocaleString('en-AU',{timeZone:'Australia/Perth'})}</td>
+     <td className="table-cell text-sm">{x.serial}</td><td className="table-cell text-sm">{pretty(x.event_kind)} / {pretty(x.status)}</td>
+     <td className="table-cell text-sm">{x.actor_name}</td><td className="table-cell text-sm">{x.audit_reference}</td>
+    </tr>)}</tbody>
+   </table></div>
+  </section>}
   {canEdit&&editing&&<section id="cylinder-form" className={'card border-2 '+transactionBorder(completed?'success':error?'error':pending?'pending':canSave?'ready':'idle')}>
    <div className="flex justify-between gap-2"><h2 className="font-semibold text-sm">{form.id?'Update custody / hire terms':'Register physical cylinder'}</h2>
     <button type="button" className="text-sm text-blue-700 underline" onClick={()=>setEditing(false)}>Close</button></div>
