@@ -1,3 +1,5 @@
+> **Superseded planning notes — 14 November 2026:** This 30 October staged procedure contains historical claims that are not current (including integer-only stock quantities, uninstalled RPCs, and the warehouse release switch). For live reconciliation and first-release sign-off, use [A08 — Physical stocktake, reconciliation and cutover controls](./A08-physical-stocktake-reconciliation.md). Do not post a warehouse opening entry over an existing balance or assume this document establishes count approval.
+
 # VanStock — Opening warehouse stock procedure (draft, not commissioned)
 
 **Purpose.** Establish a reliable opening warehouse inventory without changing existing van stock.
