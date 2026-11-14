@@ -988,10 +988,13 @@ export async function getWarehouseRequestBalances() {
   if(locationError)throw new Error('Could not read warehouse locations')
   if(!locations?.length)return []
   const {data,error}=await db.from('warehouse_stock')
-    .select('warehouse_id,product_id,quantity')
+    .select('warehouse_id,product_id,quantity,committed_quantity')
     .in('warehouse_id',locations.map(w=>w.id))
   if(error)throw new Error('Could not read warehouse stock availability: '+error.message)
-  return data??[]
+  return (data??[]).map(row=>({
+    warehouse_id:row.warehouse_id,product_id:row.product_id,
+    quantity:Math.round((Number(row.quantity)-Number(row.committed_quantity))*100)/100,
+  }))
 }
 
 export async function getWarehouseRequestPackages() {
@@ -1153,7 +1156,7 @@ export async function getWarehouseOverview() {
 
   const { data: balances, error: balanceError } = await db
     .from('warehouse_stock')
-    .select('warehouse_id, product_id, quantity, product:products(name, category)')
+    .select('warehouse_id, product_id, quantity, committed_quantity, product:products(name, category)')
     .in('warehouse_id', warehouseIds)
     .order('product_id')
 
@@ -1165,6 +1168,8 @@ export async function getWarehouseOverview() {
       warehouse_id: item.warehouse_id,
       product_id: item.product_id,
       quantity: item.quantity,
+      committed_quantity: item.committed_quantity,
+      available_quantity: Math.round((Number(item.quantity)-Number(item.committed_quantity))*100)/100,
       product_name: (item.product as any)?.name ?? 'Unknown product',
       category: (item.product as any)?.category ?? 'Other',
     })),

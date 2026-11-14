@@ -35,7 +35,7 @@ export default async function WarehousePage() {
         const min=threshold?Number(threshold.min_quantity):null
         const target=threshold?Number(threshold.target_quantity):null
         return { ...item, unit:productUnits.get(item.product_id)??'ea',minimum:min,target,
-          status:min===null||min===0?'Not set':Number(item.quantity)<=min?'Reorder':target!==null&&Number(item.quantity)<target?'Below target':'OK' }
+          status:min===null||min===0?'Not set':Number(item.available_quantity)<=min?'Reorder':target!==null&&Number(item.available_quantity)<target?'Below target':'OK' }
       })
     return {
       id: warehouse.id,
@@ -62,7 +62,7 @@ export default async function WarehousePage() {
           </tr>)}</tbody></table></div>}
         </section>
         <div className="alert alert-info mb-4">
-          Warehouse quantities are shown by product and unit. Opening stock and replenishment are recorded with an audit reference.
+          Warehouse stock shows recorded quantity, committed stock already issued to vans, and available stock for new issues. Issued goods remain committed until receiving confirmation. Opening stock and replenishment are audited.
         </div>
         {overview.setupRequired ? (
           <div className="card">
@@ -101,7 +101,9 @@ export default async function WarehousePage() {
                         <tr>
                           <th className="table-header">Item</th>
                           <th className="table-header">Category</th>
-                          <th className="table-header">Quantity</th>
+                          <th className="table-header">Recorded</th>
+                          <th className="table-header">Committed</th>
+                          <th className="table-header">Available</th>
                           <th className="table-header">Warehouse min</th>
                           <th className="table-header">Target</th>
                           <th className="table-header">Status</th>
@@ -113,6 +115,8 @@ export default async function WarehousePage() {
                             <td className="table-cell font-medium">{row.product_name}</td>
                             <td className="table-cell">{row.category}</td>
                             <td className="table-cell">{row.quantity} {row.unit}</td>
+                            <td className="table-cell">{row.committed_quantity} {row.unit}</td>
+                            <td className="table-cell font-semibold">{row.available_quantity} {row.unit}</td>
                             <td className="table-cell">{row.minimum===null?'—':row.minimum+' '+row.unit}</td>
                             <td className="table-cell">{row.target===null?'—':row.target+' '+row.unit}</td>
                             <td className="table-cell">{row.status}</td>
@@ -131,13 +135,13 @@ export default async function WarehousePage() {
           vans={companyVans.map(v=>({id:v.id,van_number:v.van_number}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           canManage={rights.canManageRequests} canApprove={rights.canApproveRequests} canIssue={rights.canIssueRequests} canReceive={rights.canReceiveRequests} writesEnabled={writesEnabled}
-          balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.quantity}))}
+          balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.available_quantity}))}
         />}
         {(canManage||rights.canRequest) && !overview.setupRequired && <WarehouseRequestForm
           warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
           vans={companyVans} selectedVanId={companyVans[0]?.id??null}
-          balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.quantity}))}
+          balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.available_quantity}))}
           packages={packages}
         />}
         {rights.canReceive && <TechnicianWarehouseMovement
@@ -153,7 +157,7 @@ export default async function WarehousePage() {
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
           vans={(adminData?.vans??[]).map(v => ({ id: v.id, van_number: v.van_number }))}
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
-          balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity }))}
+          balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity,committed_quantity:i.committed_quantity }))}
         />
         <WarehouseOpeningStockForm
           enabled={writesEnabled}

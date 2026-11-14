@@ -42,7 +42,7 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       try{
         const result=await processWarehouseRequest(id,action)
         if(result.error)setError(result.error)
-        else{setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`]);setSuccess(action==='approve'?'Request approved. No stock has moved.':'Warehouse issue recorded. Awaiting receiving-van confirmation; stock has not moved.');router.refresh()}
+        else{setCompleted(prev=>[...prev,`${id}:${requests.find(r=>r.id===id)?.status??''}`]);setSuccess(action==='approve'?'Request approved. No stock has moved.':'Warehouse issue recorded. Quantity is committed and unavailable for another issue. Awaiting receiving-van confirmation; recorded balances have not moved.');router.refresh()}
       }catch{setError('Request could not be processed. Refresh before retrying.')}
     })
   }
@@ -101,12 +101,12 @@ export default function WarehouseRequestQueue({requests,warehouses,vans,products
       <WorkflowHelp title="Warehouse replenishment · 4 stages" href="/help#replenishment" steps={[
         'Request — a technician requests stock for the receiving van.',
         'Approve — an authorised person reviews and approves the request.',
-        'Issue — warehouse personnel physically issue the goods and record the issue; balances do not change yet.',
+        'Issue — warehouse personnel physically issue the goods. The quantity is committed and cannot be issued again; recorded balances do not change yet.',
         'Receive — the receiving technician checks the delivery and confirms it. Only then do warehouse and van stock balances change.',
         'If goods are missing or damaged, report the discrepancy instead of confirming receipt.'
       ]}/>
     </div>
-    <p className="text-xs text-gray-500 mb-3">Warehouse approval and issue do not move stock. Both balances change only when the receiving van confirms receipt.</p>
+    <p className="text-xs text-gray-500 mb-3">Issue commits stock and reduces warehouse availability immediately. Recorded warehouse and van balances change only after the receiving van confirms the full delivery. Missing or damaged goods must be reconciled first.</p>
     <div className="mb-3"><label className="form-label" htmlFor="warehouse-request-filter">Show requests</label><select id="warehouse-request-filter" className="form-input max-w-xs" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="open">Pending, approved & awaiting receipt</option><option value="all">All requests</option><option value="fulfilled">Received</option><option value="rejected">Rejected</option></select></div>
     {error&&<div className="mb-3"><StatusNotice tone="error" title="Warehouse request action failed">{error}</StatusNotice></div>}
     {success&&<div className="mb-3"><StatusNotice tone="success" title="Warehouse request updated">{success}</StatusNotice></div>}
