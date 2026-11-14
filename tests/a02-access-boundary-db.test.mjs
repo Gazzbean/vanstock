@@ -149,5 +149,15 @@ test('A02 migration enforces database permissions for synthetic company roles', 
     await assert.rejects(db.query('delete from public.vans where id=$1',[id(101)]),/permission denied/)
     await assert.rejects(db.query('update public.products set name=$1 where id=$2',['Tampered',id(301)]),/permission denied/)
   })
+  await t.test('emergency rollback SQL restores the captured prior access model',async()=>{
+    await db.exec('reset role')
+    await db.exec(await readFile(new URL('../supabase/rollbacks/a02_restore_previous_access.sql',import.meta.url),'utf8'))
+    const q=(await db.query(`select
+      has_table_privilege('authenticated','public.vans','UPDATE') as van_update,
+      has_table_privilege('authenticated','public.products','UPDATE') as product_update,
+      (select count(*)::int from pg_policies where tablename='vans' and policyname='vans company') as old_van_policy,
+      (select count(*)::int from pg_policies where tablename='stock' and policyname='stock read company') as old_stock_policy`)).rows[0]
+    assert.deepEqual(q,{van_update:true,product_update:true,old_van_policy:1,old_stock_policy:1})
+  })
  }finally{await db.exec('reset role').catch(()=>{});await db.close()}
 })
