@@ -1,11 +1,11 @@
 // Warehouse stock overview and audited stocktake/replenishment actions.
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
 import WarehouseCorrections from '@/components/WarehouseCorrections'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
-import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
-import { getCurrentUserDisplay, getWarehouseOverview, getAdminData, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels, getWarehouseRequestPackages } from '@/lib/actions'
+import { getCurrentUserDisplay, getWarehouseOverview, getProducts, getWarehouseRequests, getMyWarehouseRights, getWarehouseStockStandards, getJobMaterialAllocations, getCompanyVanLabels, getWarehouseRequestPackages } from '@/lib/actions'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
 export default async function WarehousePage() {
@@ -22,8 +22,8 @@ export default async function WarehousePage() {
 
   const rights = await getMyWarehouseRights()
   const canManage = rights.canManageRequests || rights.canAdjust || rights.canStocktake || rights.canReceiveRequests
-  const [overview, adminData, products,requests,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
-    getWarehouseOverview(), canManage ? getAdminData() : Promise.resolve(null), getProducts(),getWarehouseRequests(),
+  const [overview, products,requests,thresholds,siteAllocations,companyVans,packages] = await Promise.all([
+    getWarehouseOverview(), getProducts(),getWarehouseRequests(),
     getWarehouseStockStandards(),getJobMaterialAllocations(),getCompanyVanLabels(),getWarehouseRequestPackages(),
   ])
   const writesEnabled = warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED) && !overview.setupRequired
@@ -140,21 +140,18 @@ export default async function WarehousePage() {
         {(canManage||rights.canRequest) && !overview.setupRequired && <WarehouseRequestForm
           warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
           products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
-          vans={companyVans} selectedVanId={companyVans[0]?.id??null}
+          vans={companyVans} selectedVanId={null}
           balances={overview.items.map(i=>({warehouse_id:i.warehouse_id,product_id:i.product_id,quantity:i.available_quantity}))}
           packages={packages}
         />}
-        {rights.canReceive && <TechnicianWarehouseMovement
-          warehouses={overview.warehouses.map(w=>({id:w.id,name:w.name}))}
-          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
-          defaultVanId={companyVans[0]?.id??null} vans={companyVans}
-          canIssue={false} canReceive={rights.canReceive}
-          enabled={writesEnabled}
-        />}
+        {rights.canReceive && <section className="card mt-4">
+          <h2 className="text-sm font-semibold mb-2">Return stock from a van</h2>
+          <p className="text-xs text-gray-500 mb-3">Returns are recorded in one dedicated workflow. Choose the source van and destination warehouse explicitly; permission and stock checks apply before any movement.</p>
+          <Link href="/warehouse/returns" className="text-blue-700 font-semibold underline">Open Van → Warehouse returns</Link>
+        </section>}
         {(rights.canAdjust || rights.canStocktake) && <WarehouseCorrections
-          enabled={writesEnabled} canReceive={rights.canReceive} canAdjust={rights.canAdjust} canStocktake={rights.canStocktake}
+          enabled={writesEnabled} canAdjust={rights.canAdjust} canStocktake={rights.canStocktake}
           warehouses={overview.warehouses.map(w => ({ id: w.id, name: w.name }))}
-          vans={(adminData?.vans??[]).map(v => ({ id: v.id, van_number: v.van_number }))}
           products={products.map(p => ({ id: p.id, name: p.name, unit: p.stock_unit ?? 'ea' }))}
           balances={overview.items.map(i => ({ warehouse_id: i.warehouse_id, product_id: i.product_id, quantity: i.quantity,committed_quantity:i.committed_quantity }))}
         />}
