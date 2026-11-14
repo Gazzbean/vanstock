@@ -109,8 +109,8 @@ export default function WarehouseOpeningStockForm({
       {error && <div className="mt-3"><StatusNotice tone="error" title="Opening stock not posted">{error}</StatusNotice></div>}
       {success && <div className="mt-3"><StatusNotice tone="success" title="Opening stock posted">{success}</StatusNotice></div>}
       <button type="button" className="btn btn-primary mt-4"
-        disabled={!enabled || pending || !valid} onClick={submit}>
-        {pending ? 'Posting…' : enabled ? 'Post opening stock' : 'Opening stock posting — not yet enabled'}
+        disabled={!enabled || pending || completed || !valid} onClick={submit}>
+        {completed ? 'Opening stock recorded' : pending ? 'Posting…' : enabled ? 'Post opening stock' : 'Opening stock posting — not yet enabled'}
       </button>
     </section>
   )
