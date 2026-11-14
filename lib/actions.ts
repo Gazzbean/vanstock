@@ -181,7 +181,7 @@ export async function setWorkingVanSelection(vanId:string){
  }else{
   cookies().delete(workingVanCookie)
  }
- for(const path of ['/dashboard','/stock','/receive','/transfer','/logs'])revalidatePath(path)
+ for(const path of ['/dashboard','/stock','/receive','/transfer','/logs','/warehouse/returns'])revalidatePath(path)
  return {success:true}
 }
 
@@ -1011,6 +1011,25 @@ export async function getWarehouseRequestPackages() {
   return data??[]
 }
 
+// One canonical return entry: restrict Technician returns to the selected
+// Working Van, while permitted Managers/Administrators explicitly choose
+// from active company vans. Office access does not itself grant return rights.
+export async function getWarehouseReturnSourceVans(){
+  const profile=await getCurrentProfile()
+  const rights=await getMyWarehouseRights()
+  if(!rights.canReceive)return [] as {id:string;van_number:string}[]
+  if(profile.role==='technician'){
+    const working=await getWorkingVans()
+    return working.vans.filter(v=>v.id===working.selectedId)
+  }
+  if(!['admin','manager'].includes(profile.role))return []
+  const db=createServerClient()
+  const {data,error}=await db.from('vans').select('id,van_number')
+    .eq('company_id',profile.company_id).eq('active',true).order('van_number')
+  if(error)throw new Error('Could not load eligible return vans: '+error.message)
+  return data??[]
+}
+
 export async function getWarehouseOperationLocations() {
   const rights=await getMyWarehouseRights()
   if (!rights.canIssue && !rights.canReceive) return []
@@ -1228,7 +1247,8 @@ export async function returnVanStockToWarehouse(
   const rights = await getMyWarehouseRights()
   if (!rights.canReceive) return { error: 'Warehouse receive permission required.' }
   const capabilities=await accessFor(profile)
-  if (!['admin','manager'].includes(profile.role) && !capabilities.office_access) {
+  if (profile.role==='technician') {
+    if(!capabilities.technician_access)return {error:'Technician access required.'}
     const working=await getWorkingVans()
     if(working.selectedId!==vanId)
       return {error:'Technicians may only return stock from their selected authorised working van.'}
@@ -1245,7 +1265,7 @@ export async function returnVanStockToWarehouse(
     p_direction: 'van-to-warehouse', p_reference: reference.trim(), p_notes: '',
   })
   if (error) return { error: error.message }
-  for (const path of ['/warehouse','/stock','/dashboard','/logs']) revalidatePath(path)
+  for (const path of ['/warehouse','/warehouse/returns','/stock','/dashboard','/logs']) revalidatePath(path)
   return { success: true }
 }
 

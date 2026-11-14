@@ -1,16 +1,16 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 // ============================================================
 // app/stock/page.tsx
 // Shows every item on the current user's van with quantities,
 // stock level bars, and an adjust button on each row.
 // ============================================================
 
-import { getMyStock, getProducts, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseOperationLocations, getWarehouseRequestBalances, getWarehouseRequestPackages } from '@/lib/actions'
+import { getMyStock, getProducts, getWorkingVans, getWorkingVanStandards, getCurrentUserDisplay, getMyWarehouseRights, getWarehouseRequestLocations, getWarehouseRequests, getWarehouseRequestBalances, getWarehouseRequestPackages } from '@/lib/actions'
 import { buildStockDisplayRows } from '@/lib/stock-standards'
 import WorkingVanSelector from '@/components/WorkingVanSelector'
 import WarehouseRequestForm from '@/components/WarehouseRequestForm'
 import WarehouseRequestQueue from '@/components/WarehouseRequestQueue'
-import TechnicianWarehouseMovement from '@/components/TechnicianWarehouseMovement'
 import {warehouseWritesEnabled} from '@/lib/warehouse-release'
 
 export default async function StockPage({searchParams}:{searchParams:{van?:string}}) {
@@ -25,9 +25,6 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
   const displayRows = buildStockDisplayRows(products, stockItems, standards)
   const warehouseRights=await getMyWarehouseRights()
   const [requestWarehouses,requests,warehouseBalances,requestPackages]=await Promise.all([getWarehouseRequestLocations(),getWarehouseRequests(),getWarehouseRequestBalances(),getWarehouseRequestPackages()])
-  const movementWarehouses=(warehouseRights.canIssue||warehouseRights.canReceive)
-    ? await getWarehouseOperationLocations():[]
-
   return (
     <div>
       <div className="topbar">
@@ -99,13 +96,11 @@ export default async function StockPage({searchParams}:{searchParams:{van?:strin
           </table>
         </div>
         {warehouseRights.canRequest&&working.selectedId&&<WarehouseRequestForm warehouses={requestWarehouses} products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))} vans={working.vans} selectedVanId={working.selectedId} balances={warehouseBalances} packages={requestPackages}/>}
-        {warehouseRights.canReceive&&<TechnicianWarehouseMovement
-          warehouses={movementWarehouses}
-          products={products.map(p=>({id:p.id,name:p.name,unit:p.stock_unit??'ea'}))}
-          defaultVanId={working.selectedId}
-          canIssue={false} canReceive={warehouseRights.canReceive}
-          enabled={warehouseWritesEnabled(process.env.WAREHOUSE_WRITES_ENABLED)}
-        />}
+        {warehouseRights.canReceive && <section className="card mt-4">
+          <h2 className="text-sm font-semibold">Return unused stock to warehouse</h2>
+          <p className="text-xs text-gray-500 mt-1 mb-2">Van balances above are view-only. Returns are recorded using the separate controlled return workflow, for your selected authorised Working Van.</p>
+          <Link href="/warehouse/returns" className="text-sm font-semibold text-blue-700 underline">Open Van → Warehouse returns</Link>
+        </section>}
       </div>
     </div>
   )

@@ -20,7 +20,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
   const [mode,setMode]=useState<'pack'|'loose'|null>(null)
   const [packId,setPackId]=useState('')
   const [warehouse,setWarehouse]=useState(warehouses[0]?.id??'')
-  const [van,setVan]=useState(selectedVanId??vans[0]?.id??'')
+  const [van,setVan]=useState(selectedVanId??'')
   const [product,setProduct]=useState('')
   const [quantity,setQuantity]=useState('1')
   const [reference,setReference]=useState('')
@@ -69,7 +69,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
     <h3 className="text-sm font-semibold mb-2">B. Replenishment details</h3>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div><label className="form-label" htmlFor="request-warehouse">Source warehouse</label><select id="request-warehouse" className="form-input" value={warehouse} onChange={e=>{setWarehouse(e.target.value);changed()}}>{warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-      <div><label className="form-label" htmlFor="request-van">Receiving van</label><select id="request-van" className="form-input" value={van} onChange={e=>{setVan(e.target.value);changed()}}>{vans.map(v=><option key={v.id} value={v.id}>{v.van_number}</option>)}</select></div>
+      <div><label className="form-label" htmlFor="request-van">Receiving van</label><select id="request-van" className="form-input" value={van} onChange={e=>{setVan(e.target.value);changed()}}><option value="">Select receiving van</option>{vans.map(v=><option key={v.id} value={v.id}>{v.van_number}</option>)}</select></div>
       <div><label className="form-label" htmlFor="request-product">Product</label><select id="request-product" className="form-input" value={product} onChange={e=>{setProduct(e.target.value);setPackId('');changed()}}><option value="">Choose product</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}</select></div>
       {mode==='pack'&&<div><label className="form-label" htmlFor="request-pack">Full pack size</label><select id="request-pack" className="form-input" value={packId} disabled={!product} onChange={e=>{setPackId(e.target.value);changed()}}><option value="">Select configured pack size</option>{availablePacks.map(p=><option key={p.id} value={p.id}>{p.package_label} — {p.units_per_package} {unit} per {p.purchase_unit}</option>)}</select>{product&&availablePacks.length===0&&<p className="text-xs text-amber-800 mt-1">No pack conversion configured. Select loose items or ask an administrator to configure a pack size.</p>}</div>}
       <div><label className="form-label" htmlFor="request-qty">{mode==='pack'?'Number of full packs':`Quantity of individual items (${unit})`}</label><input id="request-qty" className="form-input" type="number" min={mode==='pack'||!['kg','m'].includes(unit)?'1':'0.01'} step={mode==='pack'||!['kg','m'].includes(unit)?'1':'0.01'} value={quantity} onChange={e=>{setQuantity(e.target.value);changed()}}/></div>

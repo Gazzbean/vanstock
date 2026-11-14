@@ -11,5 +11,5 @@ test('A04 separates Manager permissions across page, forms, action and RPC',asyn
  assert.match(actions,/p_confirm_van_receipt:grants\.confirm_van_receipt/)
  assert.match(actions,/p_stocktake_warehouse:grants\.stocktake_warehouse/)
  assert.match(wh,/rights\.canStocktake && <WarehouseOpeningStockForm/)
- assert.match(correction,/operation==='set' \? canStocktake : canAdjust/)
+ assert.match(correction,/const allowed=operation==='set'\?canStocktake:canAdjust/)
 });

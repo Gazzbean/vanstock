@@ -1,0 +1,28 @@
+name: A05 Warehouse Return Consolidation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/warehouse/**'
+      - 'app/stock/page.tsx'
+      - 'components/TechnicianWarehouseMovement.tsx'
+      - 'components/WarehouseCorrections.tsx'
+      - 'lib/actions.ts'
+      - 'supabase/migrations/20261114180000_a05_authorised_return_vans.sql'
+      - 'tests/a05-*'
+      - '.github/workflows/a05-returns.yml'
+  push:
+    branches: [audit-a05-warehouse-return-entry]
+jobs:
+  return-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
