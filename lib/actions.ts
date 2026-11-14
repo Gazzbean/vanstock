@@ -849,7 +849,7 @@ export async function getWarehouseRequests(focusedRequestId?:string) {
   if(!rights.canRequest&&!canViewAll&&!assignedVanIds.length)return []
   const openStatuses=['pending','approved','issued']
   const closedStatuses=['fulfilled','rejected']
-  const open=async(scope:(query:any)=>any)=>readAllWarehousePages((from,to)=>
+  const open=async(scope:(query:any)=>any)=>readAllWarehousePages<any>(async(from,to)=>
     scope(base().in('status',openStatuses))
       .order('created_at',{ascending:false}).order('id',{ascending:false})
       .range(from,to)
@@ -889,7 +889,7 @@ export async function getWarehouseRequests(focusedRequestId?:string) {
       if(canViewAll||requester||(isAssigned&&notified))focused=row
     }
   }
-  const data=mergeWarehouseQueue(
+  const data=mergeWarehouseQueue<any>(
     [ownOpen.data??[],inboundOpen.data??[]],
     [ownHistory.data??[]],
     focused,
@@ -970,7 +970,7 @@ export async function getMyWarehouseNotifications() {
   // older dismissed events exist. History is a separate recent-100 view;
   // neither read nor dismissal deletes database audit records.
   const [active,history]=await Promise.all([
-    readAllWarehousePages((from,to)=>base().is('dismissed_at',null)
+    readAllWarehousePages<any>(async(from,to)=>base().is('dismissed_at',null)
       .order('created_at',{ascending:false}).order('id',{ascending:false}).range(from,to)),
     base().not('dismissed_at','is','null')
       .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100),
