@@ -1,5 +1,5 @@
--- A02: Security boundary hardening (draft, NOT applied to production).
--- Changes require isolated-role regression acceptance prior to migration.
+-- A02: Security boundary hardening (controlled migration).
+-- Apply only after explicit access model approval and isolated-role regression acceptance.
 -- Server-side administrative actions use service_role, whose grants are unchanged.
 begin;
 

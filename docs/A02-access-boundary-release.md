@@ -40,3 +40,14 @@ Baseline: `main` 0667cf9; 14 November 2026.
 A04 manager warehouse approval/issue/receipt split is **not** changed by this security patch.
 A01 production warehouse flag and environment isolation are separate decisions.
 No SQL in this branch has been applied to the live database.
+
+## Database rollback procedure (emergency only)
+
+The repository includes `supabase/rollbacks/a02_restore_previous_access.sql`.
+It reconstructs the exact previous policies, helpers and direct client grants
+reported in the 14 November live metadata snapshot. **It restores unsafe
+access as a last resort** and must not be run casually. Never run
+rollback SQL until an observed functional regression has been confirmed
+and the recovery decision is recorded.
+
+Do not use the rollback migration in an automatic deployment mechanism.
