@@ -348,17 +348,24 @@ export async function getJobMaterialAllocations(selectedVanId?:string){
  const profile=await getCurrentProfile()
  const access=await accessFor(profile)
  if(!access.technician_access&&!access.office_access)return []
- const db=createServerClient()
- let query=db.from('job_material_allocations')
-  .select('id,van_id,product_id,quantity,job_reference,site_location,reason,created_at,status')
-  .eq('company_id',profile.company_id).eq('status','on_site').order('created_at',{ascending:false}).limit(100)
+ let scopedVanId:string|null=null
  if(!access.office_access){
   const working=await getWorkingVans(selectedVanId)
   if(!working.selectedId)return []
-  query=query.eq('van_id',working.selectedId)
+  scopedVanId=working.selectedId
  }
- const {data,error}=await query
- if(error)throw new Error('Could not load site allocations: '+error.message)
+ const db=createServerClient()
+ // Page all unresolved material allocations. A recent-100 cap could hide
+ // older materials still physically left at a customer job/site.
+ const {data,error}=await readAllWarehousePages<any>(async(from,to)=>{
+  let query=db.from('job_material_allocations')
+    .select('id,van_id,product_id,quantity,job_reference,site_location,reason,created_at,status')
+    .eq('company_id',profile.company_id).eq('status','on_site')
+  if(scopedVanId)query=query.eq('van_id',scopedVanId)
+  return query.order('created_at',{ascending:false}).order('id',{ascending:false})
+    .range(from,to)
+ })
+ if(error)throw new Error('Could not load unresolved site allocations: '+error.message)
  return data??[]
 }
 
