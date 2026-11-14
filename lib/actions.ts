@@ -20,6 +20,7 @@ import { isValidPackageConversion } from './package-conversion'
 import { validQuickUseOptions } from './consumable-presets'
 import { resolveWorkingVanId } from './working-van'
 import { warehouseWritesEnabled } from './warehouse-release'
+import {mergeWarehouseQueue,readAllWarehousePages} from './warehouse-queue-paging'
 import { countTodayStockActivity, perthDayStartUtc } from './dashboard-activity'
 import {buildStockDisplayRows} from './stock-standards'
 import type { TransferPayload, AdjustPayload } from '@/types'
@@ -836,46 +837,91 @@ export async function getMyWarehouseRights() {
   }
 }
 
-export async function getWarehouseRequests() {
-  const profile = await getCurrentProfile()
-  const rights = await getMyWarehouseRights()
-  const db = createServerClient()
+export async function getWarehouseRequests(focusedRequestId?:string) {
+  const profile=await getCurrentProfile()
+  const rights=await getMyWarehouseRights()
+  const db=createServerClient()
   const columns='id,warehouse_id,van_id,product_id,quantity,reference,status,requested_by,reviewed_by,fulfilled_by,issued_by,received_by,created_at,reviewed_at,issued_at,received_at,fulfilled_at'
-  const base=()=>db.from('warehouse_replenishment_requests').select(columns)
-    .eq('company_id',profile.company_id).order('created_at',{ascending:false}).limit(100)
+  const base=()=>db.from('warehouse_replenishment_requests').select(columns).eq('company_id',profile.company_id)
   const canViewAll=rights.canManageRequests||rights.canReceiveRequests
   const working=canViewAll?null:await getWorkingVans()
-  if (!rights.canRequest && !canViewAll && !working?.vans.length) return []
-  const own=canViewAll?await base():await base().eq('requested_by',profile.id)
-  const inbound=working?.vans.length?await base().eq('status','issued').in('van_id',working.vans.map(v=>v.id)):null
-  const error=own.error??inbound?.error
-  if (error) {
-    if (error.code === '42P01' || error.code === 'PGRST205') return []
+  const assignedVanIds=working?.vans.map(v=>v.id)??[]
+  if(!rights.canRequest&&!canViewAll&&!assignedVanIds.length)return []
+  const openStatuses=['pending','approved','issued']
+  const closedStatuses=['fulfilled','rejected']
+  const open=async(scope:(query:any)=>any)=>readAllWarehousePages((from,to)=>
+    scope(base().in('status',openStatuses))
+      .order('created_at',{ascending:false}).order('id',{ascending:false})
+      .range(from,to)
+  )
+  const recent=async(scope:(query:any)=>any)=>scope(base().in('status',closedStatuses))
+    .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100)
+  const [ownOpen,inboundOpen,ownHistory]=await Promise.all([
+    canViewAll?open(q=>q):open(q=>q.eq('requested_by',profile.id)),
+    !canViewAll&&assignedVanIds.length?open(q=>q.eq('status','issued').in('van_id',assignedVanIds)):{data:[],error:null},
+    canViewAll?recent(q=>q):recent(q=>q.eq('requested_by',profile.id)),
+  ])
+  const error=ownOpen.error??inboundOpen.error??ownHistory.error
+  if(error){
+    if(error.code==='42P01'||error.code==='PGRST205')return []
     throw new Error('Could not load warehouse requests: '+error.message)
   }
-  const data=[...new Map([...(own.data??[]),...(inbound?.data??[])].map(row=>[row.id,row])).values()]
-    .sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,100)
-  if (!data?.length) return []
-  const {data:discrepancies,error:discrepancyError}=await db.from('warehouse_receipt_discrepancies')
-    .select('request_id,observed_quantity,reason,reported_at,resolved_at,resolution_note')
-    .eq('company_id',profile.company_id).in('request_id',data.map(r=>r.id))
-  if(discrepancyError)throw new Error('Could not load receiving exceptions: '+discrepancyError.message)
-  const discrepancyByRequest=new Map((discrepancies??[]).map(d=>[d.request_id,d]))
-  // Read reasons separately so a preview build remains usable before its database
-  // migration is applied. Never invent reasons for older rejected requests.
-  const {data:reasonRows,error:reasonError}=await db.from('warehouse_replenishment_requests')
-    .select('id,rejection_reason')
-    .eq('company_id',profile.company_id).in('id',data.map(r=>r.id))
-  if(reasonError && !['42703','PGRST204','PGRST205'].includes(reasonError.code))
-    throw new Error('Could not load warehouse rejection reasons: '+reasonError.message)
-  const rejectionReasons=new Map((reasonRows??[]).map(r=>[r.id,r.rejection_reason]))
+
+  // An older notification-linked record can fall outside the last 100 closed
+  // requests. Resolve it separately, verifying the session, company, requester
+  // or assigned van AND the recipient's own notification before returning it.
+  let focused=null
+  if(typeof focusedRequestId==='string'&&
+     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(focusedRequestId)){
+    const {data:row,error:focusError}=await base().eq('id',focusedRequestId).maybeSingle()
+    if(focusError)throw new Error('Could not look up the requested warehouse record: '+focusError.message)
+    if(row){
+      const requester=row.requested_by===profile.id
+      const isAssigned=assignedVanIds.includes(row.van_id)
+      let notified=false
+      if(!canViewAll&&!requester&&isAssigned){
+        const {data:notice,error:noticeError}=await db.from('warehouse_notifications')
+          .select('id').eq('company_id',profile.company_id)
+          .eq('user_id',profile.id).eq('request_id',row.id).limit(1)
+        if(noticeError)throw new Error('Could not authorise the notification link: '+noticeError.message)
+        notified=Boolean(notice?.length)
+      }
+      if(canViewAll||requester||(isAssigned&&notified))focused=row
+    }
+  }
+  const data=mergeWarehouseQueue(
+    [ownOpen.data??[],inboundOpen.data??[]],
+    [ownHistory.data??[]],
+    focused,
+  )
+  if(!data.length)return []
+
+  // Fetch metadata in bounded batches. Every batch is still company-scoped:
+  // a large backlog must not exceed PostgREST's standard result limits or
+  // create an oversized "in" URL.
+  const discrepancies:any[]=[]
+  const rejectionReasons=new Map<string,string|null>()
+  for(let from=0;from<data.length;from+=150){
+    const ids=data.slice(from,from+150).map(r=>r.id)
+    const {data:exceptions,error:exceptionError}=await db.from('warehouse_receipt_discrepancies')
+      .select('request_id,observed_quantity,reason,reported_at,resolved_at,resolution_note')
+      .eq('company_id',profile.company_id).in('request_id',ids)
+    if(exceptionError)throw new Error('Could not load receiving exceptions: '+exceptionError.message)
+    discrepancies.push(...(exceptions??[]))
+    const {data:reasonRows,error:reasonError}=await db.from('warehouse_replenishment_requests')
+      .select('id,rejection_reason').eq('company_id',profile.company_id).in('id',ids)
+    if(reasonError&&!['42703','PGRST204','PGRST205'].includes(reasonError.code))
+      throw new Error('Could not load warehouse rejection reasons: '+reasonError.message)
+    for(const r of reasonRows??[])rejectionReasons.set(r.id,r.rejection_reason)
+  }
+  const discrepancyByRequest=new Map(discrepancies.map(d=>[d.request_id,d]))
   const {data:staff,error:staffError}=await db.from('profiles')
     .select('id,full_name,initials').eq('company_id',profile.company_id)
-  if (staffError) throw new Error('Could not load request audit names: '+staffError.message)
+  if(staffError)throw new Error('Could not load request audit names: '+staffError.message)
   const names=new Map((staff??[]).map(s=>[s.id,{name:s.full_name,initials:s.initials}]))
   const label=(id:string|null)=>{
     const person=id?names.get(id):null
-    return person?.name ? `${person.name}${person.initials?` (${person.initials})`:''}` : '—'
+    return person?.name?`${person.name}${person.initials?` (${person.initials})`:''}`:'—'
   }
   return data.map(row=>({
     ...row,
