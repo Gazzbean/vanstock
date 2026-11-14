@@ -64,6 +64,6 @@ export default function TechnicianWarehouseMovement({warehouses,products,default
     {error&&<p role="alert" className="text-sm text-red-700 mt-3">{error}</p>}
     {success&&<p role="status" className="alert alert-success mt-3">{success}</p>}
     {!completed&&ready&&enabled&&!pending&&!error&&<p className="text-sm text-amber-800 mt-3">Ready for confirmation. Check the van, warehouse, quantity and reference before proceeding.</p>}
-    <button type="button" className="btn btn-primary mt-3" onClick={submit} disabled={!enabled||!ready||pending||completed}>{completed?'Movement completed':pending?'Recording…':'Confirm movement'}</button>
+    <button type="button" className="btn btn-primary mt-3 disabled:opacity-50 disabled:cursor-not-allowed" onClick={submit} disabled={!enabled||!ready||pending||completed}>{completed?'Movement completed':pending?'Recording…':'Confirm movement'}</button>
   </section>
 }
