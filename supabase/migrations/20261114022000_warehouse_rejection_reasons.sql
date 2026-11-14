@@ -5,12 +5,24 @@ begin;
 alter table public.warehouse_replenishment_requests
   add column if not exists rejection_reason text;
 
-alter table public.warehouse_replenishment_requests
-  add constraint warehouse_replenishment_rejection_reason_length
-  check (
-    rejection_reason is null
-    or char_length(btrim(rejection_reason)) between 3 and 500
-  );
+-- Make the migration re-runnable if a separate database migration ledger
+-- already recorded the controlled deployment.
+do $constraint$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'warehouse_replenishment_rejection_reason_length'
+      and conrelid = 'public.warehouse_replenishment_requests'::regclass
+  ) then
+    alter table public.warehouse_replenishment_requests
+      add constraint warehouse_replenishment_rejection_reason_length
+      check (
+        rejection_reason is null
+        or char_length(btrim(rejection_reason)) between 3 and 500
+      );
+  end if;
+end;
+$constraint$;
 
 -- Database-level guarantee covers the existing two-argument decision RPC,
 -- direct status changes and future clients. Existing historical rows remain valid.
