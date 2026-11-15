@@ -20,6 +20,7 @@ import { isValidPackageConversion } from './package-conversion'
 import { validQuickUseOptions } from './consumable-presets'
 import { resolveWorkingVanId } from './working-van'
 import { warehouseWritesEnabled } from './warehouse-release'
+import {validateCylinderInput,type CylinderInput} from './cylinder-custody'
 import {mergeWarehouseQueue,readAllWarehousePages} from './warehouse-queue-paging'
 import { countTodayStockActivity, perthDayStartUtc } from './dashboard-activity'
 import {buildStockDisplayRows} from './stock-standards'
@@ -2144,5 +2145,118 @@ export async function sendExistingUserSetupLink(userId:string):Promise<{success?
   redirectTo:'https://vanstock-alpha.vercel.app/auth/accept-invite',
  })
  if(error)return {error:'Could not send setup email: '+error.message}
+ return {success:true}
+}
+
+
+// ── A10: physical-cylinder custody (independent of refrigerant kg accounting) ──
+// Privileged service_role reads are scoped here against a verified session.
+// These tables have NO direct authenticated/anonymous database grants.
+export async function getCylinderCustodyOverview(){
+ const profile=await getCurrentProfile()
+ const access=await accessFor(profile)
+ const admin=profile.role==='admin'
+ const companyWide=admin||Boolean(access.office_access)
+ if(!companyWide&&!access.technician_access)
+  return {records:[],events:[],suppliers:[],warehouses:[],vans:[],canEdit:false}
+ const db=createServerClient()
+ const [supplierResult,warehouseResult,vanResult]=await Promise.all([
+  db.from('suppliers').select('id,name,active').eq('company_id',profile.company_id).order('name'),
+  db.from('warehouses').select('id,name').eq('company_id',profile.company_id).order('name'),
+  db.from('vans').select('id,van_number,active').eq('company_id',profile.company_id).order('van_number'),
+ ])
+ if(supplierResult.error||warehouseResult.error||vanResult.error)
+  throw new Error('Could not load cylinder location and supplier options.')
+ let authorisedVanId:string|null=null
+ if(!companyWide){
+  const working=await getWorkingVans()
+  authorisedVanId=working.selectedId
+  if(!authorisedVanId)return {
+   records:[],events:[],suppliers:[],warehouses:[],vans:working.vans,canEdit:false,
+  }
+ }
+ const result=await readAllWarehousePages<any>(async(from,to)=>{
+  let query=db.from('cylinder_custody')
+   .select('id,cylinder_serial,gas_label,nominal_capacity_kg,ownership,supplier_id,received_on,rent_free_until,return_due_on,rental_review_on,rental_terms_reference,cylinder_test_due_on,last_leak_check_on,status,location_kind,warehouse_id,van_id,site_reference,notes,audit_reference,version,updated_at')
+   .eq('company_id',profile.company_id)
+  if(authorisedVanId)query=query.eq('location_kind','van').eq('van_id',authorisedVanId)
+  return query.order('created_at',{ascending:false}).order('id',{ascending:false}).range(from,to)
+ })
+ if(result.error){
+  if(result.error.code==='42P01'||result.error.code==='PGRST205')
+   throw new Error('Cylinder custody register has not been installed.')
+  throw new Error('Could not read cylinder custody: '+result.error.message)
+ }
+ const events:any[]=[]
+ if(companyWide){
+  const [{data:latest,error:historyError},{data:staff,error:staffError}]=await Promise.all([
+   db.from('cylinder_custody_events').select('id,cylinder_id,event_kind,audit_reference,actor_id,occurred_at,after_state')
+    .eq('company_id',profile.company_id).order('occurred_at',{ascending:false}).order('id',{ascending:false}).limit(100),
+   db.from('profiles').select('id,full_name').eq('company_id',profile.company_id),
+  ])
+  if(historyError||staffError)throw new Error('Could not load cylinder custody audit history.')
+  const names=new Map((staff??[]).map(p=>[p.id,p.full_name]))
+  for(const item of latest??[])events.push({
+   id:item.id,cylinder_id:item.cylinder_id,event_kind:item.event_kind,
+   audit_reference:item.audit_reference,actor_name:names.get(item.actor_id)??'Staff',
+   occurred_at:item.occurred_at,serial:item.after_state?.cylinder_serial??'—',
+   status:item.after_state?.status??'unknown',
+  })
+ }
+ return {
+  records:result.data??[],
+  events,
+  suppliers:companyWide?supplierResult.data??[]:[],
+  warehouses:companyWide?warehouseResult.data??[]:[],
+  vans:companyWide?vanResult.data??[]:vanResult.data?.filter(v=>v.id===authorisedVanId)??[],
+  canEdit:admin,
+ }
+}
+
+export async function saveCylinderCustody(input:CylinderInput):Promise<{success?:true;error?:string}>{
+ const profile=await getCurrentProfile()
+ // Initial release: Admin maintains supplier-owned assets; all other
+ // roles view only. Do not derive edit rights from Office/Manager alone.
+ if(profile.role!=='admin')return {error:'Administrator permission required for cylinder changes.'}
+ const checked=validateCylinderInput(input)
+ if('error' in checked)return {error:checked.error}
+ const data=checked.data
+ const db=createServerClient()
+ const companyId=profile.company_id as string
+ if(data.supplier_id){
+  const {data:supplier,error}=await db.from('suppliers').select('id')
+    .eq('id',data.supplier_id).eq('company_id',companyId).maybeSingle()
+  if(error||!supplier)return {error:'Supplier does not belong to this company.'}
+ }
+ if(data.van_id){
+  const {data:van,error}=await db.from('vans').select('id')
+   .eq('id',data.van_id).eq('company_id',companyId).eq('active',true).maybeSingle()
+  if(error||!van)return {error:'Select an active company van.'}
+ }
+ if(data.warehouse_id){
+  const {data:warehouse,error}=await db.from('warehouses').select('id')
+   .eq('id',data.warehouse_id).eq('company_id',companyId).maybeSingle()
+  if(error||!warehouse)return {error:'Select a company warehouse.'}
+ }
+ const fields={...data,updated_by:profile.id}
+ if(input.id){
+  const {data:updated,error}=await db.from('cylinder_custody').update(fields)
+   .eq('company_id',companyId).eq('id',input.id).eq('version',input.version)
+   .select('id').maybeSingle()
+  if(error){
+   if(error.code==='23505')return {error:'Cylinder serial already exists in this company.'}
+   return {error:'Cylinder update was not recorded: '+error.message}
+  }
+  if(!updated)return {error:'Cylinder record was changed elsewhere. Refresh before updating.'}
+ }else{
+  const {error}=await db.from('cylinder_custody').insert({
+   ...fields,company_id:companyId,created_by:profile.id,
+  })
+  if(error){
+   if(error.code==='23505')return {error:'Cylinder serial already exists in this company.'}
+   return {error:'Cylinder was not registered: '+error.message}
+  }
+ }
+ revalidatePath('/cylinders')
  return {success:true}
 }
