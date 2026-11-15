@@ -1,0 +1,27 @@
+name: A01 Deployment Identity Check
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/admin/deployment/**'
+      - 'app/admin/page.tsx'
+      - 'lib/deployment-identity.ts'
+      - 'docs/A01-*'
+      - 'tests/a01-*'
+      - '.github/workflows/a01-environment.yml'
+  push:
+    branches: [audit-a01-deployment-identity]
+jobs:
+  runtime-identity-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npx tsc --noEmit

@@ -5,6 +5,7 @@
 
 import { getAdminProducts, getAdminData, getCurrentUserDisplay, getWarehousePermissionData, getManagerOperationPermissions, getPhase1CatalogueSettings, getPhase1BSupplierData, getVanStockStandardsAdmin, getFleetStockOverview, getConsumablesAssignments, getUserAccessCapabilities, getUserAuthorizedVans, getWarehouseStockStandards } from '@/lib/actions'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import AddProductModal from '@/components/AddProductModal'
 import EditProductModal from '@/components/EditProductModal'
 import CatalogueImport from '@/components/CatalogueImport'
@@ -55,6 +56,9 @@ export default async function AdminPage() {
     <div>
       <div className="topbar"><h1 className="topbar-title">Admin</h1></div>
       <div className="p-5">
+        {user.role==='admin'&&<div className="mb-4 text-sm">
+          <Link href="/admin/deployment" className="text-blue-700 underline font-semibold">A01 – Check deployment identity and Supabase environment</Link>
+        </div>}
         <AdminTabbedSections
           catalogue={<><div className="space-y-4">
   <div className="grid grid-cols-1 gap-4">          {/* Product catalogue */}
