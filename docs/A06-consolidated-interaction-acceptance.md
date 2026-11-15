@@ -1,6 +1,6 @@
 # A06 — Consolidated VanStock interaction acceptance
 
-**Status:** AUTOMATED ACCEPTANCE IN DEVELOPMENT. Browser and physical-stock acceptance are **NOT signed off**.
+**Status (15 November 2026):** AUTOMATED regression developed and deployed (PR #54 and later suites). Signed-in browser and physical-stock acceptance are **NOT signed off**.
 
 **Basis:** VanStock Comprehensive Technical Audit A06 (14 November 2026).
 **Scope:** A02–A05 UI interactions, status borders, role-sensitive navigation,

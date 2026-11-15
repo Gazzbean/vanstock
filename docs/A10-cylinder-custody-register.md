@@ -1,6 +1,6 @@
 # A10 – Refrigerant kg and physical cylinder custody
 
-**Phase:** Cylinder register development, not physical-custody sign-off.
+**Phase (15 November 2026):** Cylinder register code and empty database schema deployed (PR #58); physical-custody and refrigerant-kg reporting sign-off **OPEN**.
 **Basis:** Comprehensive Technical Audit A10, 15 November 2026.
 **Decision:** Maintain refrigerant-content movement and supplier-cylinder custody
 **as separate, reconciled records**. This is not an automatic supplier

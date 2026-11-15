@@ -1,3 +1,5 @@
+> **Historical development record — 15 November 2026.** This document describes an earlier design or staging position. Its statements about feature availability, uninstalled database migrations, Manager permissions, warehouse requests, release approval or production access may no longer be current. **Do not use it to perform migrations, configure roles or authorise stock movements.** Refer to [A11 – Current Technical Audit & Controlled Pilot Gate](./A11-technical-audit-and-pilot-gate.md) and the current A02–A10 release documents for the live design. This note preserves the original text for traceability rather than silently rewriting historical decisions.
+
 # VanStock staging database preflight
 
 Run `supabase/checks/warehouse-preflight-readonly.sql` **in an isolated Supabase test project** before applying staged warehouse migrations.
