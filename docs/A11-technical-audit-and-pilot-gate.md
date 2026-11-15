@@ -46,7 +46,7 @@ capture new counts and the deployed SHA at the actual pilot cut-off.
 | A08 opening/physical counts | PR [#56](https://github.com/Gazzbean/vanstock/pull/56) procedure only; DEV-029 [#49](https://github.com/Gazzbean/vanstock/issues/49) not implemented | Read-only 35 product × location pairs, private A08 workbook | Warehouse lead + independent checker: actual warehouse/van count, UOM decision, test entries, signed variances, approved audited corrections | **OPEN – BLOCKER** |
 | A09 ServiceM8 materials/billing | PR [#57](https://github.com/Gazzbean/vanstock/pull/57) merged; manual crosswalk procedure | 12 test-labelled issue events; zero live on-site allocations | Office invoice reviewer: at least one **real** job across issue, return/site, material UOM, ServiceM8 invoice approval | **OPEN – BILLING GATE** |
 | A10 cylinder and refrigerant | PR [#58](https://github.com/Gazzbean/vanstock/pull/58) merged, empty custody ledger | Serial/custody/contract terms tests; 0 live cylinders | Warehouse lead: independent physical serials and supplier contracts; licensed refrigerant kg/ARC reporting scope to be agreed | **OPEN – CUSTODY/COMPLIANCE** |
-| A11 maintenance/advisories | PR #59 candidate; security + docs + release control only | A11 grant-test run, index statistics, advisor disposition | Maintainer: review residual `SECURITY DEFINER` warnings individually, measure slow queries on real workloads, do not blindly remove indexes | Code package pending merge; monitoring OPEN |
+| A11 maintenance/advisories | PR [#59](https://github.com/Gazzbean/vanstock/pull/59); security grants, docs and release gate | 177/177 full regression tests, TypeScript, preview build and live permission verification | Maintainer: assess remaining authenticated `SECURITY DEFINER` warnings individually and measure latency before adding indexes | Trigger-grant cleanup COMPLETE; residual monitoring OPEN |
 
 **Do not mark the overall audit COMPLETE** merely because A02–A11 PRs are
 merged. Each **OPEN** entry requires actual evidence and accountable sign-off.
@@ -59,10 +59,12 @@ merged. Each **OPEN** entry requires actual evidence and accountable sign-off.
   `vanstock_block_disputed_receipt()` and
   `vanstock_enforce_manager_request_transition()` are invoked as
   `warehouse_replenishment_requests` triggers, not user-callable
-  warehouse workflows. A11 revokes their public/anon/authenticated
-  EXECUTE grants while retaining service-role execution; regression
-  checks that Manager transitions and disputed receipt rejection still work.
-- **WARN: 40 authenticated-executable SECURITY DEFINER RPCs.** These require
+  warehouse workflows. A11 **revoked** their public/anon/authenticated
+  EXECUTE grants while retaining service-role execution. Post-migration SQL
+  confirmed both triggers and grants, and regression proves Manager transitions
+  and disputed receipt rejection still work. The two anonymous warnings
+  disappeared; authenticated definer advisories fell from 40 to 38.
+- **WARN: 38 remaining authenticated-executable SECURITY DEFINER RPCs.** These require
   per-function inspection of security predicates and original callers.
   Some are intentional authenticated operations. A11 does **not**
   revoke all of them or convert them to SECURITY INVOKER; that
@@ -77,7 +79,9 @@ merged. Each **OPEN** entry requires actual evidence and accountable sign-off.
   decision remains open with the account administrator. Do not flip
   Auth settings during this development release without approval.
 - No auth/warehouse write flags, existing application roles, live stock
-  or ServiceM8 jobs are changed in A11.
+  or ServiceM8 jobs were changed in A11. Read-only live pre/post counts
+  remained 15 van-stock rows, 2 warehouse rows, 35 stock events,
+  11 warehouse requests, 29 notifications and zero registered cylinders.
 
 ### Database performance review
 
