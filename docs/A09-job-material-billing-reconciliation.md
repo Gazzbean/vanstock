@@ -1,6 +1,6 @@
 # A09 — ServiceM8 job materials and billing reconciliation
 
-**Status:** DEVELOPMENT CONTROL PREPARED; **ACTUAL CUSTOMER-JOB RECONCILIATION OPEN**.
+**Status (15 November 2026):** DEVELOPMENT CONTROL DEPLOYED (PR #57); **ACTUAL CUSTOMER-JOB RECONCILIATION OPEN**.
 **Evidence date:** 14 November 2026, Australia/Perth.
 **System of record split:** VanStock records stock custody, job issue, returns
 and site allocation. **ServiceM8** is the source for customer job billing and
