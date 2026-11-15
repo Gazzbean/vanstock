@@ -1,0 +1,29 @@
+name: A11 Maintenance and Release Gate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20261115020000_a11_trigger_grants.sql'
+      - 'tests/a11-*'
+      - 'tests/fixtures/a11-*'
+      - 'docs/A11-*'
+      - 'docs/A06-consolidated-interaction-acceptance.md'
+      - 'docs/A09-job-material-billing-reconciliation.md'
+      - 'docs/A10-cylinder-custody-register.md'
+      - '.github/workflows/a11-maintenance.yml'
+  push:
+    branches: [audit-a11-maintenance-release-gate]
+jobs:
+  maintenance-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npx tsc --noEmit
