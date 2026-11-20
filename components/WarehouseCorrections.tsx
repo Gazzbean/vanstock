@@ -1,5 +1,6 @@
 'use client'
 
+import HelpPopover from './HelpPopover'
 import StatusNotice from './StatusNotice'
 import {useState,useRef,useTransition} from 'react'
 import {adjustWarehouseStock} from '@/lib/actions'
@@ -56,8 +57,7 @@ export default function WarehouseCorrections({
   })
  }
  return <section className={'card mt-4 border-2 '+transactionBorder(completed?'success':error?'error':pending?'pending':ready?'ready':'idle')}>
-  <h2 className="text-sm font-semibold mb-2">Warehouse adjustments &amp; verified stocktakes</h2>
-  <p className="text-xs text-gray-500 mb-4">Corrections and verified counts are separately authorised and audited. To return goods from a van, use <a className="text-blue-700 underline" href="/warehouse/returns">Return stock from van</a>. Stock already committed to issued requests cannot be removed.</p>
+  <div className="flex items-center justify-between gap-2 mb-2"><h2 className="text-sm font-semibold">Warehouse adjustments &amp; verified stocktakes</h2><HelpPopover title="Warehouse adjustments & verified stocktakes" steps={["Corrections and verified counts are separately authorised and audited.", "Use Return stock from a van for returned goods.", "Stock committed to issued requests cannot be removed."]} href="/help#adjustments" /></div>
   {!enabled?(
     <StatusNotice tone="warning" title="Warehouse adjustments unavailable">
       Warehouse corrections and stocktakes are disabled pending controlled-release approval. No adjustment form is available.

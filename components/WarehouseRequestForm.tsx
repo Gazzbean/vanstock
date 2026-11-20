@@ -1,5 +1,6 @@
 'use client'
 
+import HelpPopover from './HelpPopover'
 import StatusNotice from './StatusNotice'
 
 import {useRef,useState,useTransition} from 'react'
@@ -60,8 +61,7 @@ export default function WarehouseRequestForm({warehouses,products,vans,selectedV
     })
   }
   return <section className={'card mt-4 border-2 '+transactionBorder(completed?'success':error?'error':pending?'pending':shortage||ready?'ready':'idle')}>
-    <h2 className="text-sm font-medium mb-2">Request warehouse replenishment</h2>
-    <p className="text-xs text-gray-500 mb-3">Request stock for an authorised van. Warehouse staff review and issue the goods; the receiving van confirms delivery before stock balances change.</p>
+    <div className="flex items-center justify-between gap-2 mb-2"><h2 className="text-sm font-semibold">Request warehouse replenishment</h2><HelpPopover title="Request warehouse replenishment" steps={["Request stock for an authorised van.", "Warehouse staff review and issue the goods.", "The receiving van confirms delivery before recorded balances change."]} href="/help#replenishment" /></div>
     <div className={'rounded-lg border-2 p-3 mb-4 '+(mode?'border-green-500':'border-gray-200')}>
       <h3 className="text-sm font-semibold mb-2">A. How are you requesting stock?</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
