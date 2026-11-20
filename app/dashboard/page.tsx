@@ -15,6 +15,7 @@ import WorkingVanSelector from '@/components/WorkingVanSelector'
 import WarehousePendingActions from '@/components/WarehousePendingActions'
 import WelcomeGuide from '@/components/WelcomeGuide'
 import Link from 'next/link'
+import {redirect} from 'next/navigation'
 
 const typeLabels: Record<string, string> = {
   issue:       'Issued to customer',
@@ -26,6 +27,20 @@ const typeLabels: Record<string, string> = {
 
 export default async function DashboardPage({searchParams}:{searchParams:{van?:string}}) {
   const user = await getCurrentUserDisplay()
+  if (!user) redirect('/login')
+  if (!user.access?.office_access && !user.access?.technician_access) {
+    return <div>
+      <div className="topbar"><h1 className="topbar-title">Dashboard</h1></div>
+      <div className="p-5"><section className="card">
+        <h2 className="text-sm font-semibold">Your account access</h2>
+        <p className="mt-2 text-sm text-gray-600">Stock activity is not available with your current permissions. Contact your Administrator if you need additional access.</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          {user.manager_operations?.warehouse_access && <Link className="btn" href="/warehouse">Warehouse</Link>}
+          <Link className="btn" href="/help">Help &amp; SOPs</Link>
+        </div>
+      </section></div>
+    </div>
+  }
   // An office-only user has no working van: present an office dashboard
   // rather than zero van balances and an unusable Adjust Stock action.
   if(user?.access?.office_access && !user.access.technician_access){

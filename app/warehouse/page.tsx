@@ -1,4 +1,5 @@
 // Warehouse stock overview and audited stocktake/replenishment actions.
+import HelpPopover from '@/components/HelpPopover'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import WarehouseOpeningStockForm from '@/components/WarehouseOpeningStockForm'
@@ -48,12 +49,11 @@ export default async function WarehousePage({searchParams}:{searchParams?:{reque
   return (
     <div>
       <div className="topbar">
-        <h1 className="topbar-title">Warehouse Stock</h1>
+        <div className="flex items-center gap-2"><h1 className="topbar-title">Warehouse Stock</h1><HelpPopover title="Warehouse stock balances" href="/help#replenishment" steps={['Recorded quantity is the warehouse balance.','Committed stock has been issued to vans and is reserved until receipt is confirmed.','Available stock is the amount available for new issues.','Opening stock and replenishment are audited.']} /></div>
       </div>
       <div className="p-5">
         <section className="card mb-4">
-          <h2 className="text-sm font-semibold mb-2">Materials allocated to jobs — awaiting use or return</h2>
-          <p className="text-xs text-gray-500 mb-3">Office review: materials are no longer in van stock but have not yet been confirmed as used. Location and reason must be recorded.</p>
+          <div className="flex items-center justify-between gap-2 mb-2"><h2 className="text-sm font-semibold">Materials allocated to jobs — awaiting use or return</h2><HelpPopover title="Materials allocated to jobs — awaiting use or return" steps={["Materials have left van stock and await confirmation of use or return.", "Record the site location and reason for each allocation."]} href="/help#used" /></div>
           {!siteAllocations.length?<p className="text-sm text-gray-500">No outstanding on-site allocations.</p>:<div className="overflow-x-auto"><table className="w-full"><thead><tr>
             <th className="table-header">Job</th><th className="table-header">Material</th><th className="table-header">Quantity</th><th className="table-header">Van</th><th className="table-header">Location</th><th className="table-header">Reason</th><th className="table-header">Date</th>
           </tr></thead><tbody>{siteAllocations.map(a=><tr key={a.id}>
@@ -61,9 +61,7 @@ export default async function WarehousePage({searchParams}:{searchParams?:{reque
             <td className="table-cell">{companyVans.find(v=>v.id===a.van_id)?.van_number??'Unknown van'}</td><td className="table-cell">{a.site_location}</td><td className="table-cell">{a.reason}</td><td className="table-cell">{new Date(a.created_at).toLocaleDateString('en-AU',{timeZone:'Australia/Perth'})}</td>
           </tr>)}</tbody></table></div>}
         </section>
-        <div className="alert alert-info mb-4">
-          Warehouse stock shows recorded quantity, committed stock already issued to vans, and available stock for new issues. Issued goods remain committed until receiving confirmation. Opening stock and replenishment are audited.
-        </div>
+
         {overview.setupRequired ? (
           <div className="card">
             <h2 className="text-sm font-medium">Warehouse setup is pending</h2>
@@ -145,8 +143,7 @@ export default async function WarehousePage({searchParams}:{searchParams?:{reque
           packages={packages}
         />}
         {rights.canReceive && <section className="card mt-4">
-          <h2 className="text-sm font-semibold mb-2">Return stock from a van</h2>
-          <p className="text-xs text-gray-500 mb-3">Returns are recorded in one dedicated workflow. Choose the source van and destination warehouse explicitly; permission and stock checks apply before any movement.</p>
+          <div className="flex items-center justify-between gap-2 mb-2"><h2 className="text-sm font-semibold">Return stock from a van</h2><HelpPopover title="Return stock from a van" steps={["Choose the source van and destination warehouse.", "Check the physical quantity and reason before confirming the movement.", "Permission and stock checks apply."]} href="/help#returns" /></div>
           <Link href="/warehouse/returns" className="text-blue-700 font-semibold underline">Open Van → Warehouse returns</Link>
         </section>}
         {(rights.canAdjust || rights.canStocktake) && <WarehouseCorrections
